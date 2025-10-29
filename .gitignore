@@ -37,3 +37,6 @@ out/
 .vscode/
 
 .application-secret.yml
+
+# macOS system files
+.DS_Store

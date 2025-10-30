@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>Guardian Chat</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- SockJS + STOMP -->
+  <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/stompjs@2.3.3/lib/stomp.min.js"></script>
+  <style>
+    :root{
+      --bg:#0f172a;--panel:#111827;--panel2:#0b1220;--text:#e5e7eb;--muted:#9ca3af;--acc:#3b82f6;--mine:#1f6feb;--other:#374151;--ok:#10b981;--warn:#f59e0b;--err:#ef4444;
+      --radius:16px;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:linear-gradient(180deg,#0b1020,#0f172a);font:14px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Noto Sans KR, Apple SD Gothic Neo, sans-serif;color:var(--text);}
+    .app{display:grid;grid-template-columns:320px 1fr;height:100vh;overflow:hidden}
+    aside{background:linear-gradient(180deg,#0b1220,#0a0f1c);border-right:1px solid #1f2937;display:flex;flex-direction:column}
+    .brand{padding:16px 16px;border-bottom:1px solid #1f2937;display:flex;gap:8px;align-items:center}
+    .brand h1{font-size:16px;margin:0}
+    .pill{background:#0f1b33;border:1px solid #1e3a8a;padding:2px 8px;border-radius:999px;color:#93c5fd;font-weight:600}
+    .me{display:flex;gap:8px;padding:12px 16px;border-bottom:1px solid #1f2937;align-items:center}
+    .me input{flex:1;background:#0c1426;border:1px solid #1f2937;border-radius:10px;color:var(--text);padding:8px 10px}
+    .threads{overflow:auto}
+    .th{padding:12px 12px;border-bottom:1px solid #1f2937;cursor:pointer;display:grid;grid-template-columns:1fr auto;gap:4px}
+    .th:hover{background:#0d1730}
+    .th .name{font-weight:700}
+    .th .snippet{color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px}
+    .th .time{color:#7aa2f7;font-size:12px}
+    .active{background:#0a1a33}
+    main{display:grid;grid-template-rows:auto 1fr auto}
+    header{display:flex;gap:12px;align-items:center;padding:12px 16px;border-bottom:1px solid #1f2937;background:linear-gradient(180deg,#0b1220,#0a0f1c)}
+    header .room{font-weight:700}
+    header .meta{color:var(--muted);font-size:12px}
+    .status{margin-left:auto;font-size:12px}
+    .status.ok{color:var(--ok)} .status.warn{color:var(--warn)} .status.err{color:var(--err)}
+    .msgs{padding:16px;overflow:auto;background:radial-gradient(1200px 600px at 10% -10%, rgba(59,130,246,.08), transparent), radial-gradient(1000px 500px at 110% -10%, rgba(16,185,129,.08), transparent)}
+    .bubble{max-width:74%;margin:6px 0;padding:10px 12px;border-radius:14px;position:relative;word-break:break-word}
+    .mine{margin-left:auto;background:linear-gradient(180deg,#1a5fff,#1448be);box-shadow:0 8px 16px rgba(17, 80, 203, .25)}
+    .other{background:#1f2937;border:1px solid #2a3648}
+    .metaRow{display:flex;gap:8px;align-items:center;margin-top:4px;color:var(--muted);font-size:12px}
+    .composer{display:flex;gap:8px;padding:12px;border-top:1px solid #1f2937;background:linear-gradient(180deg,#0b1220,#0a0f1c)}
+    .composer input{flex:1;padding:12px 14px;border-radius:999px;border:1px solid #1f2937;background:#0c1426;color:var(--text)}
+    .composer button{padding:10px 16px;border-radius:999px;border:0;background:linear-gradient(180deg,#2563eb,#1d4ed8);color:white;font-weight:700;cursor:pointer}
+    .toolbar{display:flex;gap:8px}
+    .toolbar input{width:110px;padding:6px 8px;border-radius:8px;border:1px solid #334155;background:#0c1426;color:var(--text)}
+    .hint{color:var(--muted);font-size:12px;padding-left:4px}
+    .empty{color:var(--muted);text-align:center;padding:24px}
+  </style>
+</head>
+<body>
+<div class="app">
+  <aside>
+    <div class="brand">
+      <span class="pill">GUARDIAN</span><h1>채팅</h1>
+    </div>
+    <div class="me">
+      <input id="meId" type="number" placeholder="내 사용자 ID (예: 1)" />
+    </div>
+    <div class="threads" id="threads"></div>
+  </aside>
+
+  <main>
+    <header>
+      <div>
+        <div class="room" id="roomTitle">채팅방 미선택</div>
+        <div class="meta" id="roomMeta">좌측에서 스레드를 선택하세요</div>
+      </div>
+      <div class="toolbar">
+        <input id="clientId" type="number" placeholder="clientId" />
+        <input id="providerId" type="number" placeholder="providerId" />
+        <button id="btnOpen">방 생성/획득</button>
+      </div>
+      <div id="net" class="status warn">WS 연결 안 됨</div>
+    </header>
+
+    <div class="msgs" id="msgs"><div class="empty">메시지가 없습니다.</div></div>
+
+    <div class="composer">
+      <input id="msg" placeholder="메시지를 입력하세요 (Enter 전송)" />
+      <button id="btnSend">Send</button>
+    </div>
+  </main>
+</div>
+
+<script>
+  // === 기본 설정 ===
+  const API = ''; // 같은 오리진이면 빈 문자열
+  const ENDPOINTS = {
+    threads: (userId) => `${API}/api/chat/threads?userId=${encodeURIComponent(userId)}`,
+    messages: (roomId) => `${API}/api/chat/rooms/${roomId}/messages`,
+    send: (roomId) => `${API}/api/chat/rooms/${roomId}/messages`,
+    read: (roomId, userId) => `${API}/api/chat/rooms/${roomId}/read?userId=${encodeURIComponent(userId)}`,
+    openRoom: () => `${API}/api/chat/rooms`,
+  };
+
+  const meIdEl = document.getElementById('meId');
+  const threadsEl = document.getElementById('threads');
+  const msgsEl = document.getElementById('msgs');
+  const msgEl = document.getElementById('msg');
+  const roomTitleEl = document.getElementById('roomTitle');
+  const roomMetaEl = document.getElementById('roomMeta');
+  const netEl = document.getElementById('net');
+  const btnOpen = document.getElementById('btnOpen');
+  const clientIdEl = document.getElementById('clientId');
+  const providerIdEl = document.getElementById('providerId');
+  const btnSend = document.getElementById('btnSend');
+
+  let stompClient = null;
+  let currentRoomId = null;
+  let isAutoScroll = true;
+
+  // 시간 포맷
+  const fmt = (iso) => {
+    if (!iso) return '';
+    const d = new Date(iso);
+    const yy = d.getFullYear().toString().slice(-2);
+    const mm = String(d.getMonth()+1).padStart(2,'0');
+    const dd = String(d.getDate()).padStart(2,'0');
+    const hh = String(d.getHours()).padStart(2,'0');
+    const mi = String(d.getMinutes()).padStart(2,'0');
+    return `${yy}/${mm}/${dd} ${hh}:${mi}`;
+  };
+
+  // 스크롤 자동여부 판단
+  const ensureAutoScroll = () => {
+    const nearBottom = msgsEl.scrollHeight - msgsEl.scrollTop - msgsEl.clientHeight < 80;
+    isAutoScroll = nearBottom;
+  };
+  const scrollToBottom = () => {
+    if (isAutoScroll) msgsEl.scrollTo({top: msgsEl.scrollHeight, behavior: 'smooth'});
+  };
+
+  // 메시지 버블 렌더
+  const renderMsg = (m, mine) => {
+    const wrap = document.createElement('div');
+    wrap.className = `bubble ${mine ? 'mine':'other'}`;
+    wrap.innerHTML = `
+      <div>${escapeHtml(m.content ?? '')}</div>
+      <div class="metaRow">
+        <span>${m.messageType ?? 'TEXT'}</span>
+        <span>·</span>
+        <span>${fmt(m.sentAt)}</span>
+        ${m.senderId ? `<span>·</span><span>#${m.senderId}</span>`:''}
+      </div>
+    `;
+    msgsEl.appendChild(wrap);
+  };
+
+  const escapeHtml = (s) => (s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+  // 스레드 목록 렌더
+  const renderThreads = (list, meId) => {
+    threadsEl.innerHTML = '';
+    list.sort((a,b)=> new Date(b.lastMessageAt||0) - new Date(a.lastMessageAt||0));
+    list.forEach(t => {
+      const item = document.createElement('div');
+      item.className = 'th';
+      item.dataset.roomId = t.roomId;
+      item.innerHTML = `
+        <div>
+          <div class="name">Room #${t.roomId} (${t.clientId}↔${t.providerId})</div>
+          <div class="snippet">${escapeHtml(t.lastMessageSnippet || '')}</div>
+        </div>
+        <div class="time">${fmt(t.lastMessageAt)}</div>
+      `;
+      item.addEventListener('click', () => selectThread(t.roomId, meId));
+      threadsEl.appendChild(item);
+    });
+  };
+
+  // 스레드 목록 로드
+  async function loadThreads(meId){
+    const r = await fetch(ENDPOINTS.threads(meId));
+    if(!r.ok){ throw new Error('threads load failed'); }
+    const data = await r.json();
+    renderThreads(data, meId);
+  }
+
+  // 메시지 로드
+  async function loadMessages(roomId){
+    const r = await fetch(ENDPOINTS.messages(roomId));
+    if(!r.ok){ throw new Error('messages load failed'); }
+    return await r.json();
+  }
+
+  // 읽음 처리
+  async function markRead(roomId, meId){
+    try{
+      await fetch(ENDPOINTS.read(roomId, meId), {method:'POST'});
+    }catch(_){}
+  }
+
+  // 방 선택
+  async function selectThread(roomId, meId){
+    currentRoomId = roomId;
+    Array.from(document.querySelectorAll('.th')).forEach(n => n.classList.toggle('active', Number(n.dataset.roomId)===roomId));
+    roomTitleEl.textContent = `Room #${roomId}`;
+    roomMetaEl.textContent = `내 ID: ${meId} · 실시간 수신 중`;
+    msgsEl.innerHTML = '';
+
+    ensureAutoScroll();
+    try{
+      const list = await loadMessages(roomId);
+      if(list.length === 0){
+        msgsEl.innerHTML = `<div class="empty">메시지가 없습니다.</div>`;
+      }else{
+        msgsEl.innerHTML = '';
+        list.forEach(m => renderMsg(m, m.senderId === Number(meId)));
+      }
+      scrollToBottom();
+      await markRead(roomId, meId);
+      wsSubscribe(roomId); // 구독 전환
+    }catch(e){
+      msgsEl.innerHTML = `<div class="empty">메시지 로드 실패</div>`;
+    }
+  }
+
+  // WS 연결/구독
+  function wsConnect(){
+    const sock = new SockJS('/ws');
+    stompClient = Stomp.over(sock);
+    stompClient.debug = null; // 로그 지우려면
+    stompClient.connect({}, () => {
+      netEl.textContent = 'WS 연결됨'; netEl.className='status ok';
+      if(currentRoomId) wsSubscribe(currentRoomId);
+    }, () => {
+      netEl.textContent = 'WS 연결 끊김'; netEl.className='status err';
+    });
+  }
+  function wsSubscribe(roomId){
+    if(!stompClient || !stompClient.connected) return;
+    // 기존 구독 해제
+    if(wsSubscribe.sub){ wsSubscribe.sub.unsubscribe(); }
+    wsSubscribe.sub = stompClient.subscribe(`/topic/room/${roomId}`, (frame) => {
+      const m = JSON.parse(frame.body);
+      const mine = m.senderId === Number(meIdEl.value || 0);
+      const wasBottom = isAutoScroll;
+      renderMsg(m, mine);
+      if(wasBottom) scrollToBottom();
+    });
+  }
+
+  // 전송
+  async function send(){
+    const meId = Number(meIdEl.value || 0);
+    if(!meId){ alert('내 사용자 ID를 입력하세요'); return; }
+    if(!currentRoomId){ alert('방을 먼저 선택하세요'); return; }
+    const content = msgEl.value.trim();
+    if(!content) return;
+
+    const payload = {
+      roomId: currentRoomId,
+      senderId: meId,
+      content,
+      messageType: "TEXT",
+      fileUrl: null
+    };
+
+    // REST로 전송(서버가 브로드캐스트도 해줌)
+    const r = await fetch(ENDPOINTS.send(currentRoomId), {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(payload)
+    });
+    if(!r.ok){ alert('전송 실패'); return; }
+    msgEl.value = '';
+    // 읽음 처리 갱신
+    markRead(currentRoomId, meId).catch(()=>{});
+  }
+
+  // 방 생성/획득
+  async function openRoom(){
+    const clientId = Number(clientIdEl.value || 0);
+    const providerId = Number(providerIdEl.value || 0);
+    if(!clientId || !providerId){ alert('clientId / providerId 입력'); return; }
+    const r = await fetch(ENDPOINTS.openRoom(), {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({clientId, providerId})
+    });
+    if(!r.ok){ alert('방 생성 실패'); return; }
+    const room = await r.json(); // ChatThreadResponse
+    await loadThreads(Number(meIdEl.value || 0));
+    await selectThread(room.roomId, Number(meIdEl.value || 0));
+  }
+
+  // 이벤트 바인딩
+  btnSend.addEventListener('click', send);
+  msgEl.addEventListener('keydown', e => { if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); send(); }});
+  btnOpen.addEventListener('click', openRoom);
+  msgsEl.addEventListener('scroll', ensureAutoScroll);
+  meIdEl.addEventListener('change', () => loadThreads(Number(meIdEl.value || 0)).catch(()=>{}));
+
+  // 초기화
+  (function init(){
+    wsConnect();
+    // 편의: 기본 meId = 1
+    meIdEl.value = meIdEl.value || '1';
+    loadThreads(Number(meIdEl.value || 0)).catch(()=>{});
+  })();
+</script>
+</body>
+</html>

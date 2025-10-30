@@ -1,57 +1,18 @@
-[00:00:01.764] Server  LOG      ✓ Ready in 1564ms
-[00:00:08.754] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
-[00:24:50.345] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
-[00:24:51.142] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
-[00:24:51.777] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
-[00:24:52.136] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
-[00:24:52.325] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
-[00:24:52.502] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
-[00:24:52.683] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
-[00:24:52.875] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
-[00:24:53.030] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
-[00:24:53.215] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
-[00:24:53.335] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
-[00:24:53.485] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
-[00:24:53.637] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
-[00:24:53.796] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
-[00:24:53.922] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
-[00:24:54.056] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
-[00:24:54.223] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
-[00:24:54.394] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
-[00:24:54.537] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
-[00:24:54.689] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
-[00:24:54.857] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
-[00:24:55.018] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
-[00:24:55.186] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
-[00:24:55.351] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
-[00:24:55.521] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
-[00:24:55.661] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
-[00:24:55.828] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
-[00:24:55.993] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
-[00:24:56.200] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
-[00:24:56.351] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
-[00:24:56.536] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
-[00:24:56.700] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
-[00:24:56.884] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
-[00:24:57.075] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
-[00:24:57.267] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
-[00:35:16.566] Server  LOG      ✓ Compiled in 251ms
-[00:38:00.671] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
-[00:50:13.445] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
-[00:51:19.352] Server  LOG      ✓ Compiled in 105ms
-[00:53:14.003] Server  ERROR   Error: ENOENT: no such file or directory, scandir '/Users/hwangjeongseong/java/Teamprj-Guardian-/frontapp/app'
-[00:53:14.007] Server  ERROR    ⨯ "unhandledRejection:" Error: ENOENT: no such file or directory, scandir '/Users/hwangjeongseong/java/Teamprj-Guardian-/frontapp/app'
-[00:53:14.011] Server  ERROR    ⨯ "unhandledRejection: " Error: ENOENT: no such file or directory, scandir '/Users/hwangjeongseong/java/Teamprj-Guardian-/frontapp/app'
-[00:53:14.086] Server  LOG      ✓ Compiled in 241ms
-[00:53:14.092] Server  ERROR   Error: ENOENT: no such file or directory, scandir '/Users/hwangjeongseong/java/Teamprj-Guardian-/frontapp/app'
-[00:53:14.096] Server  ERROR   Error: ENOENT: no such file or directory, scandir '/Users/hwangjeongseong/java/Teamprj-Guardian-/frontapp/app'
-[00:53:14.107] Server  ERROR   Error: ENOENT: no such file or directory, scandir '/Users/hwangjeongseong/java/Teamprj-Guardian-/frontapp/app'
-[00:53:14.108] Server  ERROR   Error: ENOENT: no such file or directory, scandir '/Users/hwangjeongseong/java/Teamprj-Guardian-/frontapp/app'
-[00:53:14.127] Server  ERROR   Error: ENOENT: no such file or directory, scandir '/Users/hwangjeongseong/java/Teamprj-Guardian-/frontapp/app'
-[00:53:14.129] Server  ERROR   Error: ENOENT: no such file or directory, scandir '/Users/hwangjeongseong/java/Teamprj-Guardian-/frontapp/app'
-[00:53:14.137] Server  ERROR   Error: ENOENT: no such file or directory, scandir '/Users/hwangjeongseong/java/Teamprj-Guardian-/frontapp/app'
-[00:53:14.140] Server  ERROR   Error: ENOENT: no such file or directory, scandir '/Users/hwangjeongseong/java/Teamprj-Guardian-/frontapp/app'
-[00:53:14.175] Server  ERROR   Error: ENOENT: no such file or directory, scandir '/Users/hwangjeongseong/java/Teamprj-Guardian-/frontapp/app'
-[00:53:14.180] Server  ERROR   Error: ENOENT: no such file or directory, scandir '/Users/hwangjeongseong/java/Teamprj-Guardian-/frontapp/app'
-[00:53:14.273] Server  ERROR   Error: ENOENT: no such file or directory, scandir '/Users/hwangjeongseong/java/Teamprj-Guardian-/frontapp/app'
-[00:53:14.276] Server  ERROR   Error: ENOENT: no such file or directory, scandir '/Users/hwangjeongseong/java/Teamprj-Guardian-/frontapp/app'
+[00:00:01.254] Server  LOG      ✓ Ready in 753ms
+[00:00:36.380] Server  ERROR   Error: ENOENT: no such file or directory, scandir '/Users/hwangjeongseong/java/Teamprj-Guardian-/frontapp/app'
+[00:00:36.389] Server  ERROR    ⨯ "unhandledRejection:" Error: ENOENT: no such file or directory, scandir '/Users/hwangjeongseong/java/Teamprj-Guardian-/frontapp/app'
+[00:00:36.393] Server  ERROR    ⨯ "unhandledRejection: " Error: ENOENT: no such file or directory, scandir '/Users/hwangjeongseong/java/Teamprj-Guardian-/frontapp/app'
+[00:13:59.323] Server  ERROR   Error: ENOENT: no such file or directory, scandir '/Users/hwangjeongseong/java/Teamprj-Guardian-/frontapp/app'
+[00:13:59.325] Server  ERROR   Error: ENOENT: no such file or directory, scandir '/Users/hwangjeongseong/java/Teamprj-Guardian-/frontapp/app'
+[00:14:00.215] Server  ERROR   Error: ENOENT: no such file or directory, scandir '/Users/hwangjeongseong/java/Teamprj-Guardian-/frontapp/app'
+[00:14:00.221] Server  ERROR   Error: ENOENT: no such file or directory, scandir '/Users/hwangjeongseong/java/Teamprj-Guardian-/frontapp/app'
+[00:14:16.661] Server  ERROR   Error: ENOENT: no such file or directory, scandir '/Users/hwangjeongseong/java/Teamprj-Guardian-/frontapp/app'
+[00:14:16.665] Server  ERROR   Error: ENOENT: no such file or directory, scandir '/Users/hwangjeongseong/java/Teamprj-Guardian-/frontapp/app'
+[00:14:16.989] Server  ERROR   Error: ENOENT: no such file or directory, scandir '/Users/hwangjeongseong/java/Teamprj-Guardian-/frontapp/app'
+[00:14:16.992] Server  ERROR   Error: ENOENT: no such file or directory, scandir '/Users/hwangjeongseong/java/Teamprj-Guardian-/frontapp/app'
+[00:14:17.120] Server  ERROR   Error: ENOENT: no such file or directory, scandir '/Users/hwangjeongseong/java/Teamprj-Guardian-/frontapp/app'
+[00:14:17.124] Server  ERROR   Error: ENOENT: no such file or directory, scandir '/Users/hwangjeongseong/java/Teamprj-Guardian-/frontapp/app'
+[00:14:34.753] Server  ERROR   Error: ENOENT: no such file or directory, scandir '/Users/hwangjeongseong/java/Teamprj-Guardian-/frontapp/app'
+[00:14:34.758] Server  ERROR   Error: ENOENT: no such file or directory, scandir '/Users/hwangjeongseong/java/Teamprj-Guardian-/frontapp/app'
+[00:14:35.649] Server  ERROR   Error: ENOENT: no such file or directory, scandir '/Users/hwangjeongseong/java/Teamprj-Guardian-/frontapp/app'
+[00:14:35.653] Server  ERROR   Error: ENOENT: no such file or directory, scandir '/Users/hwangjeongseong/java/Teamprj-Guardian-/frontapp/app'

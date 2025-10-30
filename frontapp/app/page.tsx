@@ -1,5 +1,6 @@
 'use client';
 
+import { useRouter } from "next/navigation";
 import { FormEvent, useMemo, useState } from "react";
 
 const API_BASE_URL =
@@ -29,8 +30,8 @@ type RegisterSuccessPayload = {
 };
 
 const roleLabels: Record<UserRoleOption, string> = {
-  CLIENT: "보호자",
-  PROVIDER: "서비스 제공자",
+  CLIENT: "환자",
+  PROVIDER: "환자관리인",
 };
 
 async function extractErrorMessage(response: Response) {
@@ -50,6 +51,7 @@ async function extractErrorMessage(response: Response) {
 }
 
 export default function Home() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<AuthMode>("login");
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
@@ -106,18 +108,16 @@ export default function Home() {
         window.localStorage.setItem("accessToken", payload.accessToken);
         window.localStorage.setItem("refreshToken", payload.refreshToken);
         window.localStorage.setItem("userRole", payload.role);
+        window.localStorage.setItem("userId", String(payload.userId));
+        window.localStorage.setItem("userEmail", loginEmail);
       }
 
-      const welcomeMessage = [
-        "로그인에 성공했습니다.",
-        payload.redirectPath
-          ? `이동 경로: ${payload.redirectPath}`
-          : undefined,
-      ]
-        .filter(Boolean)
-        .join("\n");
+      if (payload.redirectPath) {
+        router.push(payload.redirectPath);
+        return;
+      }
 
-      setLoginMessage(welcomeMessage);
+      setLoginMessage("로그인에 성공했습니다.");
     } catch (error) {
       setLoginError("서버에 연결할 수 없습니다. 네트워크 상태를 확인해주세요.");
     } finally {

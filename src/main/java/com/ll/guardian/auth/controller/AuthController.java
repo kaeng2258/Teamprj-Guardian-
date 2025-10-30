@@ -1,14 +1,12 @@
 package com.ll.guardian.auth.controller;
 
-import com.ll.guardian.auth.dto.LoginRequest;
-import com.ll.guardian.auth.dto.LoginResponse;
+import com.ll.guardian.domain.user.dto.LoginRequest;
+import com.ll.guardian.domain.user.dto.LoginResponse;
+import com.ll.guardian.domain.user.dto.RefreshTokenRequest;
+import com.ll.guardian.domain.user.dto.RefreshTokenResponse;
+import com.ll.guardian.domain.user.service.AuthService;
 import jakarta.validation.Valid;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -18,22 +16,21 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/auth")
 public class AuthController {
 
-    private final AuthenticationManager authenticationManager;
+    private final AuthService authService;
 
-    public AuthController(AuthenticationManager authenticationManager) {
-        this.authenticationManager = authenticationManager;
+    public AuthController(AuthService authService) {
+        this.authService = authService;
     }
 
     @PostMapping("/login")
     public ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest request) {
-        try {
-            Authentication authentication = authenticationManager.authenticate(
-                    new UsernamePasswordAuthenticationToken(request.username(), request.password())
-            );
+        LoginResponse response = authService.login(request);
+        return ResponseEntity.ok(response);
+    }
 
-            return ResponseEntity.ok(LoginResponse.success(authentication.getName()));
-        } catch (AuthenticationException e) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(LoginResponse.failure());
-        }
+    @PostMapping("/refresh")
+    public ResponseEntity<RefreshTokenResponse> refresh(@Valid @RequestBody RefreshTokenRequest request) {
+        RefreshTokenResponse response = authService.refresh(request);
+        return ResponseEntity.ok(response);
     }
 }

@@ -4,6 +4,7 @@ import com.ll.guardian.domain.auth.entity.RefreshToken;
 import com.ll.guardian.domain.auth.repository.RefreshTokenRepository;
 import com.ll.guardian.domain.user.entity.User;
 import com.ll.guardian.global.exception.GuardianException;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -19,12 +20,12 @@ public class RefreshTokenService {
         this.refreshTokenRepository = refreshTokenRepository;
     }
 
-    public RefreshToken issue(User user, String token, long validitySeconds) {
+    public RefreshToken issue(User user, String token, Duration validity) {
         refreshTokenRepository.deleteByUserId(user.getId());
         RefreshToken refreshToken = RefreshToken.builder()
                 .user(user)
                 .token(token)
-                .expiresAt(LocalDateTime.now().plusSeconds(validitySeconds))
+                .expiresAt(LocalDateTime.now().plus(validity))
                 .build();
         return refreshTokenRepository.save(refreshToken);
     }

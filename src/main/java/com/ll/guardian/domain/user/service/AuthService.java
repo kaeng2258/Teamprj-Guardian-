@@ -12,6 +12,7 @@ import com.ll.guardian.domain.user.entity.User;
 import com.ll.guardian.domain.user.repository.UserRepository;
 import com.ll.guardian.global.auth.JwtTokenProvider;
 import com.ll.guardian.global.exception.GuardianException;
+import java.time.Duration;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -26,14 +27,14 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
     private final RefreshTokenService refreshTokenService;
-    private final long refreshTokenValidity;
+    private final Duration refreshTokenValidity;
 
     public AuthService(
             UserRepository userRepository,
             PasswordEncoder passwordEncoder,
             JwtTokenProvider jwtTokenProvider,
             RefreshTokenService refreshTokenService,
-            @Value("${jwt.refresh-token-validity}") long refreshTokenValidity) {
+            @Value("${jwt.refresh-token-validity}") Duration refreshTokenValidity) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtTokenProvider = jwtTokenProvider;

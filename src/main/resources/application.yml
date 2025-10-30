@@ -1,1 +1,33 @@
-spring.application.name=guardian
+spring:
+  profiles:
+    active: dev
+    include: secret
+  datasource:
+    url: jdbc:h2:mem:guardian;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        show_sql: true
+        format_sql: true
+        use_sql_comments: true
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+      settings:
+        web-allow-others: true
+jwt:
+  secret: ${JWT_SECRET:change-me}
+  access-token-validity: 1800
+  refresh-token-validity: 1209600
+logging:
+  level:
+    root: INFO
+    com.guardian.guardian: DEBUG
+    org.hibernate.orm.jdbc.bind: TRACE
+    org.hibernate.orm.jdbc.extract: TRACE

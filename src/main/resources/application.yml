@@ -1,3 +1,12 @@
+
+server:
+  port: 8081           # 8443 쓰고 싶으면 바꾸세요
+  ssl:
+    enabled: true
+    key-store: classpath:keystore.p12
+    key-store-password: changeit
+    key-store-type: PKCS12
+
 spring:
   profiles:
     active: dev

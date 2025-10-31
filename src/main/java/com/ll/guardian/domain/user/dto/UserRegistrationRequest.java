@@ -14,5 +14,8 @@ public record UserRegistrationRequest(
                         message = "비밀번호는 8자 이상이며 영문과 숫자를 포함해야 합니다.")
                 String password,
         @NotBlank(message = "이름을 입력해주세요.") String name,
+        @NotBlank(message = "우편번호를 입력해주세요.") String zipCode,
+        @NotBlank(message = "주소를 입력해주세요.") String address,
+        String detailAddress,
         boolean termsAgreed,
         boolean privacyAgreed) {}

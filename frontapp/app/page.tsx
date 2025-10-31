@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
 import { useRouter } from "next/navigation";
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8090";
@@ -29,10 +29,28 @@ type RegisterSuccessPayload = {
   status: string;
 };
 
+type DaumPostcodeData = {
+  zonecode: string;
+  roadAddress: string;
+  jibunAddress: string;
+  buildingName?: string;
+  apartment?: "Y" | "N";
+};
+
 const roleLabels: Record<UserRoleOption, string> = {
   CLIENT: "환자",
   PROVIDER: "환자관리인",
 };
+
+declare global {
+  interface Window {
+    daum?: {
+      Postcode: new (config: { oncomplete: (data: DaumPostcodeData) => void }) => {
+        open: () => void;
+      };
+    };
+  }
+}
 
 async function extractErrorMessage(response: Response) {
   try {
@@ -67,6 +85,14 @@ export default function Home() {
   const [registerTermsAgreed, setRegisterTermsAgreed] = useState(false);
   const [registerPrivacyAgreed, setRegisterPrivacyAgreed] = useState(false);
   const [registerMessage, setRegisterMessage] = useState("");
+  const [emailCheckStatus, setEmailCheckStatus] = useState<
+    "idle" | "checking" | "available" | "unavailable"
+  >("idle");
+  const [emailCheckMessage, setEmailCheckMessage] = useState("");
+  const [checkedEmail, setCheckedEmail] = useState("");
+  const [registerZipCode, setRegisterZipCode] = useState("");
+  const [registerAddress, setRegisterAddress] = useState("");
+  const [registerDetailAddress, setRegisterDetailAddress] = useState("");
   const [registerError, setRegisterError] = useState("");
   const [registerLoading, setRegisterLoading] = useState(false);
 
@@ -78,6 +104,23 @@ export default function Home() {
     }),
     []
   );
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const existing = document.getElementById("daum-postcode-script");
+    if (existing) {
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.id = "daum-postcode-script";
+    script.src = "https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js";
+    script.async = true;
+    document.body.appendChild(script);
+  }, []);
 
   const handleLoginSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -135,6 +178,16 @@ export default function Home() {
       return;
     }
 
+    if (emailCheckStatus !== "available" || checkedEmail !== registerEmail) {
+      setRegisterError("이메일 중복 확인을 완료해주세요.");
+      return;
+    }
+
+    if (!registerZipCode || !registerAddress) {
+      setRegisterError("주소를 검색하여 선택해주세요.");
+      return;
+    }
+
     if (!registerTermsAgreed || !registerPrivacyAgreed) {
       setRegisterError("이용약관과 개인정보 처리방침에 모두 동의해야 합니다.");
       return;
@@ -153,6 +206,9 @@ export default function Home() {
           email: registerEmail,
           password: registerPassword,
           name: registerName,
+          zipCode: registerZipCode,
+          address: registerAddress,
+          detailAddress: registerDetailAddress,
           termsAgreed: registerTermsAgreed,
           privacyAgreed: registerPrivacyAgreed,
         }),
@@ -168,12 +224,73 @@ export default function Home() {
       setRegisterMessage(`${payload.name}님, 가입이 완료되었습니다. 로그인 해주세요.`);
       setLoginEmail(payload.email);
       setActiveTab("login");
+      setRegisterZipCode("");
+      setRegisterAddress("");
+      setRegisterDetailAddress("");
       setRegisterPassword("");
       setRegisterConfirmPassword("");
+      setEmailCheckStatus("idle");
+      setEmailCheckMessage("");
+      setCheckedEmail("");
     } catch (error) {
       setRegisterError("서버에 연결할 수 없습니다. 잠시 후 다시 시도해주세요.");
     } finally {
       setRegisterLoading(false);
+    }
+  };
+
+  const handleAddressSearch = () => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    if (!window.daum || !window.daum.Postcode) {
+      alert("주소 검색 스크립트를 불러오는 중입니다. 잠시 후 다시 시도해주세요.");
+      return;
+    }
+
+    new window.daum.Postcode({
+      oncomplete: (data: DaumPostcodeData) => {
+        setRegisterZipCode(data.zonecode ?? "");
+        const fullAddress = data.roadAddress || data.jibunAddress || "";
+        setRegisterAddress(fullAddress);
+
+        const suggestedDetail =
+          data.apartment === "Y" && data.buildingName ? data.buildingName : "";
+        setRegisterDetailAddress(suggestedDetail);
+      },
+    }).open();
+  };
+
+  const handleEmailCheck = async () => {
+    if (!registerEmail) {
+      setEmailCheckStatus("unavailable");
+      setEmailCheckMessage("이메일을 입력한 뒤 다시 시도해주세요.");
+      return;
+    }
+
+    setEmailCheckStatus("checking");
+    setEmailCheckMessage("");
+
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/users/check-email?email=${encodeURIComponent(registerEmail)}`
+      );
+
+      if (!response.ok) {
+        const errorMessage = await extractErrorMessage(response);
+        setEmailCheckStatus("unavailable");
+        setEmailCheckMessage(errorMessage);
+        return;
+      }
+
+      const data: { available: boolean; message: string } = await response.json();
+      setCheckedEmail(registerEmail);
+      setEmailCheckStatus(data.available ? "available" : "unavailable");
+      setEmailCheckMessage(data.message);
+    } catch (error) {
+      setEmailCheckStatus("unavailable");
+      setEmailCheckMessage("이메일 중복 확인 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
     }
   };
 
@@ -280,16 +397,42 @@ export default function Home() {
             </label>
             <label className="flex flex-col gap-1">
               <span className="text-sm text-gray-600">이메일</span>
-              <input
-                aria-label="회원가입 이메일"
-                autoComplete="email"
-                className="rounded-md border border-gray-300 px-3 py-2 focus:border-black focus:outline-none"
-                onChange={(event) => setRegisterEmail(event.target.value)}
-                placeholder="you@example.com"
-                required
-                type="email"
-                value={registerEmail}
-              />
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <input
+                  aria-label="회원가입 이메일"
+                  autoComplete="email"
+                  className="flex-1 rounded-md border border-gray-300 px-3 py-2 focus:border-black focus:outline-none"
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    setRegisterEmail(value);
+                    if (value !== checkedEmail) {
+                      setEmailCheckStatus("idle");
+                      setEmailCheckMessage("");
+                    }
+                  }}
+                  placeholder="you@example.com"
+                  required
+                  type="email"
+                  value={registerEmail}
+                />
+                <button
+                  className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-700 transition hover:border-black disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={emailCheckStatus === "checking" || !registerEmail}
+                  onClick={handleEmailCheck}
+                  type="button"
+                >
+                  {emailCheckStatus === "checking" ? "확인 중..." : "중복 확인"}
+                </button>
+              </div>
+              {emailCheckMessage && (
+                <p
+                  className={`text-sm ${
+                    emailCheckStatus === "available" ? "text-green-600" : "text-red-600"
+                  }`}
+                >
+                  {emailCheckMessage}
+                </p>
+              )}
             </label>
             <div className="grid gap-4 md:grid-cols-2">
               <label className="flex flex-col gap-1">
@@ -361,6 +504,42 @@ export default function Home() {
               />
               <span>개인정보 처리방침(필수)에 동의합니다.</span>
             </label>
+
+            <div className="flex flex-col gap-2">
+              <span className="text-sm text-gray-600">주소</span>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <input
+                  aria-label="우편번호"
+                  className="flex-1 rounded-md border border-gray-300 px-3 py-2 focus:border-black focus:outline-none sm:max-w-[180px]"
+                  placeholder="우편번호"
+                  readOnly
+                  required
+                  value={registerZipCode}
+                />
+                <button
+                  className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-700 transition hover:border-black"
+                  onClick={handleAddressSearch}
+                  type="button"
+                >
+                  주소 검색
+                </button>
+              </div>
+              <input
+                aria-label="기본 주소"
+                className="rounded-md border border-gray-300 px-3 py-2 focus:border-black focus:outline-none"
+                placeholder="기본 주소"
+                readOnly
+                required
+                value={registerAddress}
+              />
+              <input
+                aria-label="상세 주소"
+                className="rounded-md border border-gray-300 px-3 py-2 focus:border-black focus:outline-none"
+                onChange={(event) => setRegisterDetailAddress(event.target.value)}
+                placeholder="상세 주소를 입력하세요"
+                value={registerDetailAddress}
+              />
+            </div>
 
             <button
               className="rounded-md bg-black px-4 py-2 text-white transition hover:bg-gray-800 disabled:opacity-50"

@@ -1,5 +1,11 @@
 server:
-  port: 8081
+  port: 8081           # 8443 쓰고 싶으면 바꾸세요
+  ssl:
+    enabled: true
+    key-store: classpath:keystore.p12
+    key-store-password: changeit
+    key-store-type: PKCS12
+
 spring:
   datasource:
     url: jdbc:mariadb://localhost:3306/guardian?useUnicode=true&characterEncoding=utf8mb4

@@ -2,115 +2,189 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <title>Guardian Chat</title>
+  <title>Guardian Chat + WebRTC (Equal Videos · Right Chat)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <!-- SockJS + STOMP -->
   <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/stompjs@2.3.3/lib/stomp.min.js"></script>
   <style>
     :root{
-      --bg:#0f172a;--panel:#111827;--panel2:#0b1220;--text:#e5e7eb;--muted:#9ca3af;--acc:#3b82f6;--mine:#1f6feb;--other:#374151;--ok:#10b981;--warn:#f59e0b;--err:#ef4444;
-      --radius:16px;
+      --bg:#0b1020;--panel:#0b1220;--panel2:#0a0f1c;
+      --text:#e5e7eb;--muted:#9ca3af;--ok:#10b981;--warn:#f59e0b;--err:#ef4444;
+      --blue:#2563eb;--blue2:#1d4ed8;--gray:#6b7280;--gray2:#4b5563;--border:#1f2937;
     }
     *{box-sizing:border-box}
-    body{margin:0;background:linear-gradient(180deg,#0b1020,#0f172a);font:14px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Noto Sans KR, Apple SD Gothic Neo, sans-serif;color:var(--text);}
-    .app{display:grid;grid-template-columns:320px 1fr;height:100vh;overflow:hidden}
-    aside{background:linear-gradient(180deg,#0b1220,#0a0f1c);border-right:1px solid #1f2937;display:flex;flex-direction:column}
-    .brand{padding:16px 16px;border-bottom:1px solid #1f2937;display:flex;gap:8px;align-items:center}
-    .brand h1{font-size:16px;margin:0}
-    .pill{background:#0f1b33;border:1px solid #1e3a8a;padding:2px 8px;border-radius:999px;color:#93c5fd;font-weight:600}
-    .me{display:flex;gap:8px;padding:12px 16px;border-bottom:1px solid #1f2937;align-items:center}
-    .me input{flex:1;background:#0c1426;border:1px solid #1f2937;border-radius:10px;color:var(--text);padding:8px 10px}
-    .threads{overflow:auto}
-    .th{padding:12px 12px;border-bottom:1px solid #1f2937;cursor:pointer;display:grid;grid-template-columns:1fr auto;gap:4px}
-    .th:hover{background:#0d1730}
+    html,body{height:100%; overflow:hidden;} /* 페이지 전체 스크롤 금지 */
+    body{margin:0;background:linear-gradient(180deg,#0b1020,#0f172a);color:var(--text);font:14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,Noto Sans KR,Apple SD Gothic Neo,sans-serif}
+
+    /* 전체 레이아웃: 좌(영상) 60% / 우(채팅) 40% */
+    .shell{height:100vh;display:grid;grid-template-columns:3fr 2fr;gap:12px;padding:12px;overflow:hidden}
+
+    /* 좌측: 영상 영역 */
+    .left{display:grid;grid-template-rows:auto 1fr;gap:12px;min-width:0;overflow:hidden}
+    .avbar{display:flex;gap:8px;align-items:center;padding:8px 12px;background:linear-gradient(180deg,#0b1220,#0a0f1c);border:1px solid var(--border);border-radius:12px;flex-wrap:wrap}
+    .btn{padding:8px 12px;border-radius:10px;border:0;background:linear-gradient(180deg,var(--blue),var(--blue2));color:#fff;font-weight:700;cursor:pointer}
+    .btn.secondary{background:linear-gradient(180deg,var(--gray),var(--gray2))}
+    .hint{color:var(--muted);font-size:12px;margin-left:6px}
+    .videoPanel{display:grid;grid-template-rows:auto 1fr;gap:8px;background:linear-gradient(180deg,#0b1220,#0a0f1c);border:1px solid var(--border);border-radius:12px;padding:10px;min-height:0;overflow:hidden}
+    .videoGrid{
+      display:grid;
+      grid-template-rows:1fr 1fr; /* ✅ 두 영상 동일 비율(세로 쌓기) */
+      gap:8px;
+      min-height:0;
+      overflow:hidden;
+    }
+    .tile{position:relative;background:#000;border-radius:10px;overflow:hidden;border:1px solid var(--border);min-height:0}
+    .tile small{position:absolute;left:8px;top:6px;color:#cbd5e1;font-size:12px;background:rgba(0,0,0,.35);padding:2px 6px;border-radius:999px}
+    video{width:100%;height:100%;object-fit:contain;background:#000;display:block}
+
+    /* 우측: 채팅 + 스레드 (스크롤은 "채팅 박스"에만) */
+    .right{display:grid;grid-template-rows:auto auto 1fr auto;gap:10px;min-width:0;overflow:hidden}
+    .roomBar{display:flex;gap:10px;align-items:center;background:linear-gradient(180deg,#0b1220,#0a0f1c);border:1px solid var(--border);border-radius:12px;padding:10px 12px}
+    .toolbar{margin-left:auto;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+    .toolbar input{width:110px;padding:6px 8px;border-radius:8px;border:1px solid #334155;background:#0c1426;color:var(--text)}
+
+    .threads{background:linear-gradient(180deg,#0b1220,#0a0f1c);border:1px solid var(--border);border-radius:12px;padding:8px;max-height:180px;overflow:auto}
+    .th{padding:8px;border-radius:8px;cursor:pointer;border:1px solid transparent;display:grid;grid-template-columns:1fr auto;gap:6px}
+    .th:hover{background:#0d1730}.th.active{background:#0a1a33;border-color:#1e3a8a}
     .th .name{font-weight:700}
-    .th .snippet{color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px}
+    .th .snippet{color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:260px}
     .th .time{color:#7aa2f7;font-size:12px}
-    .active{background:#0a1a33}
-    main{display:grid;grid-template-rows:auto 1fr auto}
-    header{display:flex;gap:12px;align-items:center;padding:12px 16px;border-bottom:1px solid #1f2937;background:linear-gradient(180deg,#0b1220,#0a0f1c)}
-    header .room{font-weight:700}
-    header .meta{color:var(--muted);font-size:12px}
-    .status{margin-left:auto;font-size:12px}
-    .status.ok{color:var(--ok)} .status.warn{color:var(--warn)} .status.err{color:var(--err)}
-    .msgs{padding:16px;overflow:auto;background:radial-gradient(1200px 600px at 10% -10%, rgba(59,130,246,.08), transparent), radial-gradient(1000px 500px at 110% -10%, rgba(16,185,129,.08), transparent)}
-    .bubble{max-width:74%;margin:6px 0;padding:10px 12px;border-radius:14px;position:relative;word-break:break-word}
-    .mine{margin-left:auto;background:linear-gradient(180deg,#1a5fff,#1448be);box-shadow:0 8px 16px rgba(17, 80, 203, .25)}
+
+    .msgsWrap{
+      position:relative;
+      background:linear-gradient(180deg,#0b1220,#0a0f1c);
+      border:1px solid var(--border);
+      border-radius:12px;
+      min-height:0;
+      display:flex;
+      flex-direction:column;
+      overflow:hidden; /* ✅ 박스는 고정, 내부만 스크롤 */
+    }
+    .msgs{
+      flex:1;
+      overflow:auto; /* ✅ 채팅 박스만 스크롤 */
+      padding:12px;
+      min-height:0;
+    }
+    .empty{color:var(--muted);text-align:center;padding:24px}
+    .bubble{max-width:82%;margin:6px 0;padding:10px 12px;border-radius:14px;word-break:break-word}
+    .mine{margin-left:auto;background:linear-gradient(180deg,#1a5fff,#1448be)}
     .other{background:#1f2937;border:1px solid #2a3648}
     .metaRow{display:flex;gap:8px;align-items:center;margin-top:4px;color:var(--muted);font-size:12px}
-    .composer{display:flex;gap:8px;padding:12px;border-top:1px solid #1f2937;background:linear-gradient(180deg,#0b1220,#0a0f1c)}
+    .jump{position:absolute;right:12px;bottom:54px;padding:6px 10px;border-radius:999px;background:#111827;border:1px solid #334155;color:#cbd5e1;cursor:pointer;display:none}
+    .jump.show{display:block}
+
+    .composer{display:flex;gap:8px;align-items:center;padding:10px 12px;background:linear-gradient(180deg,#0b1220,#0a0f1c);border:1px solid var(--border);border-radius:12px}
     .composer input{flex:1;padding:12px 14px;border-radius:999px;border:1px solid #1f2937;background:#0c1426;color:var(--text)}
-    .composer button{padding:10px 16px;border-radius:999px;border:0;background:linear-gradient(180deg,#2563eb,#1d4ed8);color:white;font-weight:700;cursor:pointer}
-    .toolbar{display:flex;gap:8px}
-    .toolbar input{width:110px;padding:6px 8px;border-radius:8px;border:1px solid #334155;background:#0c1426;color:var(--text)}
-    .hint{color:var(--muted);font-size:12px;padding-left:4px}
-    .empty{color:var(--muted);text-align:center;padding:24px}
+
+    .status{font-size:12px}
+    .ok{color:var(--ok)} .warn{color:var(--warn)} .err{color:var(--err)}
   </style>
 </head>
 <body>
-<div class="app">
-  <aside>
-    <div class="brand">
-      <span class="pill">GUARDIAN</span><h1>채팅</h1>
-    </div>
-    <div class="me">
-      <input id="meId" type="number" placeholder="내 사용자 ID (예: 1)" />
-    </div>
-    <div class="threads" id="threads"></div>
-  </aside>
+<div class="shell">
 
-  <main>
-    <header>
+  <!-- 왼쪽: 영상 (두 타일 동일 비율) -->
+  <section class="left">
+    <div class="avbar">
+      <button class="btn" id="btnCam">카메라 켜기</button>
+      <button class="btn secondary" id="btnMic">마이크 켜기</button>
+      <button class="btn" id="btnShare">화면공유 시작</button>
+      <span class="hint">카메라만 켜면 자동 연결/송출됩니다.</span>
+    </div>
+
+    <div class="videoPanel">
+      <div><span id="net" class="status warn">WS 연결 안 됨</span></div>
+      <div class="videoGrid">
+        <div class="tile"><small>내 미리보기</small><video id="localVideo" autoplay playsinline muted></video></div>
+        <div class="tile"><small>상대 영상</small><video id="remoteVideo" autoplay playsinline></video></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 오른쪽: 채팅 -->
+  <section class="right">
+    <div class="roomBar">
       <div>
-        <div class="room" id="roomTitle">채팅방 미선택</div>
-        <div class="meta" id="roomMeta">좌측에서 스레드를 선택하세요</div>
+        <div style="font-weight:800" id="roomTitle">채팅방 미선택</div>
+        <div class="status" id="roomMeta">내 ID를 입력하고 방을 선택하세요</div>
       </div>
       <div class="toolbar">
+        <input id="meId" type="number" placeholder="내 ID" />
         <input id="clientId" type="number" placeholder="clientId" />
         <input id="providerId" type="number" placeholder="providerId" />
-        <button id="btnOpen">방 생성/획득</button>
+        <button class="btn" id="btnOpen">방 생성/획득</button>
+        <button class="btn secondary" id="btnDelete">방 삭제</button>
       </div>
-      <div id="net" class="status warn">WS 연결 안 됨</div>
-    </header>
+    </div>
 
-    <div class="msgs" id="msgs"><div class="empty">메시지가 없습니다.</div></div>
+    <div class="threads" id="threads"></div>
+
+    <div class="msgsWrap">
+      <div class="msgs" id="msgs"><div class="empty">메시지가 없습니다.</div></div>
+      <button class="jump" id="btnJump">맨 아래로 ↓</button>
+    </div>
 
     <div class="composer">
       <input id="msg" placeholder="메시지를 입력하세요 (Enter 전송)" />
-      <button id="btnSend">Send</button>
+      <button class="btn" id="btnSend">Send</button>
     </div>
-  </main>
+  </section>
 </div>
 
 <script>
-  // === 기본 설정 ===
-  const API = ''; // 같은 오리진이면 빈 문자열
+  // ===== 지원 로그 =====
+  console.log('gUM?', !!navigator.mediaDevices?.getUserMedia, 'gDM?', !!navigator.mediaDevices?.getDisplayMedia);
+
+  // ===== API =====
+  const API = '';
   const ENDPOINTS = {
     threads: (userId) => `${API}/api/chat/threads?userId=${encodeURIComponent(userId)}`,
     messages: (roomId) => `${API}/api/chat/rooms/${roomId}/messages`,
     send: (roomId) => `${API}/api/chat/rooms/${roomId}/messages`,
     read: (roomId, userId) => `${API}/api/chat/rooms/${roomId}/read?userId=${encodeURIComponent(userId)}`,
     openRoom: () => `${API}/api/chat/rooms`,
+    deleteRoom: (roomId, userId) => `${API}/api/chat/rooms/${roomId}?userId=${encodeURIComponent(userId)}`
   };
 
-  const meIdEl = document.getElementById('meId');
-  const threadsEl = document.getElementById('threads');
-  const msgsEl = document.getElementById('msgs');
-  const msgEl = document.getElementById('msg');
-  const roomTitleEl = document.getElementById('roomTitle');
-  const roomMetaEl = document.getElementById('roomMeta');
-  const netEl = document.getElementById('net');
-  const btnOpen = document.getElementById('btnOpen');
-  const clientIdEl = document.getElementById('clientId');
-  const providerIdEl = document.getElementById('providerId');
-  const btnSend = document.getElementById('btnSend');
+  // ===== 요소 =====
+  const els = {
+    // 좌측
+    btnCam: document.getElementById('btnCam'),
+    btnMic: document.getElementById('btnMic'),
+    btnShare: document.getElementById('btnShare'),
+    localVideo: document.getElementById('localVideo'),
+    remoteVideo: document.getElementById('remoteVideo'),
+    net: document.getElementById('net'),
 
-  let stompClient = null;
-  let currentRoomId = null;
-  let isAutoScroll = true;
+    // 우측
+    meId: document.getElementById('meId'),
+    clientId: document.getElementById('clientId'),
+    providerId: document.getElementById('providerId'),
+    btnOpen: document.getElementById('btnOpen'),
+    btnDelete: document.getElementById('btnDelete'),
+    roomTitle: document.getElementById('roomTitle'),
+    roomMeta: document.getElementById('roomMeta'),
 
-  // 시간 포맷
+    threads: document.getElementById('threads'),
+    msgs: document.getElementById('msgs'),
+    btnJump: document.getElementById('btnJump'),
+    input: document.getElementById('msg'),
+    btnSend: document.getElementById('btnSend'),
+  };
+
+  // ===== 상태 =====
+  let stomp = null, subChat = null, subRtc = null;
+  let currentRoomId = null, me = null;
+  const seen = new Set();
+  let pc = null, localStream = null, screenStream = null;
+  let camOn = false, micOn = false;
+  let negotiating = false;
+
+  const rtcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+
+  // ===== 유틸 =====
   const fmt = (iso) => {
     if (!iso) return '';
     const d = new Date(iso);
@@ -121,183 +195,330 @@
     const mi = String(d.getMinutes()).padStart(2,'0');
     return `${yy}/${mm}/${dd} ${hh}:${mi}`;
   };
+  const escapeHtml = (s='') => s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const nearBottom = () => (els.msgs.scrollHeight - els.msgs.scrollTop - els.msgs.clientHeight) < 80;
 
-  // 스크롤 자동여부 판단
-  const ensureAutoScroll = () => {
-    const nearBottom = msgsEl.scrollHeight - msgsEl.scrollTop - msgsEl.clientHeight < 80;
-    isAutoScroll = nearBottom;
-  };
-  const scrollToBottom = () => {
-    if (isAutoScroll) msgsEl.scrollTo({top: msgsEl.scrollHeight, behavior: 'smooth'});
-  };
+  // ===== 채팅 렌더 =====
+  function renderMsg(m, mine){
+    const key = m.messageId ?? `${m.senderId}|${m.sentAt}|${m.content}`;
+    if (seen.has(key)) return;
+    seen.add(key);
 
-  // 메시지 버블 렌더
-  const renderMsg = (m, mine) => {
     const wrap = document.createElement('div');
-    wrap.className = `bubble ${mine ? 'mine':'other'}`;
-    wrap.innerHTML = `
-      <div>${escapeHtml(m.content ?? '')}</div>
-      <div class="metaRow">
-        <span>${m.messageType ?? 'TEXT'}</span>
-        <span>·</span>
-        <span>${fmt(m.sentAt)}</span>
-        ${m.senderId ? `<span>·</span><span>#${m.senderId}</span>`:''}
-      </div>
-    `;
-    msgsEl.appendChild(wrap);
-  };
+    wrap.className = `bubble ${mine ? 'mine' : 'other'}`;
+    wrap.innerHTML = `<div>${escapeHtml(m.content ?? '')}</div>
+      <div class="metaRow"><span>${m.messageType ?? 'TEXT'}</span><span>·</span><span>${fmt(m.sentAt)}</span>
+      ${m.senderId ? `<span>·</span><span>#${m.senderId}</span>`:''}</div>`;
+    els.msgs.appendChild(wrap);
 
-  const escapeHtml = (s) => (s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-
-  // 스레드 목록 렌더
-  const renderThreads = (list, meId) => {
-    threadsEl.innerHTML = '';
-    list.sort((a,b)=> new Date(b.lastMessageAt||0) - new Date(a.lastMessageAt||0));
-    list.forEach(t => {
-      const item = document.createElement('div');
-      item.className = 'th';
-      item.dataset.roomId = t.roomId;
-      item.innerHTML = `
-        <div>
-          <div class="name">Room #${t.roomId} (${t.clientId}↔${t.providerId})</div>
-          <div class="snippet">${escapeHtml(t.lastMessageSnippet || '')}</div>
-        </div>
-        <div class="time">${fmt(t.lastMessageAt)}</div>
-      `;
-      item.addEventListener('click', () => selectThread(t.roomId, meId));
-      threadsEl.appendChild(item);
-    });
-  };
-
-  // 스레드 목록 로드
-  async function loadThreads(meId){
-    const r = await fetch(ENDPOINTS.threads(meId));
-    if(!r.ok){ throw new Error('threads load failed'); }
-    const data = await r.json();
-    renderThreads(data, meId);
+    if (nearBottom()) els.msgs.scrollTop = els.msgs.scrollHeight;
+    else els.btnJump.classList.add('show');
   }
 
-  // 메시지 로드
+  function renderThreads(list){
+    els.threads.innerHTML = '';
+    list.sort((a,b)=> new Date(b.lastMessageAt||0) - new Date(a.lastMessageAt||0));
+    list.forEach(t=>{
+      const n = document.createElement('div');
+      n.className = 'th';
+      n.dataset.roomId = t.roomId;
+      n.innerHTML = `<div><div class="name">Room #${t.roomId} (${t.clientId}↔${t.providerId})</div>
+        <div class="snippet">${escapeHtml(t.lastMessageSnippet||'')}</div></div>
+        <div class="time">${fmt(t.lastMessageAt)}</div>`;
+      n.onclick = ()=>selectRoom(t.roomId);
+      if (t.roomId===currentRoomId) n.classList.add('active');
+      els.threads.appendChild(n);
+    });
+  }
+
+  async function loadThreads(){ if (!me) return;
+    const r = await fetch(ENDPOINTS.threads(me)); if(!r.ok) return; renderThreads(await r.json());
+  }
   async function loadMessages(roomId){
     const r = await fetch(ENDPOINTS.messages(roomId));
-    if(!r.ok){ throw new Error('messages load failed'); }
-    return await r.json();
+    if(!r.ok) throw new Error('load messages failed'); return await r.json();
   }
+  async function markRead(roomId){ if(!me) return; fetch(ENDPOINTS.read(roomId, me), {method:'POST'}).catch(()=>{}); }
 
-  // 읽음 처리
-  async function markRead(roomId, meId){
-    try{
-      await fetch(ENDPOINTS.read(roomId, meId), {method:'POST'});
-    }catch(_){}
-  }
-
-  // 방 선택
-  async function selectThread(roomId, meId){
+  async function selectRoom(roomId){
     currentRoomId = roomId;
-    Array.from(document.querySelectorAll('.th')).forEach(n => n.classList.toggle('active', Number(n.dataset.roomId)===roomId));
-    roomTitleEl.textContent = `Room #${roomId}`;
-    roomMetaEl.textContent = `내 ID: ${meId} · 실시간 수신 중`;
-    msgsEl.innerHTML = '';
+    seen.clear();
+    document.querySelectorAll('.th').forEach(n=>n.classList.toggle('active', Number(n.dataset.roomId)===roomId));
+    els.roomTitle.textContent = `Room #${roomId}`;
+    els.roomMeta.textContent = me ? `내 ID: ${me} · 실시간 수신 중` : '내 ID를 입력하세요';
 
-    ensureAutoScroll();
-    try{
-      const list = await loadMessages(roomId);
-      if(list.length === 0){
-        msgsEl.innerHTML = `<div class="empty">메시지가 없습니다.</div>`;
-      }else{
-        msgsEl.innerHTML = '';
-        list.forEach(m => renderMsg(m, m.senderId === Number(meId)));
+    els.msgs.innerHTML = '<div class="empty">메시지가 없습니다.</div>';
+    const list = await loadMessages(roomId);
+    els.msgs.innerHTML = '';
+    list.forEach(m => renderMsg(m, m.senderId===me));
+    els.msgs.scrollTop = els.msgs.scrollHeight;
+    els.btnJump.classList.remove('show');
+    await markRead(roomId);
+    subscribe(roomId);
+  }
+
+  // ===== STOMP =====
+  function connectWS(){
+    if (stomp?.connected) return;
+    const sock = new SockJS('/ws');
+    stomp = Stomp.over(sock);
+    stomp.debug = null;
+    stomp.connect({}, () => {
+      els.net.textContent = 'WS 연결됨'; els.net.className = 'status ok';
+      if (currentRoomId) subscribe(currentRoomId);
+    }, () => { els.net.textContent = 'WS 연결 끊김'; els.net.className = 'status err'; });
+  }
+
+  function subscribe(roomId){
+    if (!stomp || !stomp.connected) return;
+    if (subChat) { subChat.unsubscribe(); subChat = null; }
+    if (subRtc)  { subRtc.unsubscribe();  subRtc  = null; }
+
+    subChat = stomp.subscribe(`/topic/room/${roomId}`, (frame)=>{
+      const m = JSON.parse(frame.body);
+      renderMsg(m, m.senderId===me);
+    });
+
+    subRtc = stomp.subscribe(`/topic/rtc/${roomId}`, (frame)=>{
+      const sig = JSON.parse(frame.body); // {type, from, sdp?, candidate?}
+      handleRtc(sig);
+    });
+  }
+
+  // ===== 채팅 전송(낙관적 전송 + 조용한 에러 처리) =====
+  async function sendChat(){
+    if(!me){ alert('내 사용자 ID'); return; }
+    if(!currentRoomId){ alert('방 선택'); return; }
+    const text = els.input.value.trim(); if(!text) return;
+
+    // 낙관적 렌더(임시 키)
+    const temp = {
+      messageId: `temp-${Date.now()}-${Math.random()}`,
+      senderId: me,
+      sentAt: new Date().toISOString(),
+      messageType: 'TEXT',
+      content: text
+    };
+    renderMsg(temp, true);
+    els.input.value = '';
+
+    try {
+      const r = await fetch(ENDPOINTS.send(currentRoomId), {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        mode:'cors',
+        credentials:'include',
+        body: JSON.stringify({
+          roomId: currentRoomId,
+          senderId: me,
+          content: text,
+          messageType: 'TEXT',
+          fileUrl: null
+        })
+      });
+      if(!r.ok){
+        console.warn('sendChat HTTP non-2xx:', r.status, await r.text());
       }
-      scrollToBottom();
-      await markRead(roomId, meId);
-      wsSubscribe(roomId); // 구독 전환
-    }catch(e){
-      msgsEl.innerHTML = `<div class="empty">메시지 로드 실패</div>`;
+    } catch(err){
+      console.warn('sendChat network error:', err);
     }
   }
 
-  // WS 연결/구독
-  function wsConnect(){
-    const sock = new SockJS('/ws');
-    stompClient = Stomp.over(sock);
-    stompClient.debug = null; // 로그 지우려면
-    stompClient.connect({}, () => {
-      netEl.textContent = 'WS 연결됨'; netEl.className='status ok';
-      if(currentRoomId) wsSubscribe(currentRoomId);
-    }, () => {
-      netEl.textContent = 'WS 연결 끊김'; netEl.className='status err';
-    });
+  // ===== 방 생성/삭제 =====
+  async function openRoom(){
+    const c = Number(els.clientId.value||0), p = Number(els.providerId.value||0);
+    if(!c || !p){ alert('clientId/providerId'); return; }
+    const r = await fetch(ENDPOINTS.openRoom(), { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({clientId:c, providerId:p}) });
+    if(!r.ok){ alert('방 생성 실패'); return; }
+    const room = await r.json(); await loadThreads(); await selectRoom(room.roomId);
   }
-  function wsSubscribe(roomId){
-    if(!stompClient || !stompClient.connected) return;
-    // 기존 구독 해제
-    if(wsSubscribe.sub){ wsSubscribe.sub.unsubscribe(); }
-    wsSubscribe.sub = stompClient.subscribe(`/topic/room/${roomId}`, (frame) => {
-      const m = JSON.parse(frame.body);
-      const mine = m.senderId === Number(meIdEl.value || 0);
-      const wasBottom = isAutoScroll;
-      renderMsg(m, mine);
-      if(wasBottom) scrollToBottom();
-    });
+  async function deleteRoom(){
+    if(!currentRoomId){ alert('방 선택'); return; }
+    if(!me){ alert('내 사용자 ID'); return; }
+    if(!confirm(`Room #${currentRoomId} 삭제?`)) return;
+    const r = await fetch(ENDPOINTS.deleteRoom(currentRoomId, me), { method:'DELETE' });
+    if(!r.ok){ alert('삭제 실패'); return; }
+    currentRoomId=null; els.roomTitle.textContent='채팅방 미선택'; els.roomMeta.textContent='내 ID를 입력하고 방을 선택하세요';
+    els.msgs.innerHTML='<div class="empty">메시지가 없습니다.</div>';
+    await loadThreads(); hangup();
   }
 
-  // 전송
-  async function send(){
-    const meId = Number(meIdEl.value || 0);
-    if(!meId){ alert('내 사용자 ID를 입력하세요'); return; }
-    if(!currentRoomId){ alert('방을 먼저 선택하세요'); return; }
-    const content = msgEl.value.trim();
-    if(!content) return;
+  // ===== WebRTC =====
+  function ensurePC(){
+    if (pc) return pc;
+    pc = new RTCPeerConnection(rtcConfig);
 
-    const payload = {
-      roomId: currentRoomId,
-      senderId: meId,
-      content,
-      messageType: "TEXT",
-      fileUrl: null
+    pc.onicecandidate = (e)=>{ if(e.candidate) sendRtc('candidate', { candidate: e.candidate }); };
+
+    pc.ontrack = (e)=>{
+      const stream = e.streams[0];
+      els.remoteVideo.srcObject = stream;
+
+      // 송신측 트랙 종료/음소거 시 즉시 검정화면
+      stream.getTracks().forEach(track=>{
+        const clear = ()=>{ els.remoteVideo.srcObject = null; };
+        track.addEventListener('ended', clear);
+        track.addEventListener('mute', clear);
+      });
     };
 
-    // REST로 전송(서버가 브로드캐스트도 해줌)
-    const r = await fetch(ENDPOINTS.send(currentRoomId), {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify(payload)
-    });
-    if(!r.ok){ alert('전송 실패'); return; }
-    msgEl.value = '';
-    // 읽음 처리 갱신
-    markRead(currentRoomId, meId).catch(()=>{});
+    pc.onnegotiationneeded = async ()=>{
+      try{
+        if (negotiating) return;
+        negotiating = true;
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        sendRtc('offer', { sdp: offer.sdp });
+      } finally { negotiating = false; }
+    };
+
+    return pc;
   }
 
-  // 방 생성/획득
-  async function openRoom(){
-    const clientId = Number(clientIdEl.value || 0);
-    const providerId = Number(providerIdEl.value || 0);
-    if(!clientId || !providerId){ alert('clientId / providerId 입력'); return; }
-    const r = await fetch(ENDPOINTS.openRoom(), {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({clientId, providerId})
-    });
-    if(!r.ok){ alert('방 생성 실패'); return; }
-    const room = await r.json(); // ChatThreadResponse
-    await loadThreads(Number(meIdEl.value || 0));
-    await selectThread(room.roomId, Number(meIdEl.value || 0));
+  function videoSender(){ return pc?.getSenders()?.find(s => s.track && s.track.kind === 'video') || null; }
+  function audioSender(){ return pc?.getSenders()?.find(s => s.track && s.track.kind === 'audio') || null; }
+
+  async function startCamera(){
+    if (camOn) return;
+    try{
+      localStream = await navigator.mediaDevices.getUserMedia({ video:true, audio:true });
+      els.localVideo.srcObject = localStream;
+      camOn = true; micOn = true; els.btnCam.textContent = '카메라 끄기'; els.btnMic.textContent='마이크 끄기';
+
+      ensurePC();
+      localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
+      sendRtc('video-on', {}); // UI 동기화용
+    }catch(e){
+      alert('카메라 실패: '+e.message);
+    }
   }
 
-  // 이벤트 바인딩
-  btnSend.addEventListener('click', send);
-  msgEl.addEventListener('keydown', e => { if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); send(); }});
-  btnOpen.addEventListener('click', openRoom);
-  msgsEl.addEventListener('scroll', ensureAutoScroll);
-  meIdEl.addEventListener('change', () => loadThreads(Number(meIdEl.value || 0)).catch(()=>{}));
+  async function stopCamera(){
+    if (!camOn) return;
 
-  // 초기화
+    // 로컬 스트림 정지
+    localStream?.getTracks().forEach(t=>t.stop());
+    localStream = null;
+    els.localVideo.srcObject = screenStream || null;
+    camOn = false; els.btnCam.textContent='카메라 켜기';
+
+    // 송신 중단: replaceTrack(null) + recvonly → 재협상으로 원격 종료(검정)
+    ensurePC();
+    const vs = videoSender(); if (vs) { try { await vs.replaceTrack(null); } catch(_){} }
+    const as = audioSender(); if (as) { try { await as.replaceTrack(null); } catch(_){} }
+
+    const vTrans = pc.getTransceivers().find(t=>t.sender===vs);
+    if (vTrans) vTrans.direction = 'recvonly';
+    const aTrans = pc.getTransceivers().find(t=>t.sender===as);
+    if (aTrans) aTrans.direction = 'recvonly';
+
+    sendRtc('video-off', {}); // 즉시 원격 UI 클리어
+  }
+
+  function toggleMic(){
+    if (!localStream){ alert('먼저 카메라 켜기'); return; }
+    micOn = !micOn;
+    localStream.getAudioTracks().forEach(t => t.enabled = micOn);
+    els.btnMic.textContent = micOn ? '마이크 끄기' : '마이크 켜기';
+  }
+
+  async function startShare(){
+    if (screenStream) return;
+    try{
+      // Illegal invocation 방지: bind 후 호출
+      const getDisplay = (navigator.mediaDevices?.getDisplayMedia)
+        ? navigator.mediaDevices.getDisplayMedia.bind(navigator.mediaDevices)
+        : (navigator.getDisplayMedia ? navigator.getDisplayMedia.bind(navigator) : null);
+      if (!getDisplay){ alert('화면공유 미지원 브라우저입니다.'); return; }
+
+      screenStream = await getDisplay({ video:true, audio:false });
+      els.localVideo.srcObject = screenStream || localStream || null;
+
+      ensurePC();
+      const vTrack = screenStream.getVideoTracks()[0];
+      const sender = videoSender();
+      if (sender && vTrack) await sender.replaceTrack(vTrack);
+      else if (vTrack) pc.addTrack(vTrack, screenStream);
+
+      els.btnShare.textContent = '화면공유 중지';
+      screenStream.getVideoTracks()[0].addEventListener('ended', stopShare);
+    }catch(e){ alert('화면공유 실패: '+e.message); }
+  }
+
+  async function stopShare(){
+    if (!screenStream) return;
+    screenStream.getTracks().forEach(t=>t.stop());
+    screenStream = null;
+    els.localVideo.srcObject = localStream || null;
+
+    ensurePC();
+    const vTrack = localStream?.getVideoTracks?.()[0] || null;
+    const sender = videoSender();
+    if (sender){
+      if (vTrack) await sender.replaceTrack(vTrack);
+      else { try { await sender.replaceTrack(null); } catch(_){} }
+    }
+    els.btnShare.textContent = '화면공유 시작';
+  }
+
+  function hangup(){
+    try { pc?.getSenders()?.forEach(s=>{ try{ pc.removeTrack(s); }catch(_){}}); } catch(_){}
+    try { pc?.close(); } catch(_){}
+    pc = null; els.remoteVideo.srcObject = null;
+  }
+
+  // ===== 시그널 =====
+  function sendRtc(type, payload){
+    if (!stomp || !stomp.connected || !currentRoomId || !me) return;
+    const body = { type, from: me, ...payload };
+    stomp.send(`/app/rtc/${currentRoomId}`, {}, JSON.stringify(body));
+  }
+
+  async function handleRtc(msg){
+    if (msg.from === me) return;
+    ensurePC();
+
+    if (msg.type === 'offer'){
+      await pc.setRemoteDescription({ type:'offer', sdp: msg.sdp });
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      sendRtc('answer', { sdp: answer.sdp });
+    } else if (msg.type === 'answer'){
+      await pc.setRemoteDescription({ type:'answer', sdp: msg.sdp });
+    } else if (msg.type === 'candidate' && msg.candidate){
+      try { await pc.addIceCandidate(new RTCIceCandidate(msg.candidate)); } catch(e){ console.error(e); }
+    } else if (msg.type === 'video-off'){
+      // 즉시 원격 화면 검정 처리
+      els.remoteVideo.srcObject = null;
+    } else if (msg.type === 'video-on'){
+      // 트랙 도착 시 ontrack에서 처리
+    }
+  }
+
+  // ===== 이벤트 =====
+  els.btnSend.onclick = sendChat;
+  els.input.addEventListener('keydown', e => { if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); sendChat(); }});
+  els.btnOpen.onclick = openRoom;
+  els.btnDelete.onclick = deleteRoom;
+
+  els.btnCam.onclick = ()=> camOn ? stopCamera() : startCamera();
+  els.btnMic.onclick = toggleMic;
+  els.btnShare.onclick = ()=> screenStream ? stopShare() : startShare();
+
+  els.meId.onchange = ()=>{ me = Number(els.meId.value||0) || null; loadThreads(); };
+
+  // 채팅 박스 전용 스크롤 UX
+  els.msgs.addEventListener('scroll', ()=>{
+    if (nearBottom()) els.btnJump.classList.remove('show');
+    else els.btnJump.classList.add('show');
+  });
+  els.btnJump.onclick = ()=>{ els.msgs.scrollTop = els.msgs.scrollHeight; els.btnJump.classList.remove('show'); };
+
+  // ===== 초기화 =====
   (function init(){
-    wsConnect();
-    // 편의: 기본 meId = 1
-    meIdEl.value = meIdEl.value || '1';
-    loadThreads(Number(meIdEl.value || 0)).catch(()=>{});
+    me = Number(els.meId.value||0) || null;
+    connectWS();
+    if (me) loadThreads();
   })();
 </script>
 </body>

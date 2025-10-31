@@ -64,6 +64,21 @@ type MedicineSummary = {
   productCode?: string | null;
 };
 
+type ProviderClientSearchResult = {
+  clientId: number;
+  name: string;
+  email: string;
+  status: string;
+  address?: string | null;
+  age?: number | null;
+  medicationCycle?: string | null;
+  currentlyAssigned: boolean;
+  assignedProviderId?: number | null;
+  assignedProviderName?: string | null;
+  assignedProviderEmail?: string | null;
+  assignable: boolean;
+};
+
 type PlanFormState = {
   medicineKeyword: string;
   medicineResults: MedicineSummary[];
@@ -156,6 +171,17 @@ export default function ProviderMyPage() {
   >({});
   const [deleteProcessing, setDeleteProcessing] = useState<
     Record<number, "idle" | "loading">
+  >({});
+  const [searchKeyword, setSearchKeyword] = useState("");
+  const [searchResults, setSearchResults] = useState<ProviderClientSearchResult[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchError, setSearchError] = useState("");
+  const [searchMessage, setSearchMessage] = useState("");
+  const [assignmentStates, setAssignmentStates] = useState<
+    Record<number, "idle" | "loading">
+  >({});
+  const [assignmentMessages, setAssignmentMessages] = useState<
+    Record<number, PlanActionMessage | undefined>
   >({});
   const updatePlanForm = (
     clientId: number,
@@ -332,6 +358,120 @@ export default function ProviderMyPage() {
       date.getMinutes()
     ).padStart(2, "0")}`;
     return `${datePart} ${timePart}`;
+  };
+
+  const mapStatusToLabel = useCallback((status: string) => {
+    const labels: Record<string, string> = {
+      ACTIVE: "활성",
+      WAITING_MATCH: "배정 대기",
+      SUSPENDED: "이용 중지",
+      DEACTIVATED: "비활성",
+    };
+    return labels[status] ?? status;
+  }, []);
+
+  const handleClientSearch = async (event?: FormEvent<HTMLFormElement>) => {
+    if (event) {
+      event.preventDefault();
+    }
+
+    if (!provider.userId) {
+      return;
+    }
+
+    const keyword = searchKeyword.trim();
+    if (!keyword) {
+      setSearchError("검색어를 입력해주세요.");
+      setSearchMessage("");
+      setSearchResults([]);
+      return;
+    }
+
+    setSearchLoading(true);
+    setSearchError("");
+    setSearchMessage("");
+    setAssignmentMessages({});
+    setAssignmentStates({});
+
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/providers/${provider.userId}/clients/search?keyword=${encodeURIComponent(
+          keyword
+        )}&size=20`
+      );
+
+      if (!response.ok) {
+        const message = await extractApiError(
+          response,
+          "클라이언트를 검색하지 못했습니다."
+        );
+        throw new Error(message);
+      }
+
+      const data: ProviderClientSearchResult[] = await response.json();
+      setSearchResults(data);
+      setSearchMessage(data.length === 0 ? "검색 결과가 없습니다." : "");
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "클라이언트를 검색하지 못했습니다.";
+      setSearchError(message);
+      setSearchResults([]);
+      setSearchMessage("");
+    } finally {
+      setSearchLoading(false);
+    }
+  };
+
+  const handleAssignClient = async (clientId: number) => {
+    if (!provider.userId) {
+      return;
+    }
+
+    setAssignmentStates((prev) => ({ ...prev, [clientId]: "loading" }));
+    setAssignmentMessages((prev) => ({ ...prev, [clientId]: undefined }));
+
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/providers/${provider.userId}/clients/assignments`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ clientId }),
+        }
+      );
+
+      if (!response.ok) {
+        const message = await extractApiError(
+          response,
+          "클라이언트를 배정하지 못했습니다."
+        );
+        throw new Error(message);
+      }
+
+      await loadDashboard();
+      if (searchKeyword.trim()) {
+        await handleClientSearch();
+      }
+      setAssignmentMessages((prev) => ({
+        ...prev,
+        [clientId]: { type: "success", text: "클라이언트가 배정되었습니다." },
+      }));
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "클라이언트를 배정하지 못했습니다.";
+      setAssignmentMessages((prev) => ({
+        ...prev,
+        [clientId]: { type: "error", text: message },
+      }));
+    } finally {
+      setAssignmentStates((prev) => ({ ...prev, [clientId]: "idle" }));
+    }
   };
 
   const handleMedicineSearch = async (clientId: number) => {
@@ -686,6 +826,157 @@ export default function ProviderMyPage() {
             </section>
           ))}
         </div>
+
+        <section className="rounded-xl border border-emerald-200 bg-white p-6">
+          <div className="flex flex-col gap-2 border-b border-emerald-200 pb-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-emerald-900">
+                클라이언트 검색 및 배정
+              </h2>
+              <p className="text-sm text-emerald-700">
+                이름 또는 이메일로 클라이언트를 찾아 배정 여부를 확인하고 배정을 진행하세요.
+              </p>
+            </div>
+          </div>
+
+          <form
+            className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center"
+            onSubmit={(event) => {
+              void handleClientSearch(event);
+            }}
+          >
+            <input
+              className="flex-1 rounded-md border border-emerald-300 px-3 py-2 text-sm focus:border-emerald-600 focus:outline-none"
+              onChange={(event) => {
+                setSearchKeyword(event.target.value);
+                if (searchError) {
+                  setSearchError("");
+                }
+              }}
+              placeholder="클라이언트 이름 또는 이메일"
+              value={searchKeyword}
+            />
+            <button
+              className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-emerald-300"
+              disabled={searchLoading}
+              type="submit"
+            >
+              {searchLoading ? "검색 중..." : "검색"}
+            </button>
+          </form>
+
+          {searchError && (
+            <p className="mt-3 text-sm text-red-600">{searchError}</p>
+          )}
+
+          {searchLoading ? (
+            <div className="mt-4 rounded-md bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+              검색 중입니다...
+            </div>
+          ) : searchResults.length > 0 ? (
+            <div className="mt-4 space-y-3">
+              {searchResults.map((result) => {
+                const assignedToCurrent =
+                  result.currentlyAssigned &&
+                  result.assignedProviderId === provider.userId;
+                const assignedToOther =
+                  result.currentlyAssigned &&
+                  result.assignedProviderId !== provider.userId;
+                const assignState = assignmentStates[result.clientId];
+                const buttonDisabled =
+                  assignState === "loading" || assignedToCurrent || !result.assignable;
+                let buttonLabel = "배정하기";
+                if (assignState === "loading") {
+                  buttonLabel = "배정 중...";
+                } else if (assignedToCurrent) {
+                  buttonLabel = "이미 배정됨";
+                } else if (!result.assignable) {
+                  buttonLabel = "배정 불가";
+                }
+
+                const addressDisplay =
+                  result.address && result.address.trim().length > 0
+                    ? result.address
+                    : "미등록";
+                const ageDisplay =
+                  typeof result.age === "number" && result.age > 0
+                    ? `${result.age}세`
+                    : "미등록";
+                const cycleDisplay =
+                  result.medicationCycle && result.medicationCycle.trim().length > 0
+                    ? result.medicationCycle
+                    : "미등록";
+                const statusLabel = mapStatusToLabel(result.status);
+                const assignMessage = assignmentMessages[result.clientId];
+
+                return (
+                  <article
+                    key={result.clientId}
+                    className="rounded-lg border border-emerald-100 bg-emerald-50 p-4"
+                  >
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <h3 className="text-lg font-semibold text-emerald-900">
+                          {result.name} 님
+                        </h3>
+                        <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
+                          <span className="rounded-full bg-white px-2 py-1 font-medium text-emerald-600">
+                            {statusLabel}
+                          </span>
+                          <span className="text-emerald-700">{result.email}</span>
+                        </div>
+                      </div>
+                      <div className="text-right text-xs text-emerald-700">
+                        현재 배정:
+                        {" "}
+                        {assignedToOther
+                          ? `${result.assignedProviderName ?? "다른 제공자"} (${result.assignedProviderEmail ?? "정보 없음"})`
+                          : assignedToCurrent
+                          ? "현재 담당 중"
+                          : "없음"}
+                      </div>
+                    </div>
+                    <div className="mt-3 grid gap-2 text-sm text-emerald-800 sm:grid-cols-2">
+                      <p>주소: {addressDisplay}</p>
+                      <p>나이: {ageDisplay}</p>
+                      <p>복약 주기: {cycleDisplay}</p>
+                    </div>
+                    <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <button
+                        className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-emerald-300"
+                        disabled={buttonDisabled}
+                        onClick={() => handleAssignClient(result.clientId)}
+                        type="button"
+                      >
+                        {buttonLabel}
+                      </button>
+                      {assignMessage && (
+                        <p
+                          className={`text-sm ${
+                            assignMessage.type === "success"
+                              ? "text-emerald-700"
+                              : "text-red-600"
+                          }`}
+                        >
+                          {assignMessage.text}
+                        </p>
+                      )}
+                      {!result.assignable && !assignedToCurrent && (
+                        <p className="text-sm text-red-600">
+                          다른 제공자에게 배정된 클라이언트입니다.
+                        </p>
+                      )}
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          ) : searchKeyword.trim().length > 0 && searchMessage ? (
+            <div className="mt-4 rounded-md bg-slate-50 px-4 py-3 text-sm text-slate-600">
+              {searchMessage}
+            </div>
+          ) : null}
+        </section>
 
         <section className="rounded-xl border border-emerald-200 bg-emerald-50 p-6">
           <div className="flex flex-col gap-2 border-b border-emerald-200 pb-4 sm:flex-row sm:items-center sm:justify-between">

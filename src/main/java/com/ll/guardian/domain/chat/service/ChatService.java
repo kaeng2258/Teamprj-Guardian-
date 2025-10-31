@@ -128,4 +128,19 @@ public class ChatService {
                 .findById(userId)
                 .orElseThrow(() -> new GuardianException(HttpStatus.NOT_FOUND, "사용자를 찾을 수 없습니다."));
     }
+    public void deleteRoom(Long roomId, Long userId) {
+        ChatRoom room = chatRoomRepository.findById(roomId)
+                .orElseThrow(() -> new GuardianException(HttpStatus.NOT_FOUND, "채팅방을 찾을 수 없습니다."));
+
+        // ✅ 권한: 방에 속한 사람만 삭제 가능(둘 중 아무나)
+        if (!(room.getClient().getId().equals(userId) || room.getProvider().getId().equals(userId))) {
+            throw new GuardianException(HttpStatus.FORBIDDEN, "해당 방 참여자만 삭제할 수 있습니다.");
+        }
+
+        // ✅ 메시지 먼저 제거(외래키 제약 대비)
+        chatMessageRepository.deleteByRoomId(roomId);
+
+        // ✅ 방 제거
+        chatRoomRepository.delete(room);
+    }
 }

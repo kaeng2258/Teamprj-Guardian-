@@ -1,3 +1,4 @@
+
 server:
   port: 8081           # 8443 쓰고 싶으면 바꾸세요
   ssl:
@@ -7,18 +8,28 @@ server:
     key-store-type: PKCS12
 
 spring:
+  profiles:
+    active: dev
+    include: secret
   datasource:
-    url: jdbc:mariadb://localhost:3306/guardian?useUnicode=true&characterEncoding=utf8mb4
-    username: root
+    url: jdbc:h2:mem:guardian;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    driver-class-name: org.h2.Driver
+    username: sa
     password:
-    # driver-class-name 명시는 보통 생략 가능 (있어도 OK)
-    driver-class-name: org.mariadb.jdbc.Driver
   jpa:
     hibernate:
       ddl-auto: update
     properties:
       hibernate:
+        show_sql: true
         format_sql: true
+        use_sql_comments: true
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+      settings:
+        web-allow-others: true
 jwt:
   secret: ${JWT_SECRET:change-me}
   access-token-validity: 1800
@@ -29,4 +40,3 @@ logging:
     com.guardian.guardian: DEBUG
     org.hibernate.orm.jdbc.bind: TRACE
     org.hibernate.orm.jdbc.extract: TRACE
-

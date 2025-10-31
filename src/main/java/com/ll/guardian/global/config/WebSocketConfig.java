@@ -10,13 +10,18 @@ import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerCo
 @EnableWebSocketMessageBroker
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
-
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
-// 클라이언트 연결 엔드포인트: SockJS 허용
-        registry.addEndpoint("/ws").setAllowedOriginPatterns("*").withSockJS();
+        registry.addEndpoint("/ws")
+                // 개발 편의: 전체 허용
+                // .setAllowedOriginPatterns("*")
+                // 좀 더 안전하게 하려면 아래처럼
+                .setAllowedOriginPatterns(
+                        "http://localhost:*",
+                        "https://192.168.0.7:*"
+                )
+                .withSockJS();
     }
-
 
     @Override
     public void configureMessageBroker(MessageBrokerRegistry registry) {

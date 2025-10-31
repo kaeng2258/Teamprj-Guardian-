@@ -9,6 +9,7 @@ const API_BASE_URL =
 type ClientOverview = {
   userId: number | null;
   email: string;
+  name: string;
 };
 
 type MedicationPlan = {
@@ -28,6 +29,14 @@ type MedicationLog = {
   medicineName: string;
   logTimestamp: string;
   notes?: string | null;
+};
+
+type UserSummary = {
+  id: number;
+  email: string;
+  name: string;
+  role: string;
+  status: string;
 };
 
 async function extractApiError(response: Response, fallback: string) {
@@ -61,6 +70,7 @@ export default function ClientMyPage() {
   const [client, setClient] = useState<ClientOverview>({
     userId: null,
     email: "",
+    name: "",
   });
   const [plans, setPlans] = useState<MedicationPlan[]>([]);
   const [planLoading, setPlanLoading] = useState(false);
@@ -86,10 +96,30 @@ export default function ClientMyPage() {
 
     const storedEmail = window.localStorage.getItem("userEmail") ?? "";
     const storedUserId = window.localStorage.getItem("userId");
+    const userId = storedUserId ? Number(storedUserId) : null;
     setClient({
       email: storedEmail,
-      userId: storedUserId ? Number(storedUserId) : null,
+      userId,
+      name: "",
     });
+
+    if (userId) {
+      (async () => {
+        try {
+          const response = await fetch(`${API_BASE_URL}/api/users/${userId}`);
+          if (!response.ok) {
+            return;
+          }
+          const data: UserSummary = await response.json();
+          setClient((prev) => ({
+            ...prev,
+            name: data.name ?? "",
+          }));
+        } catch (error) {
+          // ignore profile fetch errors
+        }
+      })();
+    }
     setIsReady(true);
   }, [router]);
 
@@ -190,8 +220,8 @@ export default function ClientMyPage() {
         description: "로그인한 계정의 기초 정보를 확인하세요.",
         rows: [
           {
-            label: "회원 번호",
-            value: client.userId ? `#${client.userId}` : "확인 중",
+            label: "이름",
+            value: client.name || "확인 중",
           },
           {
             label: "이메일",

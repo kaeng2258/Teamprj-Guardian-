@@ -15,6 +15,7 @@ const API_BASE_URL =
 type ProviderOverview = {
   userId: number | null;
   email: string;
+  name: string;
 };
 
 type ProviderDashboardResponse = {
@@ -77,6 +78,14 @@ type ProviderClientSearchResult = {
   assignedProviderName?: string | null;
   assignedProviderEmail?: string | null;
   assignable: boolean;
+};
+
+type UserSummary = {
+  id: number;
+  email: string;
+  name: string;
+  role: string;
+  status: string;
 };
 
 type PlanFormState = {
@@ -153,6 +162,7 @@ export default function ProviderMyPage() {
   const [provider, setProvider] = useState<ProviderOverview>({
     userId: null,
     email: "",
+    name: "",
   });
   const [dashboard, setDashboard] = useState<ProviderDashboardResponse | null>(
     null
@@ -211,10 +221,29 @@ export default function ProviderMyPage() {
 
     const storedEmail = window.localStorage.getItem("userEmail") ?? "";
     const storedUserId = window.localStorage.getItem("userId");
+    const userId = storedUserId ? Number(storedUserId) : null;
     setProvider({
       email: storedEmail,
-      userId: storedUserId ? Number(storedUserId) : null,
+      userId,
+      name: "",
     });
+    if (userId) {
+      (async () => {
+        try {
+          const response = await fetch(`${API_BASE_URL}/api/users/${userId}`);
+          if (!response.ok) {
+            return;
+          }
+          const data: UserSummary = await response.json();
+          setProvider((prev) => ({
+            ...prev,
+            name: data.name ?? "",
+          }));
+        } catch (error) {
+          // ignore profile fetch errors
+        }
+      })();
+    }
     setIsReady(true);
   }, [router]);
 
@@ -275,8 +304,8 @@ export default function ProviderMyPage() {
         description: "현재 로그인한 요양보호사/제공자의 기본 정보입니다.",
         rows: [
           {
-            label: "제공자 번호",
-            value: provider.userId ? `#${provider.userId}` : "확인 중",
+            label: "이름",
+            value: provider.name || "확인 중",
           },
           {
             label: "이메일",

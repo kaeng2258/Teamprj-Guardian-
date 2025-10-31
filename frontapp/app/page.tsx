@@ -483,28 +483,6 @@ export default function Home() {
               </select>
             </label>
 
-            <label className="flex items-start gap-2 text-sm text-gray-600">
-              <input
-                checked={registerTermsAgreed}
-                className="mt-1"
-                onChange={(event) => setRegisterTermsAgreed(event.target.checked)}
-                type="checkbox"
-              />
-              <span>이용약관(필수)을 확인하고 동의합니다.</span>
-            </label>
-
-            <label className="flex items-start gap-2 text-sm text-gray-600">
-              <input
-                checked={registerPrivacyAgreed}
-                className="mt-1"
-                onChange={(event) =>
-                  setRegisterPrivacyAgreed(event.target.checked)
-                }
-                type="checkbox"
-              />
-              <span>개인정보 처리방침(필수)에 동의합니다.</span>
-            </label>
-
             <div className="flex flex-col gap-2">
               <span className="text-sm text-gray-600">주소</span>
               <div className="flex flex-col gap-2 sm:flex-row">
@@ -540,6 +518,28 @@ export default function Home() {
                 value={registerDetailAddress}
               />
             </div>
+
+            <label className="flex items-start gap-2 text-sm text-gray-600">
+              <input
+                checked={registerTermsAgreed}
+                className="mt-1"
+                onChange={(event) => setRegisterTermsAgreed(event.target.checked)}
+                type="checkbox"
+              />
+              <span>이용약관(필수)을 확인하고 동의합니다.</span>
+            </label>
+
+            <label className="flex items-start gap-2 text-sm text-gray-600">
+              <input
+                checked={registerPrivacyAgreed}
+                className="mt-1"
+                onChange={(event) =>
+                  setRegisterPrivacyAgreed(event.target.checked)
+                }
+                type="checkbox"
+              />
+              <span>개인정보 처리방침(필수)에 동의합니다.</span>
+            </label>
 
             <button
               className="rounded-md bg-black px-4 py-2 text-white transition hover:bg-gray-800 disabled:opacity-50"

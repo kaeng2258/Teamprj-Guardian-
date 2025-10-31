@@ -7,7 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface MedicationAlarmRepository extends JpaRepository<MedicationAlarm, Long> {
 
-    List<MedicationAlarm> findByClientId(Long clientId);
+    List<MedicationAlarm> findByClient_Id(Long clientId);
 
-    Optional<MedicationAlarm> findByIdAndClientId(Long alarmId, Long clientId);
+    Optional<MedicationAlarm> findByIdAndClient_Id(Long alarmId, Long clientId);
 }

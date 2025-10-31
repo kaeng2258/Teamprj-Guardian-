@@ -54,7 +54,7 @@ public class ProviderDashboardService {
         Map<Long, List<MedicationPlanResponse>> planMap = matches.stream()
                 .collect(Collectors.toMap(
                         match -> match.getClient().getId(),
-                        match -> medicationAlarmRepository.findByClientId(match.getClient().getId()).stream()
+                        match -> medicationAlarmRepository.findByClient_Id(match.getClient().getId()).stream()
                                 .map(MedicationPlanResponse::from)
                                 .collect(Collectors.toList())));
 
@@ -62,7 +62,7 @@ public class ProviderDashboardService {
                 .collect(Collectors.toMap(
                         match -> match.getClient().getId(),
                         match -> medicationLogRepository
-                                .findByClientIdAndLogTimestampBetween(
+                                .findByClient_IdAndLogTimestampBetween(
                                         match.getClient().getId(),
                                         LocalDate.now().minusDays(7).atStartOfDay(),
                                         LocalDate.now().plusDays(1).atStartOfDay())
@@ -88,7 +88,7 @@ public class ProviderDashboardService {
 
         long activeAlertCount = emergencyAlertRepository.findByStatus(EmergencyAlertStatus.PENDING).size();
         long pendingMedicationCount = matches.stream()
-                .map(match -> medicationAlarmRepository.findByClientId(match.getClient().getId()).size())
+                .map(match -> medicationAlarmRepository.findByClient_Id(match.getClient().getId()).size())
                 .mapToLong(Integer::longValue)
                 .sum();
 

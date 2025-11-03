@@ -69,7 +69,7 @@ public class MedicationLogService {
         LocalDateTime start = date.atStartOfDay();
         LocalDateTime end = date.plusDays(1).atStartOfDay();
         return medicationLogRepository
-                .findByClientIdAndLogTimestampBetween(clientId, start, end)
+                .findByClient_IdAndLogTimestampBetween(clientId, start, end)
                 .stream()
                 .map(MedicationLogResponse::from)
                 .collect(Collectors.toList());

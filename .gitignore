@@ -42,4 +42,4 @@ out/
 .DS_Store
 
 # Node
-frontapp/node_modules
+node_modules

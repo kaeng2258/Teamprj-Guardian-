@@ -54,7 +54,7 @@ public class MedicationPlanService {
 
     public MedicationPlanResponse updatePlan(Long clientId, Long alarmId, MedicationPlanUpdateRequest request) {
         MedicationAlarm alarm = medicationAlarmRepository
-                .findByIdAndClientId(alarmId, clientId)
+                .findByIdAndClient_Id(alarmId, clientId)
                 .orElseThrow(() -> new GuardianException(HttpStatus.NOT_FOUND, "알람 정보를 찾을 수 없습니다."));
         alarm.updatePlan(
                 request.dosageAmount(),
@@ -67,14 +67,14 @@ public class MedicationPlanService {
 
     public void deletePlan(Long clientId, Long alarmId) {
         MedicationAlarm alarm = medicationAlarmRepository
-                .findByIdAndClientId(alarmId, clientId)
+                .findByIdAndClient_Id(alarmId, clientId)
                 .orElseThrow(() -> new GuardianException(HttpStatus.NOT_FOUND, "알람 정보를 찾을 수 없습니다."));
         medicationAlarmRepository.delete(alarm);
     }
 
     @Transactional(readOnly = true)
     public List<MedicationPlanResponse> getPlans(Long clientId) {
-        return medicationAlarmRepository.findByClientId(clientId).stream()
+        return medicationAlarmRepository.findByClient_Id(clientId).stream()
                 .map(MedicationPlanResponse::from)
                 .collect(Collectors.toList());
     }

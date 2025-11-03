@@ -55,9 +55,10 @@ public class UserService {
         User saved = userRepository.save(user);
 
         if (request.role() == UserRole.CLIENT) {
+            String fullAddress = buildFullAddress(request);
             ClientProfile profile = ClientProfile.builder()
                     .client(saved)
-                    .address("미입력")
+                    .address(fullAddress)
                     .age(0)
                     .medicationCycle("미등록")
                     .build();
@@ -89,6 +90,11 @@ public class UserService {
         return new UserResponse(user.getId(), user.getEmail(), user.getName(), user.getRole(), user.getStatus());
     }
 
+    @Transactional(readOnly = true)
+    public boolean isEmailAvailable(String email) {
+        return userRepository.findByEmail(email).isEmpty();
+    }
+
     private User getUser(Long userId) {
         return userRepository
                 .findById(userId)
@@ -100,5 +106,19 @@ public class UserService {
             return UserStatus.WAITING_MATCH;
         }
         return UserStatus.ACTIVE;
+    }
+
+    private String buildFullAddress(UserRegistrationRequest request) {
+        StringBuilder builder = new StringBuilder();
+        if (request.zipCode() != null && !request.zipCode().isBlank()) {
+            builder.append("[").append(request.zipCode()).append("] ");
+        }
+        if (request.address() != null) {
+            builder.append(request.address().trim());
+        }
+        if (request.detailAddress() != null && !request.detailAddress().isBlank()) {
+            builder.append(" ").append(request.detailAddress().trim());
+        }
+        return builder.toString().trim();
     }
 }

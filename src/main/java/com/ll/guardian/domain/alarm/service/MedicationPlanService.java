@@ -1,5 +1,6 @@
 package com.ll.guardian.domain.alarm.service;
 
+import com.ll.guardian.domain.alarm.dto.ManualMedicineRequest;
 import com.ll.guardian.domain.alarm.dto.MedicationPlanRequest;
 import com.ll.guardian.domain.alarm.dto.MedicationPlanResponse;
 import com.ll.guardian.domain.alarm.dto.MedicationPlanUpdateRequest;
@@ -15,6 +16,7 @@ import java.util.stream.Collectors;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 @Service
 @Transactional
@@ -35,7 +37,7 @@ public class MedicationPlanService {
 
     public MedicationPlanResponse createPlan(Long clientId, MedicationPlanRequest request) {
         User client = getUser(clientId);
-        Medicine medicine = getMedicine(request.medicineId());
+        Medicine medicine = resolveMedicine(request);
         String daysOfWeek = String.join(",", request.daysOfWeek());
 
         MedicationAlarm alarm = MedicationAlarm.builder()
@@ -83,6 +85,49 @@ public class MedicationPlanService {
         return userRepository
                 .findById(clientId)
                 .orElseThrow(() -> new GuardianException(HttpStatus.NOT_FOUND, "사용자를 찾을 수 없습니다."));
+    }
+
+    private Medicine resolveMedicine(MedicationPlanRequest request) {
+        if (request.medicineId() != null) {
+            return getMedicine(request.medicineId());
+        }
+
+        ManualMedicineRequest manual = request.manualMedicine();
+        if (manual == null) {
+            throw new GuardianException(HttpStatus.BAD_REQUEST, "약품 정보를 입력해주세요.");
+        }
+        return createMedicineFromManual(manual);
+    }
+
+    private Medicine createMedicineFromManual(ManualMedicineRequest manual) {
+        if (StringUtils.hasText(manual.productCode())) {
+            String productCode = manual.productCode().trim();
+            return medicineRepository
+                    .findByProductCode(productCode)
+                    .orElseGet(() -> findOrCreateByName(manual));
+        }
+        return findOrCreateByName(manual);
+    }
+
+    private Medicine findOrCreateByName(ManualMedicineRequest manual) {
+        String normalizedName = manual.name().trim();
+        return medicineRepository
+                .findByNameIgnoreCase(normalizedName)
+                .orElseGet(() -> persistManualMedicine(manual));
+    }
+
+    private Medicine persistManualMedicine(ManualMedicineRequest manual) {
+        String sanitizedName = manual.name().trim();
+        Medicine medicine = Medicine.builder()
+                .productCode(StringUtils.hasText(manual.productCode()) ? manual.productCode().trim() : null)
+                .name(sanitizedName)
+                .efficacy(manual.efficacy())
+                .usageDosage(manual.usageDosage())
+                .caution(manual.caution())
+                .sideEffects(manual.sideEffects())
+                .description(manual.description())
+                .build();
+        return medicineRepository.save(medicine);
     }
 
     private Medicine getMedicine(Long medicineId) {

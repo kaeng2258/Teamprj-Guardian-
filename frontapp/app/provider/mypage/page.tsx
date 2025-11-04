@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import {
+  ChangeEvent,
   FormEvent,
   useCallback,
   useEffect,
@@ -88,6 +89,16 @@ type UserSummary = {
   status: string;
 };
 
+type ManualMedicineForm = {
+  name: string;
+  productCode: string;
+  efficacy: string;
+  usageDosage: string;
+  caution: string;
+  sideEffects: string;
+  description: string;
+};
+
 type PlanFormState = {
   medicineKeyword: string;
   medicineResults: MedicineSummary[];
@@ -96,6 +107,8 @@ type PlanFormState = {
   dosageUnit: string;
   alarmTime: string;
   daysOfWeek: string[];
+  mode: "search" | "manual";
+  manualMedicine: ManualMedicineForm;
   searching: boolean;
   submitting: boolean;
   error: string;
@@ -116,6 +129,16 @@ const allDays = [
   { value: "SATURDAY", label: "토" },
   { value: "SUNDAY", label: "일" },
 ];
+
+const createEmptyManualMedicine = (): ManualMedicineForm => ({
+  name: "",
+  productCode: "",
+  efficacy: "",
+  usageDosage: "",
+  caution: "",
+  sideEffects: "",
+  description: "",
+});
 
 async function extractApiError(response: Response, fallback: string) {
   try {
@@ -150,6 +173,8 @@ const createInitialFormState = (): PlanFormState => ({
   dosageUnit: "",
   alarmTime: "",
   daysOfWeek: [],
+  mode: "search",
+  manualMedicine: createEmptyManualMedicine(),
   searching: false,
   submitting: false,
   error: "",
@@ -560,9 +585,58 @@ export default function ProviderMyPage() {
   const handleSelectMedicine = (clientId: number, medicine: MedicineSummary) => {
     updatePlanForm(clientId, (current) => ({
       ...current,
+      mode: "search",
       selectedMedicineId: medicine.id,
       medicineKeyword: medicine.name,
       medicineResults: [],
+      manualMedicine: createEmptyManualMedicine(),
+      error: "",
+      message: "",
+    }));
+  };
+
+  const handlePlanModeChange = (clientId: number, mode: "search" | "manual") => {
+    updatePlanForm(clientId, (current) => {
+      if (current.mode === mode) {
+        return current;
+      }
+      if (mode === "manual") {
+        const nextManual = createEmptyManualMedicine();
+        nextManual.name = current.medicineKeyword.trim();
+        return {
+          ...current,
+          mode,
+          selectedMedicineId: null,
+          medicineResults: [],
+          manualMedicine: nextManual,
+          error: "",
+          message: "",
+        };
+      }
+
+      return {
+        ...current,
+        mode,
+        medicineKeyword: current.manualMedicine.name.trim(),
+        selectedMedicineId: null,
+        manualMedicine: createEmptyManualMedicine(),
+        error: "",
+        message: "",
+      };
+    });
+  };
+
+  const handleManualFieldChange = (
+    clientId: number,
+    field: keyof ManualMedicineForm,
+    value: string
+  ) => {
+    updatePlanForm(clientId, (current) => ({
+      ...current,
+      manualMedicine: {
+        ...current.manualMedicine,
+        [field]: value,
+      },
       error: "",
       message: "",
     }));
@@ -579,6 +653,7 @@ export default function ProviderMyPage() {
         [clientId]: {
           ...form,
           daysOfWeek: nextDays,
+          error: "",
           message: "",
         },
       };
@@ -591,10 +666,19 @@ export default function ProviderMyPage() {
   ) => {
     event.preventDefault();
     const form = planForms[clientId] ?? createInitialFormState();
-    if (!form.selectedMedicineId) {
+    const isManualMode = form.mode === "manual";
+    if (!isManualMode && !form.selectedMedicineId) {
       updatePlanForm(clientId, (current) => ({
         ...current,
         error: "약품을 검색하여 선택해주세요.",
+      }));
+      return;
+    }
+
+    if (isManualMode && !form.manualMedicine.name.trim()) {
+      updatePlanForm(clientId, (current) => ({
+        ...current,
+        error: "직접 입력할 약품 이름을 입력해주세요.",
       }));
       return;
     }
@@ -639,6 +723,28 @@ export default function ProviderMyPage() {
     }));
 
     try {
+      const sanitizeOptional = (value: string) => {
+        const trimmed = value.trim();
+        return trimmed.length > 0 ? trimmed : null;
+      };
+
+      const payload =
+        form.mode === "manual"
+          ? {
+              manualMedicine: {
+                name: form.manualMedicine.name.trim(),
+                productCode: sanitizeOptional(form.manualMedicine.productCode),
+                efficacy: sanitizeOptional(form.manualMedicine.efficacy),
+                usageDosage: sanitizeOptional(form.manualMedicine.usageDosage),
+                caution: sanitizeOptional(form.manualMedicine.caution),
+                sideEffects: sanitizeOptional(form.manualMedicine.sideEffects),
+                description: sanitizeOptional(form.manualMedicine.description),
+              },
+            }
+          : {
+              medicineId: form.selectedMedicineId,
+            };
+
       const response = await fetch(
         `${API_BASE_URL}/api/clients/${clientId}/medication/plans`,
         {
@@ -647,7 +753,7 @@ export default function ProviderMyPage() {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            medicineId: form.selectedMedicineId,
+            ...payload,
             dosageAmount: Number(form.dosageAmount),
             dosageUnit: form.dosageUnit,
             alarmTime: form.alarmTime,
@@ -669,6 +775,7 @@ export default function ProviderMyPage() {
         ...prev,
         [clientId]: {
           ...createInitialFormState(),
+          mode: "search",
           message: "복약 일정이 등록되었습니다.",
         },
       }));
@@ -1160,55 +1267,218 @@ export default function ProviderMyPage() {
                           <h4 className="text-sm font-semibold text-slate-900">
                             복약 일정 추가
                           </h4>
-                          <div className="flex flex-col gap-2 sm:flex-row">
-                            <input
-                              className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-emerald-600 focus:outline-none"
-                              onChange={(event) =>
-                                updatePlanForm(client.clientId, (current) => ({
-                                  ...current,
-                                  medicineKeyword: event.target.value,
-                                }))
-                              }
-                              placeholder="약품명으로 검색"
-                              value={form.medicineKeyword}
-                            />
-                            <button
-                              className="rounded-md border border-emerald-300 px-3 py-2 text-sm text-emerald-700 transition hover:border-emerald-400 hover:text-emerald-900 disabled:cursor-not-allowed disabled:opacity-50"
-                              disabled={form.searching}
-                              onClick={(event) => {
-                                event.preventDefault();
-                                handleMedicineSearch(client.clientId);
-                              }}
-                            >
-                              {form.searching ? "검색 중..." : "검색"}
-                            </button>
-                          </div>
-                          {form.medicineResults.length > 0 && (
-                            <div className="rounded-md border border-slate-200 bg-slate-50 p-2">
-                              <p className="text-xs text-slate-500">
-                                검색 결과를 선택하세요.
-                              </p>
-                              <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                                {form.medicineResults.map((medicine) => (
+                          <div className="flex flex-col gap-3">
+                            <div className="flex flex-wrap gap-2">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handlePlanModeChange(client.clientId, "search")
+                                }
+                                className={`rounded-md border px-4 py-2 text-xs font-semibold transition ${
+                                  form.mode === "search"
+                                    ? "border-emerald-500 bg-emerald-50 text-emerald-700"
+                                    : "border-slate-300 bg-white text-slate-600 hover:border-slate-400"
+                                }`}
+                              >
+                                약 검색
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handlePlanModeChange(client.clientId, "manual")
+                                }
+                                className={`rounded-md border px-4 py-2 text-xs font-semibold transition ${
+                                  form.mode === "manual"
+                                    ? "border-emerald-500 bg-emerald-50 text-emerald-700"
+                                    : "border-slate-300 bg-white text-slate-600 hover:border-slate-400"
+                                }`}
+                              >
+                                직접 입력
+                              </button>
+                            </div>
+
+                            {form.mode === "search" ? (
+                              <>
+                                <div className="flex flex-col gap-2 sm:flex-row">
+                                  <input
+                                    className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-emerald-600 focus:outline-none"
+                                    onChange={(event) =>
+                                      updatePlanForm(client.clientId, (current) => ({
+                                        ...current,
+                                        medicineKeyword: event.target.value,
+                                        selectedMedicineId: null,
+                                      }))
+                                    }
+                                    placeholder="약품명으로 검색"
+                                    value={form.medicineKeyword}
+                                  />
                                   <button
-                                    key={medicine.id}
-                                    className="rounded-md border border-white bg-white px-3 py-2 text-left text-sm text-slate-700 transition hover:border-emerald-300 hover:text-emerald-700"
+                                    className="rounded-md border border-emerald-300 px-3 py-2 text-sm text-emerald-700 transition hover:border-emerald-400 hover:text-emerald-900 disabled:cursor-not-allowed disabled:opacity-50"
+                                    disabled={form.searching}
                                     onClick={(event) => {
                                       event.preventDefault();
-                                      handleSelectMedicine(client.clientId, medicine);
+                                      handleMedicineSearch(client.clientId);
                                     }}
                                   >
-                                    <span className="font-medium">{medicine.name}</span>
-                                    {medicine.productCode && (
-                                      <span className="block text-xs text-slate-500">
-                                        {medicine.productCode}
-                                      </span>
-                                    )}
+                                    {form.searching ? "검색 중..." : "검색"}
                                   </button>
-                                ))}
+                                </div>
+                                {form.medicineResults.length > 0 && (
+                                  <div className="rounded-md border border-slate-200 bg-slate-50 p-2">
+                                    <p className="text-xs text-slate-500">
+                                      검색 결과를 선택하세요.
+                                    </p>
+                                    <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                                      {form.medicineResults.map((medicine) => (
+                                        <button
+                                          key={medicine.id}
+                                          className="rounded-md border border-white bg-white px-3 py-2 text-left text-sm text-slate-700 transition hover:border-emerald-300 hover:text-emerald-700"
+                                          onClick={(event) => {
+                                            event.preventDefault();
+                                            handleSelectMedicine(client.clientId, medicine);
+                                          }}
+                                        >
+                                          <span className="font-medium">
+                                            {medicine.name}
+                                          </span>
+                                          {medicine.productCode && (
+                                            <span className="block text-xs text-slate-500">
+                                              {medicine.productCode}
+                                            </span>
+                                          )}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </>
+                            ) : (
+                              <div className="space-y-3 rounded-md border border-slate-200 bg-slate-50 p-3">
+                                <p className="text-xs text-slate-500">
+                                  검색 결과가 없을 때 직접 약품 정보를 입력하고 등록할 수 있습니다.
+                                </p>
+                                <div className="flex flex-col gap-1">
+                                  <label className="text-xs font-medium text-slate-600">
+                                    약품 이름<span className="text-red-500">*</span>
+                                  </label>
+                                  <input
+                                    className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-emerald-600 focus:outline-none"
+                                    onChange={(event: ChangeEvent<HTMLInputElement>) =>
+                                      handleManualFieldChange(
+                                        client.clientId,
+                                        "name",
+                                        event.target.value
+                                      )
+                                    }
+                                    placeholder="직접 입력할 약품 이름"
+                                    value={form.manualMedicine.name}
+                                  />
+                                </div>
+                                <div className="flex flex-col gap-1">
+                                  <label className="text-xs font-medium text-slate-600">
+                                    제품 코드 (선택)
+                                  </label>
+                                  <input
+                                    className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-emerald-600 focus:outline-none"
+                                    onChange={(event: ChangeEvent<HTMLInputElement>) =>
+                                      handleManualFieldChange(
+                                        client.clientId,
+                                        "productCode",
+                                        event.target.value
+                                      )
+                                    }
+                                    placeholder="예) 국문 제품 코드"
+                                    value={form.manualMedicine.productCode}
+                                  />
+                                </div>
+                                <div className="flex flex-col gap-1">
+                                  <label className="text-xs font-medium text-slate-600">
+                                    효능 / 효과 (선택)
+                                  </label>
+                                  <textarea
+                                    className="min-h-[60px] rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-emerald-600 focus:outline-none"
+                                    onChange={(event: ChangeEvent<HTMLTextAreaElement>) =>
+                                      handleManualFieldChange(
+                                        client.clientId,
+                                        "efficacy",
+                                        event.target.value
+                                      )
+                                    }
+                                    placeholder="약품의 주요 효능을 입력하세요."
+                                    value={form.manualMedicine.efficacy}
+                                  />
+                                </div>
+                                <div className="flex flex-col gap-1">
+                                  <label className="text-xs font-medium text-slate-600">
+                                    복용 방법 (선택)
+                                  </label>
+                                  <textarea
+                                    className="min-h-[60px] rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-emerald-600 focus:outline-none"
+                                    onChange={(event: ChangeEvent<HTMLTextAreaElement>) =>
+                                      handleManualFieldChange(
+                                        client.clientId,
+                                        "usageDosage",
+                                        event.target.value
+                                      )
+                                    }
+                                    placeholder="예) 1일 3회, 1회 1정 등"
+                                    value={form.manualMedicine.usageDosage}
+                                  />
+                                </div>
+                                <div className="flex flex-col gap-1">
+                                  <label className="text-xs font-medium text-slate-600">
+                                    주의 사항 (선택)
+                                  </label>
+                                  <textarea
+                                    className="min-h-[60px] rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-emerald-600 focus:outline-none"
+                                    onChange={(event: ChangeEvent<HTMLTextAreaElement>) =>
+                                      handleManualFieldChange(
+                                        client.clientId,
+                                        "caution",
+                                        event.target.value
+                                      )
+                                    }
+                                    placeholder="주의사항이나 알레르기 정보를 입력하세요."
+                                    value={form.manualMedicine.caution}
+                                  />
+                                </div>
+                                <div className="flex flex-col gap-1">
+                                  <label className="text-xs font-medium text-slate-600">
+                                    부작용 (선택)
+                                  </label>
+                                  <textarea
+                                    className="min-h-[60px] rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-emerald-600 focus:outline-none"
+                                    onChange={(event: ChangeEvent<HTMLTextAreaElement>) =>
+                                      handleManualFieldChange(
+                                        client.clientId,
+                                        "sideEffects",
+                                        event.target.value
+                                      )
+                                    }
+                                    placeholder="예상되는 부작용을 입력하세요."
+                                    value={form.manualMedicine.sideEffects}
+                                  />
+                                </div>
+                                <div className="flex flex-col gap-1">
+                                  <label className="text-xs font-medium text-slate-600">
+                                    비고 (선택)
+                                  </label>
+                                  <textarea
+                                    className="min-h-[60px] rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-emerald-600 focus:outline-none"
+                                    onChange={(event: ChangeEvent<HTMLTextAreaElement>) =>
+                                      handleManualFieldChange(
+                                        client.clientId,
+                                        "description",
+                                        event.target.value
+                                      )
+                                    }
+                                    placeholder="추가 메모를 입력하세요."
+                                    value={form.manualMedicine.description}
+                                  />
+                                </div>
                               </div>
-                            </div>
-                          )}
+                            )}
+                          </div>
                           <div className="grid gap-3 sm:grid-cols-2">
                             <div className="flex flex-col gap-1">
                               <label className="text-xs font-medium text-slate-600">
@@ -1260,29 +1530,37 @@ export default function ProviderMyPage() {
                               value={form.alarmTime}
                             />
                           </div>
-                          <div className="flex flex-col gap-2">
-                            <p className="text-xs font-medium text-slate-600">
+                          <fieldset className="flex flex-col gap-2">
+                            <legend className="text-xs font-medium text-slate-600">
                               복용 요일
-                            </p>
-                            <div className="flex flex-wrap gap-2">
-                              {allDays.map((day) => (
-                                <label
-                                  key={day.value}
-                                  className="flex items-center gap-1 text-xs text-slate-600"
-                                >
-                                  <input
-                                    checked={form.daysOfWeek.includes(day.value)}
-                                    className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
-                                    onChange={() =>
-                                      handleToggleDay(client.clientId, day.value)
-                                    }
-                                    type="checkbox"
-                                  />
-                                  {day.label}
-                                </label>
-                              ))}
+                            </legend>
+                            <div className="grid grid-cols-7 gap-1 sm:gap-2">
+                              {allDays.map((day) => {
+                                const isSelected = form.daysOfWeek.includes(day.value);
+                                return (
+                                  <label key={day.value} className="block">
+                                    <input
+                                      type="checkbox"
+                                      className="peer sr-only"
+                                      checked={isSelected}
+                                      onChange={() =>
+                                        handleToggleDay(client.clientId, day.value)
+                                      }
+                                    />
+                                    <span
+                                      className={`flex h-10 items-center justify-center rounded-lg border text-xs font-semibold transition ${
+                                        isSelected
+                                          ? "border-emerald-500 bg-emerald-100 text-emerald-700 shadow-sm"
+                                          : "border-slate-300 bg-white text-slate-600 hover:border-emerald-400 hover:text-emerald-700"
+                                      } peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-emerald-500`}
+                                    >
+                                      {day.label}
+                                    </span>
+                                  </label>
+                                );
+                              })}
                             </div>
-                          </div>
+                          </fieldset>
                           {form.error && (
                             <p className="text-sm text-red-600">{form.error}</p>
                           )}

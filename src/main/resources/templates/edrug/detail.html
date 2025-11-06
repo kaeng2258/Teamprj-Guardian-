@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title th:text="${detail.itemName} + ' 상세'">의약품 상세</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 24px; line-height: 1.5; }
+    .top { display: grid; grid-template-columns: 120px 1fr; gap: 16px; align-items: start; }
+    img { max-width: 120px; max-height: 120px; border: 1px solid #eee; }
+    .meta { font-size: 14px; color: #444; }
+    h2 { margin: 16px 0 8px; }
+    .blk { margin-bottom: 14px; }
+    pre { white-space: pre-wrap; background:#fafafa; border:1px solid #eee; padding:10px; }
+    a.btn { display:inline-block; padding:6px 10px; border:1px solid #ccc; text-decoration:none; margin-bottom:12px; }
+  </style>
+</head>
+<body>
+<a class="btn" href="/edrug/search">← 목록으로</a>
+
+<div class="top">
+  <div>
+    <img th:if="${detail.itemImage != null and detail.itemImage != ''}" th:src="${detail.itemImage}" alt="img"/>
+  </div>
+  <div>
+    <h1 th:text="${detail.itemName}">제품명</h1>
+    <div class="meta">
+      <div><b>업체명:</b> <span th:text="${detail.entpName}">업체</span></div>
+      <div><b>분류/제형:</b> <span th:text="${detail.className}">분류</span> / <span th:text="${detail.chart}">제형</span></div>
+      <div><b>전문/일반:</b> <span th:text="${detail.etcOtcName}">etc/otc</span></div>
+      <div><b>품목코드:</b> <span th:text="${detail.itemSeq}">코드</span></div>
+      <div><b>공개·수정:</b> <span th:text="${detail.openDe}">open</span> / <span th:text="${detail.updateDe}">update</span></div>
+      <div><b>성분:</b> <span th:text="${detail.materialName}">성분</span></div>
+    </div>
+  </div>
+</div>
+
+<h2>효능/효과</h2>
+<pre th:text="${detail.efcyQesitm}">-</pre>
+
+<h2>복용방법</h2>
+<pre th:text="${detail.useMethodQesitm}">-</pre>
+
+<h2>경고</h2>
+<pre th:text="${detail.atpnWarnQesitm}">-</pre>
+
+<h2>주의사항</h2>
+<pre th:text="${detail.atpnQesitm}">-</pre>
+
+<h2>상호작용</h2>
+<pre th:text="${detail.intrcQesitm}">-</pre>
+
+<h2>부작용</h2>
+<pre th:text="${detail.seQesitm}">-</pre>
+
+<h2>보관방법</h2>
+<pre th:text="${detail.depositMethodQesitm}">-</pre>
+</body>
+</html>

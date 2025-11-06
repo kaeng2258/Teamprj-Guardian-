@@ -3,8 +3,6 @@ package com.ll.guardian.domain.medicine.service;
 import com.ll.guardian.domain.medicine.entity.Medicine;
 import com.ll.guardian.domain.medicine.repository.MedicineRepository;
 import com.ll.guardian.global.exception.GuardianException;
-import java.util.List;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -14,18 +12,20 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
+import java.util.List;
+
 @Service
 @Transactional(readOnly = true)
-public class DrugInfoService {
+public class EasyInfoService {
 
-    private static final Logger log = LoggerFactory.getLogger(DrugInfoService.class);
+    private static final Logger log = LoggerFactory.getLogger(EasyInfoService.class);
 
     private final MedicineRepository medicineRepository;
     private final RestTemplate restTemplate;
     private final String apiBaseUrl;
     private final String apiKey;
 
-    public DrugInfoService(
+    public EasyInfoService(
             MedicineRepository medicineRepository,
             RestTemplate restTemplate,
             @Value("${drug-info.api-base-url:https://apis.data.go.kr/1471000/DURPrdlstInfoService}") String apiBaseUrl,

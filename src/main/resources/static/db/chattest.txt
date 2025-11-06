@@ -1,0 +1,27 @@
+-- CLIENT (환자)
+INSERT INTO `user`
+(email, password, name, role, status, profile_image_url, created_at, updated_at)
+VALUES (
+  'client1@example.com',
+  '$2a$10$O1B3ixwhVx7.8cH5NQepMeYVd6cI8X0f7dA5x9T2pSRSyWh7Zm6QS',  -- "1234"
+  '테스트환자',
+  'CLIENT',
+  'ACTIVE',
+  NULL,
+  NOW(),
+  NOW()
+);
+
+-- PROVIDER (의사/간호사)
+INSERT INTO `user`
+(email, password, name, role, status, profile_image_url, created_at, updated_at)
+VALUES (
+  'provider1@example.com',
+  '$2a$10$O1B3ixwhVx7.8cH5NQepMeYVd6cI8X0f7dA5x9T2pSRSyWh7Zm6QS',
+  '테스트의사',
+  'PROVIDER',
+  'ACTIVE',
+  NULL,
+  NOW(),
+  NOW()
+);

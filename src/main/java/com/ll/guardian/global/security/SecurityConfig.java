@@ -31,7 +31,11 @@ public class SecurityConfig {
                                 "/index.html",
                                 "/favicon.ico",
                                 "/error",
-                                "/html/**", "/chat.html", "/chat"
+                                "/templates/**",
+                                "/chat.html",
+                                "/chat",
+                                "/search.html",
+                                "/search"
                         ).permitAll()
                         .anyRequest().permitAll()
                 )

@@ -1,15 +1,18 @@
-[00:00:00.998] Server  LOG     It looks like you're trying to use TypeScript but do not have the required package(s) installed.
-Installing dependencies
-
-If you are not trying to use TypeScript, please remove the tsconfig.json file from your package root (and any TypeScript files in your app and pages directories).
-
-[00:00:01.017] Server  LOG     
-[00:00:01.017] Server  LOG     Installing devDependencies (npm):
-[00:00:01.018] Server  LOG     - typescript
-[00:00:01.018] Server  LOG     - @types/react
-[00:00:01.018] Server  LOG     - @types/node
-[00:00:01.018] Server  LOG     
-[00:00:01.418] Server  ERROR   Failed to install required TypeScript dependencies, please install them manually to continue:
-npm install --save-exact --save-dev typescript @types/react @types/node
-
-[00:00:01.419] Server  ERROR   Unhandled Rejection: {}
+[00:00:01.254] Server  LOG      ✓ Ready in 753ms
+[00:00:36.380] Server  ERROR   Error: ENOENT: no such file or directory, scandir '/Users/hwangjeongseong/java/Teamprj-Guardian-/frontapp/app'
+[00:00:36.389] Server  ERROR    ⨯ "unhandledRejection:" Error: ENOENT: no such file or directory, scandir '/Users/hwangjeongseong/java/Teamprj-Guardian-/frontapp/app'
+[00:00:36.393] Server  ERROR    ⨯ "unhandledRejection: " Error: ENOENT: no such file or directory, scandir '/Users/hwangjeongseong/java/Teamprj-Guardian-/frontapp/app'
+[00:13:59.323] Server  ERROR   Error: ENOENT: no such file or directory, scandir '/Users/hwangjeongseong/java/Teamprj-Guardian-/frontapp/app'
+[00:13:59.325] Server  ERROR   Error: ENOENT: no such file or directory, scandir '/Users/hwangjeongseong/java/Teamprj-Guardian-/frontapp/app'
+[00:14:00.215] Server  ERROR   Error: ENOENT: no such file or directory, scandir '/Users/hwangjeongseong/java/Teamprj-Guardian-/frontapp/app'
+[00:14:00.221] Server  ERROR   Error: ENOENT: no such file or directory, scandir '/Users/hwangjeongseong/java/Teamprj-Guardian-/frontapp/app'
+[00:14:16.661] Server  ERROR   Error: ENOENT: no such file or directory, scandir '/Users/hwangjeongseong/java/Teamprj-Guardian-/frontapp/app'
+[00:14:16.665] Server  ERROR   Error: ENOENT: no such file or directory, scandir '/Users/hwangjeongseong/java/Teamprj-Guardian-/frontapp/app'
+[00:14:16.989] Server  ERROR   Error: ENOENT: no such file or directory, scandir '/Users/hwangjeongseong/java/Teamprj-Guardian-/frontapp/app'
+[00:14:16.992] Server  ERROR   Error: ENOENT: no such file or directory, scandir '/Users/hwangjeongseong/java/Teamprj-Guardian-/frontapp/app'
+[00:14:17.120] Server  ERROR   Error: ENOENT: no such file or directory, scandir '/Users/hwangjeongseong/java/Teamprj-Guardian-/frontapp/app'
+[00:14:17.124] Server  ERROR   Error: ENOENT: no such file or directory, scandir '/Users/hwangjeongseong/java/Teamprj-Guardian-/frontapp/app'
+[00:14:34.753] Server  ERROR   Error: ENOENT: no such file or directory, scandir '/Users/hwangjeongseong/java/Teamprj-Guardian-/frontapp/app'
+[00:14:34.758] Server  ERROR   Error: ENOENT: no such file or directory, scandir '/Users/hwangjeongseong/java/Teamprj-Guardian-/frontapp/app'
+[00:14:35.649] Server  ERROR   Error: ENOENT: no such file or directory, scandir '/Users/hwangjeongseong/java/Teamprj-Guardian-/frontapp/app'
+[00:14:35.653] Server  ERROR   Error: ENOENT: no such file or directory, scandir '/Users/hwangjeongseong/java/Teamprj-Guardian-/frontapp/app'

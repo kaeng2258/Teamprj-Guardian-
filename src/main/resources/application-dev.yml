@@ -1,7 +1,9 @@
 server:
-  port: 8090
+  port: 8081
 spring:
   thymeleaf:
+    prefix: classpath:/templates/
+    suffix: .html
     cache: false
   output:
     ansi:
@@ -17,8 +19,8 @@ spring:
 #        web-allow-others: true
   datasource:
     driver-class-name: org.mariadb.jdbc.Driver
-    url: jdbc:mariadb://127.0.0.1:3307/guardian
+    url: jdbc:mariadb://127.0.0.1:3306/guardian
     username: root
-    password: password
+    password:
 custom:
   fileDirPath: /usr/file

@@ -1,12 +1,4 @@
-
-server:
-  port: 8081           # 8443 쓰고 싶으면 바꾸세요
-  ssl:
-    enabled: true
-    key-store: classpath:keystore.p12
-    key-store-password: changeit
-    key-store-type: PKCS12
-
+   # 8443 쓰고 싶으면 바꾸세요
 spring:
   profiles:
     active: dev
@@ -14,7 +6,7 @@ spring:
   datasource:
     url: jdbc:h2:mem:guardian;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
     driver-class-name: org.h2.Driver
-    username: sa
+    username: root
     password:
   jpa:
     hibernate:

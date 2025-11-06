@@ -55,6 +55,16 @@ const createEmptyManualMedicine = ()=>({
         sideEffects: "",
         description: ""
     });
+const createPlanFormItemState = ()=>({
+        mode: "search",
+        manualMedicine: createEmptyManualMedicine(),
+        medicineKeyword: "",
+        medicineResults: [],
+        selectedMedicineId: null,
+        dosageAmount: "",
+        dosageUnit: "",
+        searching: false
+    });
 async function extractApiError(response, fallback) {
     try {
         const data = await response.clone().json();
@@ -78,16 +88,11 @@ async function extractApiError(response, fallback) {
     return fallback;
 }
 const createInitialFormState = ()=>({
-        medicineKeyword: "",
-        medicineResults: [],
-        selectedMedicineId: null,
-        dosageAmount: "",
-        dosageUnit: "",
+        items: [
+            createPlanFormItemState()
+        ],
         alarmTime: "",
         daysOfWeek: [],
-        mode: "search",
-        manualMedicine: createEmptyManualMedicine(),
-        searching: false,
         submitting: false,
         error: "",
         message: ""
@@ -122,6 +127,24 @@ function ProviderMyPage() {
             return {
                 ...prev,
                 [clientId]: updater(current)
+            };
+        });
+    };
+    const updatePlanFormItem = (clientId, itemIndex, updater, options = {})=>{
+        const { resetStatus = false } = options;
+        updatePlanForm(clientId, (current)=>{
+            const items = [
+                ...current.items
+            ];
+            const target = items[itemIndex] ?? createPlanFormItemState();
+            items[itemIndex] = updater(target);
+            return {
+                ...current,
+                items,
+                ...resetStatus ? {
+                    error: "",
+                    message: ""
+                } : {}
             };
         });
     };
@@ -398,9 +421,13 @@ function ProviderMyPage() {
                 }));
         }
     };
-    const handleMedicineSearch = async (clientId)=>{
+    const handleMedicineSearch = async (clientId, itemIndex)=>{
         const form = planForms[clientId] ?? createInitialFormState();
-        const keyword = form.medicineKeyword.trim();
+        const item = form.items[itemIndex];
+        if (!item) {
+            return;
+        }
+        const keyword = item.medicineKeyword.trim();
         if (!keyword) {
             updatePlanForm(clientId, (current)=>({
                     ...current,
@@ -409,13 +436,13 @@ function ProviderMyPage() {
                 }));
             return;
         }
-        updatePlanForm(clientId, (current)=>({
+        updatePlanFormItem(clientId, itemIndex, (current)=>({
                 ...current,
                 searching: true,
-                error: "",
-                message: "",
                 medicineResults: []
-            }));
+            }), {
+            resetStatus: true
+        });
         try {
             const response = await fetch(`${API_BASE_URL}/api/medicines/search?keyword=${encodeURIComponent(keyword)}`);
             if (!response.ok) {
@@ -423,35 +450,44 @@ function ProviderMyPage() {
                 throw new Error(message);
             }
             const medicines = await response.json();
-            updatePlanForm(clientId, (current)=>({
+            updatePlanFormItem(clientId, itemIndex, (current)=>({
                     ...current,
                     medicineResults: medicines,
-                    searching: false,
-                    error: medicines.length === 0 ? "검색 결과가 없습니다." : ""
+                    searching: false
+                }));
+            updatePlanForm(clientId, (current)=>({
+                    ...current,
+                    error: medicines.length === 0 ? "검색 결과가 없습니다." : "",
+                    message: ""
                 }));
         } catch (error) {
             const message = error instanceof Error ? error.message : "약품 정보를 조회할 수 없습니다.";
+            updatePlanFormItem(clientId, itemIndex, (current)=>({
+                    ...current,
+                    searching: false
+                }));
             updatePlanForm(clientId, (current)=>({
                     ...current,
-                    searching: false,
-                    error: message
+                    error: message,
+                    message: ""
                 }));
         }
     };
-    const handleSelectMedicine = (clientId, medicine)=>{
-        updatePlanForm(clientId, (current)=>({
+    const handleSelectMedicine = (clientId, itemIndex, medicine)=>{
+        updatePlanFormItem(clientId, itemIndex, (current)=>({
                 ...current,
                 mode: "search",
                 selectedMedicineId: medicine.id,
                 medicineKeyword: medicine.name,
                 medicineResults: [],
                 manualMedicine: createEmptyManualMedicine(),
-                error: "",
-                message: ""
-            }));
+                searching: false
+            }), {
+            resetStatus: true
+        });
     };
-    const handlePlanModeChange = (clientId, mode)=>{
-        updatePlanForm(clientId, (current)=>{
+    const handlePlanModeChange = (clientId, itemIndex, mode)=>{
+        updatePlanFormItem(clientId, itemIndex, (current)=>{
             if (current.mode === mode) {
                 return current;
             }
@@ -464,8 +500,7 @@ function ProviderMyPage() {
                     selectedMedicineId: null,
                     medicineResults: [],
                     manualMedicine: nextManual,
-                    error: "",
-                    message: ""
+                    searching: false
                 };
             }
             return {
@@ -474,21 +509,49 @@ function ProviderMyPage() {
                 medicineKeyword: current.manualMedicine.name.trim(),
                 selectedMedicineId: null,
                 manualMedicine: createEmptyManualMedicine(),
-                error: "",
-                message: ""
+                searching: false
             };
+        }, {
+            resetStatus: true
         });
     };
-    const handleManualFieldChange = (clientId, field, value)=>{
-        updatePlanForm(clientId, (current)=>({
+    const handleManualFieldChange = (clientId, itemIndex, field, value)=>{
+        updatePlanFormItem(clientId, itemIndex, (current)=>({
                 ...current,
                 manualMedicine: {
                     ...current.manualMedicine,
                     [field]: value
-                },
+                }
+            }), {
+            resetStatus: true
+        });
+    };
+    const handleAddPlanItem = (clientId)=>{
+        updatePlanForm(clientId, (current)=>({
+                ...current,
+                items: [
+                    ...current.items,
+                    createPlanFormItemState()
+                ],
                 error: "",
                 message: ""
             }));
+    };
+    const handleRemovePlanItem = (clientId, itemIndex)=>{
+        updatePlanForm(clientId, (current)=>{
+            if (current.items.length <= 1) {
+                return current;
+            }
+            const nextItems = current.items.filter((_, index)=>index !== itemIndex);
+            return {
+                ...current,
+                items: nextItems.length > 0 ? nextItems : [
+                    createPlanFormItemState()
+                ],
+                error: "",
+                message: ""
+            };
+        });
     };
     const handleToggleDay = (clientId, dayValue)=>{
         setPlanForms((prev)=>{
@@ -511,34 +574,48 @@ function ProviderMyPage() {
     const handlePlanSubmit = async (clientId, event)=>{
         event.preventDefault();
         const form = planForms[clientId] ?? createInitialFormState();
-        const isManualMode = form.mode === "manual";
-        if (!isManualMode && !form.selectedMedicineId) {
+        if (form.items.length === 0) {
             updatePlanForm(clientId, (current)=>({
                     ...current,
-                    error: "약품을 검색하여 선택해주세요."
+                    error: "최소 1개 이상의 약품을 추가해주세요."
                 }));
             return;
         }
-        if (isManualMode && !form.manualMedicine.name.trim()) {
-            updatePlanForm(clientId, (current)=>({
-                    ...current,
-                    error: "직접 입력할 약품 이름을 입력해주세요."
-                }));
-            return;
-        }
-        if (!form.dosageAmount || Number(form.dosageAmount) <= 0) {
-            updatePlanForm(clientId, (current)=>({
-                    ...current,
-                    error: "복용량을 1 이상으로 입력해주세요."
-                }));
-            return;
-        }
-        if (!form.dosageUnit.trim()) {
-            updatePlanForm(clientId, (current)=>({
-                    ...current,
-                    error: "복용 단위를 입력해주세요."
-                }));
-            return;
+        for(let index = 0; index < form.items.length; index += 1){
+            const item = form.items[index];
+            if (!item) {
+                continue;
+            }
+            if (item.mode === "search" && !item.selectedMedicineId) {
+                updatePlanForm(clientId, (current)=>({
+                        ...current,
+                        error: `복약 항목 ${index + 1}의 약품을 검색하여 선택해주세요.`
+                    }));
+                return;
+            }
+            if (item.mode === "manual" && !item.manualMedicine.name.trim()) {
+                updatePlanForm(clientId, (current)=>({
+                        ...current,
+                        error: `복약 항목 ${index + 1}의 약품 이름을 입력해주세요.`
+                    }));
+                return;
+            }
+            const dosageAmountRaw = item.dosageAmount.trim();
+            const dosageAmountValue = Number(dosageAmountRaw);
+            if (!dosageAmountRaw || Number.isNaN(dosageAmountValue) || dosageAmountValue <= 0) {
+                updatePlanForm(clientId, (current)=>({
+                        ...current,
+                        error: `복약 항목 ${index + 1}의 복용량을 1 이상으로 입력해주세요.`
+                    }));
+                return;
+            }
+            if (!item.dosageUnit.trim()) {
+                updatePlanForm(clientId, (current)=>({
+                        ...current,
+                        error: `복약 항목 ${index + 1}의 복용 단위를 입력해주세요.`
+                    }));
+                return;
+            }
         }
         if (!form.alarmTime) {
             updatePlanForm(clientId, (current)=>({
@@ -565,30 +642,39 @@ function ProviderMyPage() {
                 const trimmed = value.trim();
                 return trimmed.length > 0 ? trimmed : null;
             };
-            const payload = form.mode === "manual" ? {
-                manualMedicine: {
-                    name: form.manualMedicine.name.trim(),
-                    productCode: sanitizeOptional(form.manualMedicine.productCode),
-                    efficacy: sanitizeOptional(form.manualMedicine.efficacy),
-                    usageDosage: sanitizeOptional(form.manualMedicine.usageDosage),
-                    caution: sanitizeOptional(form.manualMedicine.caution),
-                    sideEffects: sanitizeOptional(form.manualMedicine.sideEffects),
-                    description: sanitizeOptional(form.manualMedicine.description)
+            const itemsPayload = form.items.map((item)=>{
+                const base = {
+                    dosageAmount: Number(item.dosageAmount),
+                    dosageUnit: item.dosageUnit.trim()
+                };
+                if (item.mode === "manual") {
+                    return {
+                        ...base,
+                        manualMedicine: {
+                            name: item.manualMedicine.name.trim(),
+                            productCode: sanitizeOptional(item.manualMedicine.productCode),
+                            efficacy: sanitizeOptional(item.manualMedicine.efficacy),
+                            usageDosage: sanitizeOptional(item.manualMedicine.usageDosage),
+                            caution: sanitizeOptional(item.manualMedicine.caution),
+                            sideEffects: sanitizeOptional(item.manualMedicine.sideEffects),
+                            description: sanitizeOptional(item.manualMedicine.description)
+                        }
+                    };
                 }
-            } : {
-                medicineId: form.selectedMedicineId
-            };
-            const response = await fetch(`${API_BASE_URL}/api/clients/${clientId}/medication/plans`, {
+                return {
+                    ...base,
+                    medicineId: item.selectedMedicineId
+                };
+            });
+            const response = await fetch(`${API_BASE_URL}/api/clients/${clientId}/medication/plans/batch`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json"
                 },
                 body: JSON.stringify({
-                    ...payload,
-                    dosageAmount: Number(form.dosageAmount),
-                    dosageUnit: form.dosageUnit,
                     alarmTime: form.alarmTime,
-                    daysOfWeek: form.daysOfWeek
+                    daysOfWeek: form.daysOfWeek,
+                    items: itemsPayload
                 })
             });
             if (!response.ok) {
@@ -596,12 +682,12 @@ function ProviderMyPage() {
                 throw new Error(message);
             }
             await loadDashboard();
+            const successMessage = form.items.length > 1 ? `${form.items.length}개의 복약 일정이 등록되었습니다.` : "복약 일정이 등록되었습니다.";
             setPlanForms((prev)=>({
                     ...prev,
                     [clientId]: {
                         ...createInitialFormState(),
-                        mode: "search",
-                        message: "복약 일정이 등록되었습니다."
+                        message: successMessage
                     }
                 }));
         } catch (error) {
@@ -728,17 +814,17 @@ function ProviderMyPage() {
                     children: "제공자 정보를 불러오는 중입니다..."
                 }, void 0, false, {
                     fileName: "[project]/app/provider/mypage/page.tsx",
-                    lineNumber: 905,
+                    lineNumber: 1024,
                     columnNumber: 11
                 }, this)
             }, void 0, false, {
                 fileName: "[project]/app/provider/mypage/page.tsx",
-                lineNumber: 904,
+                lineNumber: 1023,
                 columnNumber: 9
             }, this)
         }, void 0, false, {
             fileName: "[project]/app/provider/mypage/page.tsx",
-            lineNumber: 903,
+            lineNumber: 1022,
             columnNumber: 7
         }, this);
     }
@@ -757,7 +843,7 @@ function ProviderMyPage() {
                                     children: "Guardian Provider"
                                 }, void 0, false, {
                                     fileName: "[project]/app/provider/mypage/page.tsx",
-                                    lineNumber: 916,
+                                    lineNumber: 1035,
                                     columnNumber: 13
                                 }, this),
                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("h1", {
@@ -765,7 +851,7 @@ function ProviderMyPage() {
                                     children: "환자 관리인 마이페이지"
                                 }, void 0, false, {
                                     fileName: "[project]/app/provider/mypage/page.tsx",
-                                    lineNumber: 919,
+                                    lineNumber: 1038,
                                     columnNumber: 13
                                 }, this),
                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -773,13 +859,13 @@ function ProviderMyPage() {
                                     children: "담당 클라이언트의 복약 스케줄을 확인하고 직접 관리할 수 있습니다."
                                 }, void 0, false, {
                                     fileName: "[project]/app/provider/mypage/page.tsx",
-                                    lineNumber: 922,
+                                    lineNumber: 1041,
                                     columnNumber: 13
                                 }, this)
                             ]
                         }, void 0, true, {
                             fileName: "[project]/app/provider/mypage/page.tsx",
-                            lineNumber: 915,
+                            lineNumber: 1034,
                             columnNumber: 11
                         }, this),
                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
@@ -789,13 +875,13 @@ function ProviderMyPage() {
                             children: "로그아웃"
                         }, void 0, false, {
                             fileName: "[project]/app/provider/mypage/page.tsx",
-                            lineNumber: 926,
+                            lineNumber: 1045,
                             columnNumber: 11
                         }, this)
                     ]
                 }, void 0, true, {
                     fileName: "[project]/app/provider/mypage/page.tsx",
-                    lineNumber: 914,
+                    lineNumber: 1033,
                     columnNumber: 9
                 }, this),
                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -808,7 +894,7 @@ function ProviderMyPage() {
                                     children: section.title
                                 }, void 0, false, {
                                     fileName: "[project]/app/provider/mypage/page.tsx",
-                                    lineNumber: 941,
+                                    lineNumber: 1060,
                                     columnNumber: 15
                                 }, this),
                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -816,7 +902,7 @@ function ProviderMyPage() {
                                     children: section.description
                                 }, void 0, false, {
                                     fileName: "[project]/app/provider/mypage/page.tsx",
-                                    lineNumber: 944,
+                                    lineNumber: 1063,
                                     columnNumber: 15
                                 }, this),
                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("dl", {
@@ -829,7 +915,7 @@ function ProviderMyPage() {
                                                     children: row.label
                                                 }, void 0, false, {
                                                     fileName: "[project]/app/provider/mypage/page.tsx",
-                                                    lineNumber: 953,
+                                                    lineNumber: 1072,
                                                     columnNumber: 21
                                                 }, this),
                                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("dd", {
@@ -837,29 +923,29 @@ function ProviderMyPage() {
                                                     children: row.value
                                                 }, void 0, false, {
                                                     fileName: "[project]/app/provider/mypage/page.tsx",
-                                                    lineNumber: 956,
+                                                    lineNumber: 1075,
                                                     columnNumber: 21
                                                 }, this)
                                             ]
                                         }, row.label, true, {
                                             fileName: "[project]/app/provider/mypage/page.tsx",
-                                            lineNumber: 949,
+                                            lineNumber: 1068,
                                             columnNumber: 19
                                         }, this))
                                 }, void 0, false, {
                                     fileName: "[project]/app/provider/mypage/page.tsx",
-                                    lineNumber: 947,
+                                    lineNumber: 1066,
                                     columnNumber: 15
                                 }, this)
                             ]
                         }, section.title, true, {
                             fileName: "[project]/app/provider/mypage/page.tsx",
-                            lineNumber: 937,
+                            lineNumber: 1056,
                             columnNumber: 13
                         }, this))
                 }, void 0, false, {
                     fileName: "[project]/app/provider/mypage/page.tsx",
-                    lineNumber: 935,
+                    lineNumber: 1054,
                     columnNumber: 9
                 }, this),
                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("section", {
@@ -874,7 +960,7 @@ function ProviderMyPage() {
                                         children: "클라이언트 검색 및 배정"
                                     }, void 0, false, {
                                         fileName: "[project]/app/provider/mypage/page.tsx",
-                                        lineNumber: 969,
+                                        lineNumber: 1088,
                                         columnNumber: 15
                                     }, this),
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -882,18 +968,18 @@ function ProviderMyPage() {
                                         children: "이름 또는 이메일로 클라이언트를 찾아 배정 여부를 확인하고 배정을 진행하세요."
                                     }, void 0, false, {
                                         fileName: "[project]/app/provider/mypage/page.tsx",
-                                        lineNumber: 972,
+                                        lineNumber: 1091,
                                         columnNumber: 15
                                     }, this)
                                 ]
                             }, void 0, true, {
                                 fileName: "[project]/app/provider/mypage/page.tsx",
-                                lineNumber: 968,
+                                lineNumber: 1087,
                                 columnNumber: 13
                             }, this)
                         }, void 0, false, {
                             fileName: "[project]/app/provider/mypage/page.tsx",
-                            lineNumber: 967,
+                            lineNumber: 1086,
                             columnNumber: 11
                         }, this),
                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("form", {
@@ -914,7 +1000,7 @@ function ProviderMyPage() {
                                     value: searchKeyword
                                 }, void 0, false, {
                                     fileName: "[project]/app/provider/mypage/page.tsx",
-                                    lineNumber: 984,
+                                    lineNumber: 1103,
                                     columnNumber: 13
                                 }, this),
                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
@@ -924,13 +1010,13 @@ function ProviderMyPage() {
                                     children: searchLoading ? "검색 중..." : "검색"
                                 }, void 0, false, {
                                     fileName: "[project]/app/provider/mypage/page.tsx",
-                                    lineNumber: 995,
+                                    lineNumber: 1114,
                                     columnNumber: 13
                                 }, this)
                             ]
                         }, void 0, true, {
                             fileName: "[project]/app/provider/mypage/page.tsx",
-                            lineNumber: 978,
+                            lineNumber: 1097,
                             columnNumber: 11
                         }, this),
                         searchError && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -938,7 +1024,7 @@ function ProviderMyPage() {
                             children: searchError
                         }, void 0, false, {
                             fileName: "[project]/app/provider/mypage/page.tsx",
-                            lineNumber: 1005,
+                            lineNumber: 1124,
                             columnNumber: 13
                         }, this),
                         searchLoading ? /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -946,7 +1032,7 @@ function ProviderMyPage() {
                             children: "검색 중입니다..."
                         }, void 0, false, {
                             fileName: "[project]/app/provider/mypage/page.tsx",
-                            lineNumber: 1009,
+                            lineNumber: 1128,
                             columnNumber: 13
                         }, this) : searchResults.length > 0 ? /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
                             className: "mt-4 space-y-3",
@@ -984,7 +1070,7 @@ function ProviderMyPage() {
                                                             ]
                                                         }, void 0, true, {
                                                             fileName: "[project]/app/provider/mypage/page.tsx",
-                                                            lineNumber: 1055,
+                                                            lineNumber: 1174,
                                                             columnNumber: 25
                                                         }, this),
                                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -995,7 +1081,7 @@ function ProviderMyPage() {
                                                                     children: statusLabel
                                                                 }, void 0, false, {
                                                                     fileName: "[project]/app/provider/mypage/page.tsx",
-                                                                    lineNumber: 1059,
+                                                                    lineNumber: 1178,
                                                                     columnNumber: 27
                                                                 }, this),
                                                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
@@ -1003,19 +1089,19 @@ function ProviderMyPage() {
                                                                     children: result.email
                                                                 }, void 0, false, {
                                                                     fileName: "[project]/app/provider/mypage/page.tsx",
-                                                                    lineNumber: 1062,
+                                                                    lineNumber: 1181,
                                                                     columnNumber: 27
                                                                 }, this)
                                                             ]
                                                         }, void 0, true, {
                                                             fileName: "[project]/app/provider/mypage/page.tsx",
-                                                            lineNumber: 1058,
+                                                            lineNumber: 1177,
                                                             columnNumber: 25
                                                         }, this)
                                                     ]
                                                 }, void 0, true, {
                                                     fileName: "[project]/app/provider/mypage/page.tsx",
-                                                    lineNumber: 1054,
+                                                    lineNumber: 1173,
                                                     columnNumber: 23
                                                 }, this),
                                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -1027,13 +1113,13 @@ function ProviderMyPage() {
                                                     ]
                                                 }, void 0, true, {
                                                     fileName: "[project]/app/provider/mypage/page.tsx",
-                                                    lineNumber: 1065,
+                                                    lineNumber: 1184,
                                                     columnNumber: 23
                                                 }, this)
                                             ]
                                         }, void 0, true, {
                                             fileName: "[project]/app/provider/mypage/page.tsx",
-                                            lineNumber: 1053,
+                                            lineNumber: 1172,
                                             columnNumber: 21
                                         }, this),
                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -1046,7 +1132,7 @@ function ProviderMyPage() {
                                                     ]
                                                 }, void 0, true, {
                                                     fileName: "[project]/app/provider/mypage/page.tsx",
-                                                    lineNumber: 1076,
+                                                    lineNumber: 1195,
                                                     columnNumber: 23
                                                 }, this),
                                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -1056,7 +1142,7 @@ function ProviderMyPage() {
                                                     ]
                                                 }, void 0, true, {
                                                     fileName: "[project]/app/provider/mypage/page.tsx",
-                                                    lineNumber: 1077,
+                                                    lineNumber: 1196,
                                                     columnNumber: 23
                                                 }, this),
                                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -1066,13 +1152,13 @@ function ProviderMyPage() {
                                                     ]
                                                 }, void 0, true, {
                                                     fileName: "[project]/app/provider/mypage/page.tsx",
-                                                    lineNumber: 1078,
+                                                    lineNumber: 1197,
                                                     columnNumber: 23
                                                 }, this)
                                             ]
                                         }, void 0, true, {
                                             fileName: "[project]/app/provider/mypage/page.tsx",
-                                            lineNumber: 1075,
+                                            lineNumber: 1194,
                                             columnNumber: 21
                                         }, this),
                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -1086,7 +1172,7 @@ function ProviderMyPage() {
                                                     children: buttonLabel
                                                 }, void 0, false, {
                                                     fileName: "[project]/app/provider/mypage/page.tsx",
-                                                    lineNumber: 1081,
+                                                    lineNumber: 1200,
                                                     columnNumber: 23
                                                 }, this),
                                                 assignMessage && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -1094,7 +1180,7 @@ function ProviderMyPage() {
                                                     children: assignMessage.text
                                                 }, void 0, false, {
                                                     fileName: "[project]/app/provider/mypage/page.tsx",
-                                                    lineNumber: 1090,
+                                                    lineNumber: 1209,
                                                     columnNumber: 25
                                                 }, this),
                                                 !result.assignable && !assignedToCurrent && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -1102,38 +1188,38 @@ function ProviderMyPage() {
                                                     children: "다른 제공자에게 배정된 클라이언트입니다."
                                                 }, void 0, false, {
                                                     fileName: "[project]/app/provider/mypage/page.tsx",
-                                                    lineNumber: 1101,
+                                                    lineNumber: 1220,
                                                     columnNumber: 25
                                                 }, this)
                                             ]
                                         }, void 0, true, {
                                             fileName: "[project]/app/provider/mypage/page.tsx",
-                                            lineNumber: 1080,
+                                            lineNumber: 1199,
                                             columnNumber: 21
                                         }, this)
                                     ]
                                 }, result.clientId, true, {
                                     fileName: "[project]/app/provider/mypage/page.tsx",
-                                    lineNumber: 1049,
+                                    lineNumber: 1168,
                                     columnNumber: 19
                                 }, this);
                             })
                         }, void 0, false, {
                             fileName: "[project]/app/provider/mypage/page.tsx",
-                            lineNumber: 1013,
+                            lineNumber: 1132,
                             columnNumber: 13
                         }, this) : searchKeyword.trim().length > 0 && searchMessage ? /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
                             className: "mt-4 rounded-md bg-slate-50 px-4 py-3 text-sm text-slate-600",
                             children: searchMessage
                         }, void 0, false, {
                             fileName: "[project]/app/provider/mypage/page.tsx",
-                            lineNumber: 1111,
+                            lineNumber: 1230,
                             columnNumber: 13
                         }, this) : null
                     ]
                 }, void 0, true, {
                     fileName: "[project]/app/provider/mypage/page.tsx",
-                    lineNumber: 966,
+                    lineNumber: 1085,
                     columnNumber: 9
                 }, this),
                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("section", {
@@ -1149,7 +1235,7 @@ function ProviderMyPage() {
                                             children: "담당 클라이언트 복약 관리"
                                         }, void 0, false, {
                                             fileName: "[project]/app/provider/mypage/page.tsx",
-                                            lineNumber: 1120,
+                                            lineNumber: 1239,
                                             columnNumber: 15
                                         }, this),
                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -1157,13 +1243,13 @@ function ProviderMyPage() {
                                             children: "복약 스케줄을 등록하거나 복약 여부를 대신 기록할 수 있습니다."
                                         }, void 0, false, {
                                             fileName: "[project]/app/provider/mypage/page.tsx",
-                                            lineNumber: 1123,
+                                            lineNumber: 1242,
                                             columnNumber: 15
                                         }, this)
                                     ]
                                 }, void 0, true, {
                                     fileName: "[project]/app/provider/mypage/page.tsx",
-                                    lineNumber: 1119,
+                                    lineNumber: 1238,
                                     columnNumber: 13
                                 }, this),
                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
@@ -1174,13 +1260,13 @@ function ProviderMyPage() {
                                     children: dashboardLoading ? "새로고침 중..." : "데이터 새로고침"
                                 }, void 0, false, {
                                     fileName: "[project]/app/provider/mypage/page.tsx",
-                                    lineNumber: 1127,
+                                    lineNumber: 1246,
                                     columnNumber: 13
                                 }, this)
                             ]
                         }, void 0, true, {
                             fileName: "[project]/app/provider/mypage/page.tsx",
-                            lineNumber: 1118,
+                            lineNumber: 1237,
                             columnNumber: 11
                         }, this),
                         dashboardLoading && !dashboard ? /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -1188,21 +1274,21 @@ function ProviderMyPage() {
                             children: "복약 정보를 불러오는 중입니다..."
                         }, void 0, false, {
                             fileName: "[project]/app/provider/mypage/page.tsx",
-                            lineNumber: 1138,
+                            lineNumber: 1257,
                             columnNumber: 13
                         }, this) : dashboardError ? /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
                             className: "mt-4 rounded-md bg-red-50 px-4 py-3 text-sm text-red-600",
                             children: dashboardError
                         }, void 0, false, {
                             fileName: "[project]/app/provider/mypage/page.tsx",
-                            lineNumber: 1142,
+                            lineNumber: 1261,
                             columnNumber: 13
                         }, this) : !dashboard || dashboard.clients.length === 0 ? /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
                             className: "mt-4 rounded-md bg-white px-4 py-3 text-sm text-emerald-700",
                             children: "현재 배정된 클라이언트가 없습니다. 관리자에게 문의해주세요."
                         }, void 0, false, {
                             fileName: "[project]/app/provider/mypage/page.tsx",
-                            lineNumber: 1146,
+                            lineNumber: 1265,
                             columnNumber: 13
                         }, this) : /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
                             className: "mt-4 space-y-6",
@@ -1223,7 +1309,7 @@ function ProviderMyPage() {
                                                         ]
                                                     }, void 0, true, {
                                                         fileName: "[project]/app/provider/mypage/page.tsx",
-                                                        lineNumber: 1160,
+                                                        lineNumber: 1279,
                                                         columnNumber: 25
                                                     }, this),
                                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -1238,18 +1324,18 @@ function ProviderMyPage() {
                                                         ]
                                                     }, void 0, true, {
                                                         fileName: "[project]/app/provider/mypage/page.tsx",
-                                                        lineNumber: 1163,
+                                                        lineNumber: 1282,
                                                         columnNumber: 25
                                                     }, this)
                                                 ]
                                             }, void 0, true, {
                                                 fileName: "[project]/app/provider/mypage/page.tsx",
-                                                lineNumber: 1159,
+                                                lineNumber: 1278,
                                                 columnNumber: 23
                                             }, this)
                                         }, void 0, false, {
                                             fileName: "[project]/app/provider/mypage/page.tsx",
-                                            lineNumber: 1158,
+                                            lineNumber: 1277,
                                             columnNumber: 21
                                         }, this),
                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -1263,7 +1349,7 @@ function ProviderMyPage() {
                                                             children: "등록된 복약 일정이 없습니다. 아래 양식을 통해 일정을 추가해주세요."
                                                         }, void 0, false, {
                                                             fileName: "[project]/app/provider/mypage/page.tsx",
-                                                            lineNumber: 1173,
+                                                            lineNumber: 1292,
                                                             columnNumber: 27
                                                         }, this) : client.medicationPlans.map((plan)=>{
                                                             const message = planMessages[plan.id];
@@ -1282,7 +1368,7 @@ function ProviderMyPage() {
                                                                                         children: plan.medicineName
                                                                                     }, void 0, false, {
                                                                                         fileName: "[project]/app/provider/mypage/page.tsx",
-                                                                                        lineNumber: 1190,
+                                                                                        lineNumber: 1309,
                                                                                         columnNumber: 37
                                                                                     }, this),
                                                                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -1290,13 +1376,13 @@ function ProviderMyPage() {
                                                                                         children: `${plan.dosageAmount}${plan.dosageUnit} · ${formatAlarmTime(plan.alarmTime)} · ${plan.daysOfWeek.map(mapDayToLabel).join(", ")}`
                                                                                     }, void 0, false, {
                                                                                         fileName: "[project]/app/provider/mypage/page.tsx",
-                                                                                        lineNumber: 1193,
+                                                                                        lineNumber: 1312,
                                                                                         columnNumber: 37
                                                                                     }, this)
                                                                                 ]
                                                                             }, void 0, true, {
                                                                                 fileName: "[project]/app/provider/mypage/page.tsx",
-                                                                                lineNumber: 1189,
+                                                                                lineNumber: 1308,
                                                                                 columnNumber: 35
                                                                             }, this),
                                                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -1309,18 +1395,18 @@ function ProviderMyPage() {
                                                                                     children: deleteProcessing[plan.id] === "loading" ? "삭제 중..." : "삭제"
                                                                                 }, void 0, false, {
                                                                                     fileName: "[project]/app/provider/mypage/page.tsx",
-                                                                                    lineNumber: 1202,
+                                                                                    lineNumber: 1321,
                                                                                     columnNumber: 37
                                                                                 }, this)
                                                                             }, void 0, false, {
                                                                                 fileName: "[project]/app/provider/mypage/page.tsx",
-                                                                                lineNumber: 1201,
+                                                                                lineNumber: 1320,
                                                                                 columnNumber: 35
                                                                             }, this)
                                                                         ]
                                                                     }, void 0, true, {
                                                                         fileName: "[project]/app/provider/mypage/page.tsx",
-                                                                        lineNumber: 1188,
+                                                                        lineNumber: 1307,
                                                                         columnNumber: 33
                                                                     }, this),
                                                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -1335,7 +1421,7 @@ function ProviderMyPage() {
                                                                                 ]
                                                                             }, void 0, true, {
                                                                                 fileName: "[project]/app/provider/mypage/page.tsx",
-                                                                                lineNumber: 1217,
+                                                                                lineNumber: 1336,
                                                                                 columnNumber: 35
                                                                             }, this),
                                                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
@@ -1346,13 +1432,13 @@ function ProviderMyPage() {
                                                                                 children: logProcessing[plan.id] === "loading" ? "기록 중..." : "복약 확인 기록"
                                                                             }, void 0, false, {
                                                                                 fileName: "[project]/app/provider/mypage/page.tsx",
-                                                                                lineNumber: 1223,
+                                                                                lineNumber: 1342,
                                                                                 columnNumber: 35
                                                                             }, this)
                                                                         ]
                                                                     }, void 0, true, {
                                                                         fileName: "[project]/app/provider/mypage/page.tsx",
-                                                                        lineNumber: 1216,
+                                                                        lineNumber: 1335,
                                                                         columnNumber: 33
                                                                     }, this),
                                                                     logMessage && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -1360,7 +1446,7 @@ function ProviderMyPage() {
                                                                         children: logMessage.text
                                                                     }, void 0, false, {
                                                                         fileName: "[project]/app/provider/mypage/page.tsx",
-                                                                        lineNumber: 1237,
+                                                                        lineNumber: 1356,
                                                                         columnNumber: 35
                                                                     }, this),
                                                                     message && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -1368,13 +1454,13 @@ function ProviderMyPage() {
                                                                         children: message.text
                                                                     }, void 0, false, {
                                                                         fileName: "[project]/app/provider/mypage/page.tsx",
-                                                                        lineNumber: 1248,
+                                                                        lineNumber: 1367,
                                                                         columnNumber: 35
                                                                     }, this)
                                                                 ]
                                                             }, plan.id, true, {
                                                                 fileName: "[project]/app/provider/mypage/page.tsx",
-                                                                lineNumber: 1184,
+                                                                lineNumber: 1303,
                                                                 columnNumber: 31
                                                             }, this);
                                                         }),
@@ -1387,423 +1473,502 @@ function ProviderMyPage() {
                                                                     children: "복약 일정 추가"
                                                                 }, void 0, false, {
                                                                     fileName: "[project]/app/provider/mypage/page.tsx",
-                                                                    lineNumber: 1267,
+                                                                    lineNumber: 1386,
                                                                     columnNumber: 27
                                                                 }, this),
                                                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
-                                                                    className: "flex flex-col gap-3",
+                                                                    className: "flex flex-col gap-4",
                                                                     children: [
-                                                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
-                                                                            className: "flex flex-wrap gap-2",
-                                                                            children: [
-                                                                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
-                                                                                    type: "button",
-                                                                                    onClick: ()=>handlePlanModeChange(client.clientId, "search"),
-                                                                                    className: `rounded-md border px-4 py-2 text-xs font-semibold transition ${form.mode === "search" ? "border-emerald-500 bg-emerald-50 text-emerald-700" : "border-slate-300 bg-white text-slate-600 hover:border-slate-400"}`,
-                                                                                    children: "약 검색"
-                                                                                }, void 0, false, {
-                                                                                    fileName: "[project]/app/provider/mypage/page.tsx",
-                                                                                    lineNumber: 1272,
-                                                                                    columnNumber: 31
-                                                                                }, this),
-                                                                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
-                                                                                    type: "button",
-                                                                                    onClick: ()=>handlePlanModeChange(client.clientId, "manual"),
-                                                                                    className: `rounded-md border px-4 py-2 text-xs font-semibold transition ${form.mode === "manual" ? "border-emerald-500 bg-emerald-50 text-emerald-700" : "border-slate-300 bg-white text-slate-600 hover:border-slate-400"}`,
-                                                                                    children: "직접 입력"
-                                                                                }, void 0, false, {
-                                                                                    fileName: "[project]/app/provider/mypage/page.tsx",
-                                                                                    lineNumber: 1285,
-                                                                                    columnNumber: 31
-                                                                                }, this)
-                                                                            ]
-                                                                        }, void 0, true, {
+                                                                        form.items.map((item, index)=>/*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                                                                className: "space-y-3 rounded-md border border-slate-200 bg-slate-50 p-3",
+                                                                                children: [
+                                                                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                                                                        className: "flex items-center justify-between",
+                                                                                        children: [
+                                                                                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                                                                                children: [
+                                                                                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
+                                                                                                        className: "text-xs font-semibold text-slate-500",
+                                                                                                        children: [
+                                                                                                            "복약 항목 ",
+                                                                                                            index + 1
+                                                                                                        ]
+                                                                                                    }, void 0, true, {
+                                                                                                        fileName: "[project]/app/provider/mypage/page.tsx",
+                                                                                                        lineNumber: 1397,
+                                                                                                        columnNumber: 37
+                                                                                                    }, this),
+                                                                                                    item.mode === "search" && item.selectedMedicineId && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
+                                                                                                        className: "text-sm font-medium text-slate-700",
+                                                                                                        children: item.medicineKeyword
+                                                                                                    }, void 0, false, {
+                                                                                                        fileName: "[project]/app/provider/mypage/page.tsx",
+                                                                                                        lineNumber: 1401,
+                                                                                                        columnNumber: 39
+                                                                                                    }, this),
+                                                                                                    item.mode === "manual" && item.manualMedicine.name.trim().length > 0 && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
+                                                                                                        className: "text-sm font-medium text-slate-700",
+                                                                                                        children: item.manualMedicine.name
+                                                                                                    }, void 0, false, {
+                                                                                                        fileName: "[project]/app/provider/mypage/page.tsx",
+                                                                                                        lineNumber: 1407,
+                                                                                                        columnNumber: 41
+                                                                                                    }, this)
+                                                                                                ]
+                                                                                            }, void 0, true, {
+                                                                                                fileName: "[project]/app/provider/mypage/page.tsx",
+                                                                                                lineNumber: 1396,
+                                                                                                columnNumber: 35
+                                                                                            }, this),
+                                                                                            form.items.length > 1 && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+                                                                                                type: "button",
+                                                                                                onClick: ()=>handleRemovePlanItem(client.clientId, index),
+                                                                                                className: "rounded-md border border-slate-300 px-3 py-1 text-xs font-medium text-slate-600 transition hover:border-red-300 hover:text-red-600",
+                                                                                                children: "항목 삭제"
+                                                                                            }, void 0, false, {
+                                                                                                fileName: "[project]/app/provider/mypage/page.tsx",
+                                                                                                lineNumber: 1413,
+                                                                                                columnNumber: 37
+                                                                                            }, this)
+                                                                                        ]
+                                                                                    }, void 0, true, {
+                                                                                        fileName: "[project]/app/provider/mypage/page.tsx",
+                                                                                        lineNumber: 1395,
+                                                                                        columnNumber: 33
+                                                                                    }, this),
+                                                                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                                                                        className: "flex flex-wrap gap-2",
+                                                                                        children: [
+                                                                                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+                                                                                                type: "button",
+                                                                                                onClick: ()=>handlePlanModeChange(client.clientId, index, "search"),
+                                                                                                className: `rounded-md border px-4 py-2 text-xs font-semibold transition ${item.mode === "search" ? "border-emerald-500 bg-emerald-50 text-emerald-700" : "border-slate-300 bg-white text-slate-600 hover:border-slate-400"}`,
+                                                                                                children: "약 검색"
+                                                                                            }, void 0, false, {
+                                                                                                fileName: "[project]/app/provider/mypage/page.tsx",
+                                                                                                lineNumber: 1425,
+                                                                                                columnNumber: 35
+                                                                                            }, this),
+                                                                                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+                                                                                                type: "button",
+                                                                                                onClick: ()=>handlePlanModeChange(client.clientId, index, "manual"),
+                                                                                                className: `rounded-md border px-4 py-2 text-xs font-semibold transition ${item.mode === "manual" ? "border-emerald-500 bg-emerald-50 text-emerald-700" : "border-slate-300 bg-white text-slate-600 hover:border-slate-400"}`,
+                                                                                                children: "직접 입력"
+                                                                                            }, void 0, false, {
+                                                                                                fileName: "[project]/app/provider/mypage/page.tsx",
+                                                                                                lineNumber: 1438,
+                                                                                                columnNumber: 35
+                                                                                            }, this)
+                                                                                        ]
+                                                                                    }, void 0, true, {
+                                                                                        fileName: "[project]/app/provider/mypage/page.tsx",
+                                                                                        lineNumber: 1424,
+                                                                                        columnNumber: 33
+                                                                                    }, this),
+                                                                                    item.mode === "search" ? /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["Fragment"], {
+                                                                                        children: [
+                                                                                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                                                                                className: "flex flex-col gap-2 sm:flex-row",
+                                                                                                children: [
+                                                                                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("input", {
+                                                                                                        className: "flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-emerald-600 focus:outline-none",
+                                                                                                        placeholder: "약품명으로 검색",
+                                                                                                        value: item.medicineKeyword,
+                                                                                                        onChange: (event)=>updatePlanFormItem(client.clientId, index, (current)=>({
+                                                                                                                    ...current,
+                                                                                                                    medicineKeyword: event.target.value,
+                                                                                                                    selectedMedicineId: null
+                                                                                                                }), {
+                                                                                                                resetStatus: true
+                                                                                                            })
+                                                                                                    }, void 0, false, {
+                                                                                                        fileName: "[project]/app/provider/mypage/page.tsx",
+                                                                                                        lineNumber: 1456,
+                                                                                                        columnNumber: 39
+                                                                                                    }, this),
+                                                                                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+                                                                                                        className: "rounded-md border border-emerald-300 px-3 py-2 text-sm text-emerald-700 transition hover:border-emerald-400 hover:text-emerald-900 disabled:cursor-not-allowed disabled:opacity-50",
+                                                                                                        disabled: item.searching,
+                                                                                                        onClick: (event)=>{
+                                                                                                            event.preventDefault();
+                                                                                                            handleMedicineSearch(client.clientId, index);
+                                                                                                        },
+                                                                                                        children: item.searching ? "검색 중..." : "검색"
+                                                                                                    }, void 0, false, {
+                                                                                                        fileName: "[project]/app/provider/mypage/page.tsx",
+                                                                                                        lineNumber: 1473,
+                                                                                                        columnNumber: 39
+                                                                                                    }, this)
+                                                                                                ]
+                                                                                            }, void 0, true, {
+                                                                                                fileName: "[project]/app/provider/mypage/page.tsx",
+                                                                                                lineNumber: 1455,
+                                                                                                columnNumber: 37
+                                                                                            }, this),
+                                                                                            item.medicineResults.length > 0 && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                                                                                className: "rounded-md border border-slate-200 bg-white p-2",
+                                                                                                children: [
+                                                                                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
+                                                                                                        className: "text-xs text-slate-500",
+                                                                                                        children: "검색 결과를 선택하세요."
+                                                                                                    }, void 0, false, {
+                                                                                                        fileName: "[project]/app/provider/mypage/page.tsx",
+                                                                                                        lineNumber: 1486,
+                                                                                                        columnNumber: 41
+                                                                                                    }, this),
+                                                                                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                                                                                        className: "mt-2 grid gap-2 sm:grid-cols-2",
+                                                                                                        children: item.medicineResults.map((medicine)=>/*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+                                                                                                                className: "rounded-md border border-white bg-white px-3 py-2 text-left text-sm text-slate-700 transition hover:border-emerald-300 hover:text-emerald-700",
+                                                                                                                onClick: (event)=>{
+                                                                                                                    event.preventDefault();
+                                                                                                                    handleSelectMedicine(client.clientId, index, medicine);
+                                                                                                                },
+                                                                                                                children: [
+                                                                                                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                                                                                                                        className: "font-medium",
+                                                                                                                        children: medicine.name
+                                                                                                                    }, void 0, false, {
+                                                                                                                        fileName: "[project]/app/provider/mypage/page.tsx",
+                                                                                                                        lineNumber: 1503,
+                                                                                                                        columnNumber: 47
+                                                                                                                    }, this),
+                                                                                                                    medicine.productCode && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                                                                                                                        className: "block text-xs text-slate-500",
+                                                                                                                        children: medicine.productCode
+                                                                                                                    }, void 0, false, {
+                                                                                                                        fileName: "[project]/app/provider/mypage/page.tsx",
+                                                                                                                        lineNumber: 1507,
+                                                                                                                        columnNumber: 49
+                                                                                                                    }, this)
+                                                                                                                ]
+                                                                                                            }, medicine.id, true, {
+                                                                                                                fileName: "[project]/app/provider/mypage/page.tsx",
+                                                                                                                lineNumber: 1491,
+                                                                                                                columnNumber: 45
+                                                                                                            }, this))
+                                                                                                    }, void 0, false, {
+                                                                                                        fileName: "[project]/app/provider/mypage/page.tsx",
+                                                                                                        lineNumber: 1489,
+                                                                                                        columnNumber: 41
+                                                                                                    }, this)
+                                                                                                ]
+                                                                                            }, void 0, true, {
+                                                                                                fileName: "[project]/app/provider/mypage/page.tsx",
+                                                                                                lineNumber: 1485,
+                                                                                                columnNumber: 39
+                                                                                            }, this)
+                                                                                        ]
+                                                                                    }, void 0, true) : /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                                                                        className: "space-y-3 rounded-md border border-slate-200 bg-white p-3",
+                                                                                        children: [
+                                                                                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
+                                                                                                className: "text-xs text-slate-500",
+                                                                                                children: "검색 결과가 없을 때 직접 약품 정보를 입력하고 등록할 수 있습니다."
+                                                                                            }, void 0, false, {
+                                                                                                fileName: "[project]/app/provider/mypage/page.tsx",
+                                                                                                lineNumber: 1519,
+                                                                                                columnNumber: 37
+                                                                                            }, this),
+                                                                                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                                                                                className: "flex flex-col gap-1",
+                                                                                                children: [
+                                                                                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("label", {
+                                                                                                        className: "text-xs font-medium text-slate-600",
+                                                                                                        children: [
+                                                                                                            "약품 이름",
+                                                                                                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                                                                                                                className: "text-red-500",
+                                                                                                                children: "*"
+                                                                                                            }, void 0, false, {
+                                                                                                                fileName: "[project]/app/provider/mypage/page.tsx",
+                                                                                                                lineNumber: 1524,
+                                                                                                                columnNumber: 46
+                                                                                                            }, this)
+                                                                                                        ]
+                                                                                                    }, void 0, true, {
+                                                                                                        fileName: "[project]/app/provider/mypage/page.tsx",
+                                                                                                        lineNumber: 1523,
+                                                                                                        columnNumber: 39
+                                                                                                    }, this),
+                                                                                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("input", {
+                                                                                                        className: "rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-emerald-600 focus:outline-none",
+                                                                                                        placeholder: "직접 입력할 약품 이름",
+                                                                                                        value: item.manualMedicine.name,
+                                                                                                        onChange: (event)=>handleManualFieldChange(client.clientId, index, "name", event.target.value)
+                                                                                                    }, void 0, false, {
+                                                                                                        fileName: "[project]/app/provider/mypage/page.tsx",
+                                                                                                        lineNumber: 1526,
+                                                                                                        columnNumber: 39
+                                                                                                    }, this)
+                                                                                                ]
+                                                                                            }, void 0, true, {
+                                                                                                fileName: "[project]/app/provider/mypage/page.tsx",
+                                                                                                lineNumber: 1522,
+                                                                                                columnNumber: 37
+                                                                                            }, this),
+                                                                                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                                                                                className: "flex flex-col gap-1",
+                                                                                                children: [
+                                                                                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("label", {
+                                                                                                        className: "text-xs font-medium text-slate-600",
+                                                                                                        children: "제품 코드 (선택)"
+                                                                                                    }, void 0, false, {
+                                                                                                        fileName: "[project]/app/provider/mypage/page.tsx",
+                                                                                                        lineNumber: 1541,
+                                                                                                        columnNumber: 39
+                                                                                                    }, this),
+                                                                                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("input", {
+                                                                                                        className: "rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-emerald-600 focus:outline-none",
+                                                                                                        placeholder: "예) 국문 제품 코드",
+                                                                                                        value: item.manualMedicine.productCode,
+                                                                                                        onChange: (event)=>handleManualFieldChange(client.clientId, index, "productCode", event.target.value)
+                                                                                                    }, void 0, false, {
+                                                                                                        fileName: "[project]/app/provider/mypage/page.tsx",
+                                                                                                        lineNumber: 1544,
+                                                                                                        columnNumber: 39
+                                                                                                    }, this)
+                                                                                                ]
+                                                                                            }, void 0, true, {
+                                                                                                fileName: "[project]/app/provider/mypage/page.tsx",
+                                                                                                lineNumber: 1540,
+                                                                                                columnNumber: 37
+                                                                                            }, this),
+                                                                                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                                                                                className: "flex flex-col gap-1",
+                                                                                                children: [
+                                                                                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("label", {
+                                                                                                        className: "text-xs font-medium text-slate-600",
+                                                                                                        children: "효능 / 효과 (선택)"
+                                                                                                    }, void 0, false, {
+                                                                                                        fileName: "[project]/app/provider/mypage/page.tsx",
+                                                                                                        lineNumber: 1559,
+                                                                                                        columnNumber: 39
+                                                                                                    }, this),
+                                                                                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("textarea", {
+                                                                                                        className: "min-h-[60px] rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-emerald-600 focus:outline-none",
+                                                                                                        placeholder: "약품의 주요 효능을 입력하세요.",
+                                                                                                        value: item.manualMedicine.efficacy,
+                                                                                                        onChange: (event)=>handleManualFieldChange(client.clientId, index, "efficacy", event.target.value)
+                                                                                                    }, void 0, false, {
+                                                                                                        fileName: "[project]/app/provider/mypage/page.tsx",
+                                                                                                        lineNumber: 1562,
+                                                                                                        columnNumber: 39
+                                                                                                    }, this)
+                                                                                                ]
+                                                                                            }, void 0, true, {
+                                                                                                fileName: "[project]/app/provider/mypage/page.tsx",
+                                                                                                lineNumber: 1558,
+                                                                                                columnNumber: 37
+                                                                                            }, this),
+                                                                                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                                                                                className: "flex flex-col gap-1",
+                                                                                                children: [
+                                                                                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("label", {
+                                                                                                        className: "text-xs font-medium text-slate-600",
+                                                                                                        children: "복용 방법 (선택)"
+                                                                                                    }, void 0, false, {
+                                                                                                        fileName: "[project]/app/provider/mypage/page.tsx",
+                                                                                                        lineNumber: 1577,
+                                                                                                        columnNumber: 39
+                                                                                                    }, this),
+                                                                                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("textarea", {
+                                                                                                        className: "min-h-[60px] rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-emerald-600 focus:outline-none",
+                                                                                                        placeholder: "예) 1일 3회, 1회 1정 등",
+                                                                                                        value: item.manualMedicine.usageDosage,
+                                                                                                        onChange: (event)=>handleManualFieldChange(client.clientId, index, "usageDosage", event.target.value)
+                                                                                                    }, void 0, false, {
+                                                                                                        fileName: "[project]/app/provider/mypage/page.tsx",
+                                                                                                        lineNumber: 1580,
+                                                                                                        columnNumber: 39
+                                                                                                    }, this)
+                                                                                                ]
+                                                                                            }, void 0, true, {
+                                                                                                fileName: "[project]/app/provider/mypage/page.tsx",
+                                                                                                lineNumber: 1576,
+                                                                                                columnNumber: 37
+                                                                                            }, this),
+                                                                                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                                                                                className: "flex flex-col gap-1",
+                                                                                                children: [
+                                                                                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("label", {
+                                                                                                        className: "text-xs font-medium text-slate-600",
+                                                                                                        children: "주의 사항 (선택)"
+                                                                                                    }, void 0, false, {
+                                                                                                        fileName: "[project]/app/provider/mypage/page.tsx",
+                                                                                                        lineNumber: 1595,
+                                                                                                        columnNumber: 39
+                                                                                                    }, this),
+                                                                                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("textarea", {
+                                                                                                        className: "min-h-[60px] rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-emerald-600 focus:outline-none",
+                                                                                                        placeholder: "주의사항이나 알레르기 정보를 입력하세요.",
+                                                                                                        value: item.manualMedicine.caution,
+                                                                                                        onChange: (event)=>handleManualFieldChange(client.clientId, index, "caution", event.target.value)
+                                                                                                    }, void 0, false, {
+                                                                                                        fileName: "[project]/app/provider/mypage/page.tsx",
+                                                                                                        lineNumber: 1598,
+                                                                                                        columnNumber: 39
+                                                                                                    }, this)
+                                                                                                ]
+                                                                                            }, void 0, true, {
+                                                                                                fileName: "[project]/app/provider/mypage/page.tsx",
+                                                                                                lineNumber: 1594,
+                                                                                                columnNumber: 37
+                                                                                            }, this),
+                                                                                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                                                                                className: "flex flex-col gap-1",
+                                                                                                children: [
+                                                                                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("label", {
+                                                                                                        className: "text-xs font-medium text-slate-600",
+                                                                                                        children: "부작용 (선택)"
+                                                                                                    }, void 0, false, {
+                                                                                                        fileName: "[project]/app/provider/mypage/page.tsx",
+                                                                                                        lineNumber: 1613,
+                                                                                                        columnNumber: 39
+                                                                                                    }, this),
+                                                                                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("textarea", {
+                                                                                                        className: "min-h-[60px] rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-emerald-600 focus:outline-none",
+                                                                                                        placeholder: "예상되는 부작용을 입력하세요.",
+                                                                                                        value: item.manualMedicine.sideEffects,
+                                                                                                        onChange: (event)=>handleManualFieldChange(client.clientId, index, "sideEffects", event.target.value)
+                                                                                                    }, void 0, false, {
+                                                                                                        fileName: "[project]/app/provider/mypage/page.tsx",
+                                                                                                        lineNumber: 1616,
+                                                                                                        columnNumber: 39
+                                                                                                    }, this)
+                                                                                                ]
+                                                                                            }, void 0, true, {
+                                                                                                fileName: "[project]/app/provider/mypage/page.tsx",
+                                                                                                lineNumber: 1612,
+                                                                                                columnNumber: 37
+                                                                                            }, this),
+                                                                                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                                                                                className: "flex flex-col gap-1",
+                                                                                                children: [
+                                                                                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("label", {
+                                                                                                        className: "text-xs font-medium text-slate-600",
+                                                                                                        children: "비고 (선택)"
+                                                                                                    }, void 0, false, {
+                                                                                                        fileName: "[project]/app/provider/mypage/page.tsx",
+                                                                                                        lineNumber: 1631,
+                                                                                                        columnNumber: 39
+                                                                                                    }, this),
+                                                                                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("textarea", {
+                                                                                                        className: "min-h-[60px] rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-emerald-600 focus:outline-none",
+                                                                                                        placeholder: "추가 메모를 입력하세요.",
+                                                                                                        value: item.manualMedicine.description,
+                                                                                                        onChange: (event)=>handleManualFieldChange(client.clientId, index, "description", event.target.value)
+                                                                                                    }, void 0, false, {
+                                                                                                        fileName: "[project]/app/provider/mypage/page.tsx",
+                                                                                                        lineNumber: 1634,
+                                                                                                        columnNumber: 39
+                                                                                                    }, this)
+                                                                                                ]
+                                                                                            }, void 0, true, {
+                                                                                                fileName: "[project]/app/provider/mypage/page.tsx",
+                                                                                                lineNumber: 1630,
+                                                                                                columnNumber: 37
+                                                                                            }, this)
+                                                                                        ]
+                                                                                    }, void 0, true, {
+                                                                                        fileName: "[project]/app/provider/mypage/page.tsx",
+                                                                                        lineNumber: 1518,
+                                                                                        columnNumber: 35
+                                                                                    }, this),
+                                                                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                                                                        className: "grid gap-3 sm:grid-cols-2",
+                                                                                        children: [
+                                                                                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                                                                                className: "flex flex-col gap-1",
+                                                                                                children: [
+                                                                                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("label", {
+                                                                                                        className: "text-xs font-medium text-slate-600",
+                                                                                                        children: "복용량"
+                                                                                                    }, void 0, false, {
+                                                                                                        fileName: "[project]/app/provider/mypage/page.tsx",
+                                                                                                        lineNumber: 1652,
+                                                                                                        columnNumber: 37
+                                                                                                    }, this),
+                                                                                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("input", {
+                                                                                                        className: "rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-emerald-600 focus:outline-none",
+                                                                                                        min: 1,
+                                                                                                        type: "number",
+                                                                                                        value: item.dosageAmount,
+                                                                                                        onChange: (event)=>updatePlanFormItem(client.clientId, index, (current)=>({
+                                                                                                                    ...current,
+                                                                                                                    dosageAmount: event.target.value
+                                                                                                                }), {
+                                                                                                                resetStatus: true
+                                                                                                            })
+                                                                                                    }, void 0, false, {
+                                                                                                        fileName: "[project]/app/provider/mypage/page.tsx",
+                                                                                                        lineNumber: 1655,
+                                                                                                        columnNumber: 37
+                                                                                                    }, this)
+                                                                                                ]
+                                                                                            }, void 0, true, {
+                                                                                                fileName: "[project]/app/provider/mypage/page.tsx",
+                                                                                                lineNumber: 1651,
+                                                                                                columnNumber: 35
+                                                                                            }, this),
+                                                                                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                                                                                className: "flex flex-col gap-1",
+                                                                                                children: [
+                                                                                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("label", {
+                                                                                                        className: "text-xs font-medium text-slate-600",
+                                                                                                        children: "복용 단위"
+                                                                                                    }, void 0, false, {
+                                                                                                        fileName: "[project]/app/provider/mypage/page.tsx",
+                                                                                                        lineNumber: 1674,
+                                                                                                        columnNumber: 37
+                                                                                                    }, this),
+                                                                                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("input", {
+                                                                                                        className: "rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-emerald-600 focus:outline-none",
+                                                                                                        placeholder: "ex) 정, 캡슐",
+                                                                                                        value: item.dosageUnit,
+                                                                                                        onChange: (event)=>updatePlanFormItem(client.clientId, index, (current)=>({
+                                                                                                                    ...current,
+                                                                                                                    dosageUnit: event.target.value
+                                                                                                                }), {
+                                                                                                                resetStatus: true
+                                                                                                            })
+                                                                                                    }, void 0, false, {
+                                                                                                        fileName: "[project]/app/provider/mypage/page.tsx",
+                                                                                                        lineNumber: 1677,
+                                                                                                        columnNumber: 37
+                                                                                                    }, this)
+                                                                                                ]
+                                                                                            }, void 0, true, {
+                                                                                                fileName: "[project]/app/provider/mypage/page.tsx",
+                                                                                                lineNumber: 1673,
+                                                                                                columnNumber: 35
+                                                                                            }, this)
+                                                                                        ]
+                                                                                    }, void 0, true, {
+                                                                                        fileName: "[project]/app/provider/mypage/page.tsx",
+                                                                                        lineNumber: 1650,
+                                                                                        columnNumber: 33
+                                                                                    }, this)
+                                                                                ]
+                                                                            }, `plan-item-${index}`, true, {
+                                                                                fileName: "[project]/app/provider/mypage/page.tsx",
+                                                                                lineNumber: 1391,
+                                                                                columnNumber: 31
+                                                                            }, this)),
+                                                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+                                                                            type: "button",
+                                                                            onClick: ()=>handleAddPlanItem(client.clientId),
+                                                                            className: "rounded-md border border-dashed border-emerald-300 px-3 py-2 text-sm font-medium text-emerald-700 transition hover:border-emerald-400 hover:text-emerald-900",
+                                                                            children: "+ 약품 항목 추가"
+                                                                        }, void 0, false, {
                                                                             fileName: "[project]/app/provider/mypage/page.tsx",
-                                                                            lineNumber: 1271,
+                                                                            lineNumber: 1697,
                                                                             columnNumber: 29
-                                                                        }, this),
-                                                                        form.mode === "search" ? /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["Fragment"], {
-                                                                            children: [
-                                                                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
-                                                                                    className: "flex flex-col gap-2 sm:flex-row",
-                                                                                    children: [
-                                                                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("input", {
-                                                                                            className: "flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-emerald-600 focus:outline-none",
-                                                                                            onChange: (event)=>updatePlanForm(client.clientId, (current)=>({
-                                                                                                        ...current,
-                                                                                                        medicineKeyword: event.target.value,
-                                                                                                        selectedMedicineId: null
-                                                                                                    })),
-                                                                                            placeholder: "약품명으로 검색",
-                                                                                            value: form.medicineKeyword
-                                                                                        }, void 0, false, {
-                                                                                            fileName: "[project]/app/provider/mypage/page.tsx",
-                                                                                            lineNumber: 1303,
-                                                                                            columnNumber: 35
-                                                                                        }, this),
-                                                                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
-                                                                                            className: "rounded-md border border-emerald-300 px-3 py-2 text-sm text-emerald-700 transition hover:border-emerald-400 hover:text-emerald-900 disabled:cursor-not-allowed disabled:opacity-50",
-                                                                                            disabled: form.searching,
-                                                                                            onClick: (event)=>{
-                                                                                                event.preventDefault();
-                                                                                                handleMedicineSearch(client.clientId);
-                                                                                            },
-                                                                                            children: form.searching ? "검색 중..." : "검색"
-                                                                                        }, void 0, false, {
-                                                                                            fileName: "[project]/app/provider/mypage/page.tsx",
-                                                                                            lineNumber: 1315,
-                                                                                            columnNumber: 35
-                                                                                        }, this)
-                                                                                    ]
-                                                                                }, void 0, true, {
-                                                                                    fileName: "[project]/app/provider/mypage/page.tsx",
-                                                                                    lineNumber: 1302,
-                                                                                    columnNumber: 33
-                                                                                }, this),
-                                                                                form.medicineResults.length > 0 && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
-                                                                                    className: "rounded-md border border-slate-200 bg-slate-50 p-2",
-                                                                                    children: [
-                                                                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
-                                                                                            className: "text-xs text-slate-500",
-                                                                                            children: "검색 결과를 선택하세요."
-                                                                                        }, void 0, false, {
-                                                                                            fileName: "[project]/app/provider/mypage/page.tsx",
-                                                                                            lineNumber: 1328,
-                                                                                            columnNumber: 37
-                                                                                        }, this),
-                                                                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
-                                                                                            className: "mt-2 grid gap-2 sm:grid-cols-2",
-                                                                                            children: form.medicineResults.map((medicine)=>/*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
-                                                                                                    className: "rounded-md border border-white bg-white px-3 py-2 text-left text-sm text-slate-700 transition hover:border-emerald-300 hover:text-emerald-700",
-                                                                                                    onClick: (event)=>{
-                                                                                                        event.preventDefault();
-                                                                                                        handleSelectMedicine(client.clientId, medicine);
-                                                                                                    },
-                                                                                                    children: [
-                                                                                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
-                                                                                                            className: "font-medium",
-                                                                                                            children: medicine.name
-                                                                                                        }, void 0, false, {
-                                                                                                            fileName: "[project]/app/provider/mypage/page.tsx",
-                                                                                                            lineNumber: 1341,
-                                                                                                            columnNumber: 43
-                                                                                                        }, this),
-                                                                                                        medicine.productCode && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
-                                                                                                            className: "block text-xs text-slate-500",
-                                                                                                            children: medicine.productCode
-                                                                                                        }, void 0, false, {
-                                                                                                            fileName: "[project]/app/provider/mypage/page.tsx",
-                                                                                                            lineNumber: 1345,
-                                                                                                            columnNumber: 45
-                                                                                                        }, this)
-                                                                                                    ]
-                                                                                                }, medicine.id, true, {
-                                                                                                    fileName: "[project]/app/provider/mypage/page.tsx",
-                                                                                                    lineNumber: 1333,
-                                                                                                    columnNumber: 41
-                                                                                                }, this))
-                                                                                        }, void 0, false, {
-                                                                                            fileName: "[project]/app/provider/mypage/page.tsx",
-                                                                                            lineNumber: 1331,
-                                                                                            columnNumber: 37
-                                                                                        }, this)
-                                                                                    ]
-                                                                                }, void 0, true, {
-                                                                                    fileName: "[project]/app/provider/mypage/page.tsx",
-                                                                                    lineNumber: 1327,
-                                                                                    columnNumber: 35
-                                                                                }, this)
-                                                                            ]
-                                                                        }, void 0, true) : /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
-                                                                            className: "space-y-3 rounded-md border border-slate-200 bg-slate-50 p-3",
-                                                                            children: [
-                                                                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
-                                                                                    className: "text-xs text-slate-500",
-                                                                                    children: "검색 결과가 없을 때 직접 약품 정보를 입력하고 등록할 수 있습니다."
-                                                                                }, void 0, false, {
-                                                                                    fileName: "[project]/app/provider/mypage/page.tsx",
-                                                                                    lineNumber: 1357,
-                                                                                    columnNumber: 33
-                                                                                }, this),
-                                                                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
-                                                                                    className: "flex flex-col gap-1",
-                                                                                    children: [
-                                                                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("label", {
-                                                                                            className: "text-xs font-medium text-slate-600",
-                                                                                            children: [
-                                                                                                "약품 이름",
-                                                                                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
-                                                                                                    className: "text-red-500",
-                                                                                                    children: "*"
-                                                                                                }, void 0, false, {
-                                                                                                    fileName: "[project]/app/provider/mypage/page.tsx",
-                                                                                                    lineNumber: 1362,
-                                                                                                    columnNumber: 42
-                                                                                                }, this)
-                                                                                            ]
-                                                                                        }, void 0, true, {
-                                                                                            fileName: "[project]/app/provider/mypage/page.tsx",
-                                                                                            lineNumber: 1361,
-                                                                                            columnNumber: 35
-                                                                                        }, this),
-                                                                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("input", {
-                                                                                            className: "rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-emerald-600 focus:outline-none",
-                                                                                            onChange: (event)=>handleManualFieldChange(client.clientId, "name", event.target.value),
-                                                                                            placeholder: "직접 입력할 약품 이름",
-                                                                                            value: form.manualMedicine.name
-                                                                                        }, void 0, false, {
-                                                                                            fileName: "[project]/app/provider/mypage/page.tsx",
-                                                                                            lineNumber: 1364,
-                                                                                            columnNumber: 35
-                                                                                        }, this)
-                                                                                    ]
-                                                                                }, void 0, true, {
-                                                                                    fileName: "[project]/app/provider/mypage/page.tsx",
-                                                                                    lineNumber: 1360,
-                                                                                    columnNumber: 33
-                                                                                }, this),
-                                                                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
-                                                                                    className: "flex flex-col gap-1",
-                                                                                    children: [
-                                                                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("label", {
-                                                                                            className: "text-xs font-medium text-slate-600",
-                                                                                            children: "제품 코드 (선택)"
-                                                                                        }, void 0, false, {
-                                                                                            fileName: "[project]/app/provider/mypage/page.tsx",
-                                                                                            lineNumber: 1378,
-                                                                                            columnNumber: 35
-                                                                                        }, this),
-                                                                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("input", {
-                                                                                            className: "rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-emerald-600 focus:outline-none",
-                                                                                            onChange: (event)=>handleManualFieldChange(client.clientId, "productCode", event.target.value),
-                                                                                            placeholder: "예) 국문 제품 코드",
-                                                                                            value: form.manualMedicine.productCode
-                                                                                        }, void 0, false, {
-                                                                                            fileName: "[project]/app/provider/mypage/page.tsx",
-                                                                                            lineNumber: 1381,
-                                                                                            columnNumber: 35
-                                                                                        }, this)
-                                                                                    ]
-                                                                                }, void 0, true, {
-                                                                                    fileName: "[project]/app/provider/mypage/page.tsx",
-                                                                                    lineNumber: 1377,
-                                                                                    columnNumber: 33
-                                                                                }, this),
-                                                                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
-                                                                                    className: "flex flex-col gap-1",
-                                                                                    children: [
-                                                                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("label", {
-                                                                                            className: "text-xs font-medium text-slate-600",
-                                                                                            children: "효능 / 효과 (선택)"
-                                                                                        }, void 0, false, {
-                                                                                            fileName: "[project]/app/provider/mypage/page.tsx",
-                                                                                            lineNumber: 1395,
-                                                                                            columnNumber: 35
-                                                                                        }, this),
-                                                                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("textarea", {
-                                                                                            className: "min-h-[60px] rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-emerald-600 focus:outline-none",
-                                                                                            onChange: (event)=>handleManualFieldChange(client.clientId, "efficacy", event.target.value),
-                                                                                            placeholder: "약품의 주요 효능을 입력하세요.",
-                                                                                            value: form.manualMedicine.efficacy
-                                                                                        }, void 0, false, {
-                                                                                            fileName: "[project]/app/provider/mypage/page.tsx",
-                                                                                            lineNumber: 1398,
-                                                                                            columnNumber: 35
-                                                                                        }, this)
-                                                                                    ]
-                                                                                }, void 0, true, {
-                                                                                    fileName: "[project]/app/provider/mypage/page.tsx",
-                                                                                    lineNumber: 1394,
-                                                                                    columnNumber: 33
-                                                                                }, this),
-                                                                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
-                                                                                    className: "flex flex-col gap-1",
-                                                                                    children: [
-                                                                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("label", {
-                                                                                            className: "text-xs font-medium text-slate-600",
-                                                                                            children: "복용 방법 (선택)"
-                                                                                        }, void 0, false, {
-                                                                                            fileName: "[project]/app/provider/mypage/page.tsx",
-                                                                                            lineNumber: 1412,
-                                                                                            columnNumber: 35
-                                                                                        }, this),
-                                                                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("textarea", {
-                                                                                            className: "min-h-[60px] rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-emerald-600 focus:outline-none",
-                                                                                            onChange: (event)=>handleManualFieldChange(client.clientId, "usageDosage", event.target.value),
-                                                                                            placeholder: "예) 1일 3회, 1회 1정 등",
-                                                                                            value: form.manualMedicine.usageDosage
-                                                                                        }, void 0, false, {
-                                                                                            fileName: "[project]/app/provider/mypage/page.tsx",
-                                                                                            lineNumber: 1415,
-                                                                                            columnNumber: 35
-                                                                                        }, this)
-                                                                                    ]
-                                                                                }, void 0, true, {
-                                                                                    fileName: "[project]/app/provider/mypage/page.tsx",
-                                                                                    lineNumber: 1411,
-                                                                                    columnNumber: 33
-                                                                                }, this),
-                                                                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
-                                                                                    className: "flex flex-col gap-1",
-                                                                                    children: [
-                                                                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("label", {
-                                                                                            className: "text-xs font-medium text-slate-600",
-                                                                                            children: "주의 사항 (선택)"
-                                                                                        }, void 0, false, {
-                                                                                            fileName: "[project]/app/provider/mypage/page.tsx",
-                                                                                            lineNumber: 1429,
-                                                                                            columnNumber: 35
-                                                                                        }, this),
-                                                                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("textarea", {
-                                                                                            className: "min-h-[60px] rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-emerald-600 focus:outline-none",
-                                                                                            onChange: (event)=>handleManualFieldChange(client.clientId, "caution", event.target.value),
-                                                                                            placeholder: "주의사항이나 알레르기 정보를 입력하세요.",
-                                                                                            value: form.manualMedicine.caution
-                                                                                        }, void 0, false, {
-                                                                                            fileName: "[project]/app/provider/mypage/page.tsx",
-                                                                                            lineNumber: 1432,
-                                                                                            columnNumber: 35
-                                                                                        }, this)
-                                                                                    ]
-                                                                                }, void 0, true, {
-                                                                                    fileName: "[project]/app/provider/mypage/page.tsx",
-                                                                                    lineNumber: 1428,
-                                                                                    columnNumber: 33
-                                                                                }, this),
-                                                                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
-                                                                                    className: "flex flex-col gap-1",
-                                                                                    children: [
-                                                                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("label", {
-                                                                                            className: "text-xs font-medium text-slate-600",
-                                                                                            children: "부작용 (선택)"
-                                                                                        }, void 0, false, {
-                                                                                            fileName: "[project]/app/provider/mypage/page.tsx",
-                                                                                            lineNumber: 1446,
-                                                                                            columnNumber: 35
-                                                                                        }, this),
-                                                                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("textarea", {
-                                                                                            className: "min-h-[60px] rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-emerald-600 focus:outline-none",
-                                                                                            onChange: (event)=>handleManualFieldChange(client.clientId, "sideEffects", event.target.value),
-                                                                                            placeholder: "예상되는 부작용을 입력하세요.",
-                                                                                            value: form.manualMedicine.sideEffects
-                                                                                        }, void 0, false, {
-                                                                                            fileName: "[project]/app/provider/mypage/page.tsx",
-                                                                                            lineNumber: 1449,
-                                                                                            columnNumber: 35
-                                                                                        }, this)
-                                                                                    ]
-                                                                                }, void 0, true, {
-                                                                                    fileName: "[project]/app/provider/mypage/page.tsx",
-                                                                                    lineNumber: 1445,
-                                                                                    columnNumber: 33
-                                                                                }, this),
-                                                                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
-                                                                                    className: "flex flex-col gap-1",
-                                                                                    children: [
-                                                                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("label", {
-                                                                                            className: "text-xs font-medium text-slate-600",
-                                                                                            children: "비고 (선택)"
-                                                                                        }, void 0, false, {
-                                                                                            fileName: "[project]/app/provider/mypage/page.tsx",
-                                                                                            lineNumber: 1463,
-                                                                                            columnNumber: 35
-                                                                                        }, this),
-                                                                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("textarea", {
-                                                                                            className: "min-h-[60px] rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-emerald-600 focus:outline-none",
-                                                                                            onChange: (event)=>handleManualFieldChange(client.clientId, "description", event.target.value),
-                                                                                            placeholder: "추가 메모를 입력하세요.",
-                                                                                            value: form.manualMedicine.description
-                                                                                        }, void 0, false, {
-                                                                                            fileName: "[project]/app/provider/mypage/page.tsx",
-                                                                                            lineNumber: 1466,
-                                                                                            columnNumber: 35
-                                                                                        }, this)
-                                                                                    ]
-                                                                                }, void 0, true, {
-                                                                                    fileName: "[project]/app/provider/mypage/page.tsx",
-                                                                                    lineNumber: 1462,
-                                                                                    columnNumber: 33
-                                                                                }, this)
-                                                                            ]
-                                                                        }, void 0, true, {
-                                                                            fileName: "[project]/app/provider/mypage/page.tsx",
-                                                                            lineNumber: 1356,
-                                                                            columnNumber: 31
                                                                         }, this)
                                                                     ]
                                                                 }, void 0, true, {
                                                                     fileName: "[project]/app/provider/mypage/page.tsx",
-                                                                    lineNumber: 1270,
-                                                                    columnNumber: 27
-                                                                }, this),
-                                                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
-                                                                    className: "grid gap-3 sm:grid-cols-2",
-                                                                    children: [
-                                                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
-                                                                            className: "flex flex-col gap-1",
-                                                                            children: [
-                                                                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("label", {
-                                                                                    className: "text-xs font-medium text-slate-600",
-                                                                                    children: "복용량"
-                                                                                }, void 0, false, {
-                                                                                    fileName: "[project]/app/provider/mypage/page.tsx",
-                                                                                    lineNumber: 1484,
-                                                                                    columnNumber: 31
-                                                                                }, this),
-                                                                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("input", {
-                                                                                    className: "rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-emerald-600 focus:outline-none",
-                                                                                    min: 1,
-                                                                                    onChange: (event)=>updatePlanForm(client.clientId, (current)=>({
-                                                                                                ...current,
-                                                                                                dosageAmount: event.target.value
-                                                                                            })),
-                                                                                    type: "number",
-                                                                                    value: form.dosageAmount
-                                                                                }, void 0, false, {
-                                                                                    fileName: "[project]/app/provider/mypage/page.tsx",
-                                                                                    lineNumber: 1487,
-                                                                                    columnNumber: 31
-                                                                                }, this)
-                                                                            ]
-                                                                        }, void 0, true, {
-                                                                            fileName: "[project]/app/provider/mypage/page.tsx",
-                                                                            lineNumber: 1483,
-                                                                            columnNumber: 29
-                                                                        }, this),
-                                                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
-                                                                            className: "flex flex-col gap-1",
-                                                                            children: [
-                                                                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("label", {
-                                                                                    className: "text-xs font-medium text-slate-600",
-                                                                                    children: "복용 단위"
-                                                                                }, void 0, false, {
-                                                                                    fileName: "[project]/app/provider/mypage/page.tsx",
-                                                                                    lineNumber: 1501,
-                                                                                    columnNumber: 31
-                                                                                }, this),
-                                                                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("input", {
-                                                                                    className: "rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-emerald-600 focus:outline-none",
-                                                                                    onChange: (event)=>updatePlanForm(client.clientId, (current)=>({
-                                                                                                ...current,
-                                                                                                dosageUnit: event.target.value
-                                                                                            })),
-                                                                                    placeholder: "ex) 정, 캡슐",
-                                                                                    value: form.dosageUnit
-                                                                                }, void 0, false, {
-                                                                                    fileName: "[project]/app/provider/mypage/page.tsx",
-                                                                                    lineNumber: 1504,
-                                                                                    columnNumber: 31
-                                                                                }, this)
-                                                                            ]
-                                                                        }, void 0, true, {
-                                                                            fileName: "[project]/app/provider/mypage/page.tsx",
-                                                                            lineNumber: 1500,
-                                                                            columnNumber: 29
-                                                                        }, this)
-                                                                    ]
-                                                                }, void 0, true, {
-                                                                    fileName: "[project]/app/provider/mypage/page.tsx",
-                                                                    lineNumber: 1482,
+                                                                    lineNumber: 1389,
                                                                     columnNumber: 27
                                                                 }, this),
                                                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -1814,7 +1979,7 @@ function ProviderMyPage() {
                                                                             children: "알람 시간"
                                                                         }, void 0, false, {
                                                                             fileName: "[project]/app/provider/mypage/page.tsx",
-                                                                            lineNumber: 1518,
+                                                                            lineNumber: 1706,
                                                                             columnNumber: 29
                                                                         }, this),
                                                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("input", {
@@ -1827,13 +1992,13 @@ function ProviderMyPage() {
                                                                             value: form.alarmTime
                                                                         }, void 0, false, {
                                                                             fileName: "[project]/app/provider/mypage/page.tsx",
-                                                                            lineNumber: 1521,
+                                                                            lineNumber: 1709,
                                                                             columnNumber: 29
                                                                         }, this)
                                                                     ]
                                                                 }, void 0, true, {
                                                                     fileName: "[project]/app/provider/mypage/page.tsx",
-                                                                    lineNumber: 1517,
+                                                                    lineNumber: 1705,
                                                                     columnNumber: 27
                                                                 }, this),
                                                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("fieldset", {
@@ -1844,7 +2009,7 @@ function ProviderMyPage() {
                                                                             children: "복용 요일"
                                                                         }, void 0, false, {
                                                                             fileName: "[project]/app/provider/mypage/page.tsx",
-                                                                            lineNumber: 1534,
+                                                                            lineNumber: 1722,
                                                                             columnNumber: 29
                                                                         }, this),
                                                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -1861,7 +2026,7 @@ function ProviderMyPage() {
                                                                                             onChange: ()=>handleToggleDay(client.clientId, day.value)
                                                                                         }, void 0, false, {
                                                                                             fileName: "[project]/app/provider/mypage/page.tsx",
-                                                                                            lineNumber: 1542,
+                                                                                            lineNumber: 1730,
                                                                                             columnNumber: 37
                                                                                         }, this),
                                                                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
@@ -1869,25 +2034,25 @@ function ProviderMyPage() {
                                                                                             children: day.label
                                                                                         }, void 0, false, {
                                                                                             fileName: "[project]/app/provider/mypage/page.tsx",
-                                                                                            lineNumber: 1550,
+                                                                                            lineNumber: 1738,
                                                                                             columnNumber: 37
                                                                                         }, this)
                                                                                     ]
                                                                                 }, day.value, true, {
                                                                                     fileName: "[project]/app/provider/mypage/page.tsx",
-                                                                                    lineNumber: 1541,
+                                                                                    lineNumber: 1729,
                                                                                     columnNumber: 35
                                                                                 }, this);
                                                                             })
                                                                         }, void 0, false, {
                                                                             fileName: "[project]/app/provider/mypage/page.tsx",
-                                                                            lineNumber: 1537,
+                                                                            lineNumber: 1725,
                                                                             columnNumber: 29
                                                                         }, this)
                                                                     ]
                                                                 }, void 0, true, {
                                                                     fileName: "[project]/app/provider/mypage/page.tsx",
-                                                                    lineNumber: 1533,
+                                                                    lineNumber: 1721,
                                                                     columnNumber: 27
                                                                 }, this),
                                                                 form.error && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -1895,7 +2060,7 @@ function ProviderMyPage() {
                                                                     children: form.error
                                                                 }, void 0, false, {
                                                                     fileName: "[project]/app/provider/mypage/page.tsx",
-                                                                    lineNumber: 1565,
+                                                                    lineNumber: 1753,
                                                                     columnNumber: 29
                                                                 }, this),
                                                                 form.message && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -1903,7 +2068,7 @@ function ProviderMyPage() {
                                                                     children: form.message
                                                                 }, void 0, false, {
                                                                     fileName: "[project]/app/provider/mypage/page.tsx",
-                                                                    lineNumber: 1568,
+                                                                    lineNumber: 1756,
                                                                     columnNumber: 29
                                                                 }, this),
                                                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
@@ -1913,19 +2078,19 @@ function ProviderMyPage() {
                                                                     children: form.submitting ? "등록 중..." : "복약 일정 등록"
                                                                 }, void 0, false, {
                                                                     fileName: "[project]/app/provider/mypage/page.tsx",
-                                                                    lineNumber: 1570,
+                                                                    lineNumber: 1758,
                                                                     columnNumber: 27
                                                                 }, this)
                                                             ]
                                                         }, void 0, true, {
                                                             fileName: "[project]/app/provider/mypage/page.tsx",
-                                                            lineNumber: 1263,
+                                                            lineNumber: 1382,
                                                             columnNumber: 25
                                                         }, this)
                                                     ]
                                                 }, void 0, true, {
                                                     fileName: "[project]/app/provider/mypage/page.tsx",
-                                                    lineNumber: 1171,
+                                                    lineNumber: 1290,
                                                     columnNumber: 23
                                                 }, this),
                                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -1936,7 +2101,7 @@ function ProviderMyPage() {
                                                             children: "최근 복약 확인 기록"
                                                         }, void 0, false, {
                                                             fileName: "[project]/app/provider/mypage/page.tsx",
-                                                            lineNumber: 1580,
+                                                            lineNumber: 1768,
                                                             columnNumber: 25
                                                         }, this),
                                                         client.latestMedicationLogs.length === 0 ? /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -1944,7 +2109,7 @@ function ProviderMyPage() {
                                                             children: "기록이 없습니다."
                                                         }, void 0, false, {
                                                             fileName: "[project]/app/provider/mypage/page.tsx",
-                                                            lineNumber: 1584,
+                                                            lineNumber: 1772,
                                                             columnNumber: 27
                                                         }, this) : /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("ul", {
                                                             className: "space-y-2",
@@ -1956,7 +2121,7 @@ function ProviderMyPage() {
                                                                             children: log.medicineName
                                                                         }, void 0, false, {
                                                                             fileName: "[project]/app/provider/mypage/page.tsx",
-                                                                            lineNumber: 1592,
+                                                                            lineNumber: 1780,
                                                                             columnNumber: 33
                                                                         }, this),
                                                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -1964,7 +2129,7 @@ function ProviderMyPage() {
                                                                             children: formatDateTime(log.logTimestamp)
                                                                         }, void 0, false, {
                                                                             fileName: "[project]/app/provider/mypage/page.tsx",
-                                                                            lineNumber: 1593,
+                                                                            lineNumber: 1781,
                                                                             columnNumber: 33
                                                                         }, this),
                                                                         log.notes && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -1972,59 +2137,59 @@ function ProviderMyPage() {
                                                                             children: log.notes
                                                                         }, void 0, false, {
                                                                             fileName: "[project]/app/provider/mypage/page.tsx",
-                                                                            lineNumber: 1597,
+                                                                            lineNumber: 1785,
                                                                             columnNumber: 35
                                                                         }, this)
                                                                     ]
                                                                 }, log.id, true, {
                                                                     fileName: "[project]/app/provider/mypage/page.tsx",
-                                                                    lineNumber: 1588,
+                                                                    lineNumber: 1776,
                                                                     columnNumber: 31
                                                                 }, this))
                                                         }, void 0, false, {
                                                             fileName: "[project]/app/provider/mypage/page.tsx",
-                                                            lineNumber: 1586,
+                                                            lineNumber: 1774,
                                                             columnNumber: 27
                                                         }, this)
                                                     ]
                                                 }, void 0, true, {
                                                     fileName: "[project]/app/provider/mypage/page.tsx",
-                                                    lineNumber: 1579,
+                                                    lineNumber: 1767,
                                                     columnNumber: 23
                                                 }, this)
                                             ]
                                         }, void 0, true, {
                                             fileName: "[project]/app/provider/mypage/page.tsx",
-                                            lineNumber: 1170,
+                                            lineNumber: 1289,
                                             columnNumber: 21
                                         }, this)
                                     ]
                                 }, client.clientId, true, {
                                     fileName: "[project]/app/provider/mypage/page.tsx",
-                                    lineNumber: 1154,
+                                    lineNumber: 1273,
                                     columnNumber: 19
                                 }, this);
                             })
                         }, void 0, false, {
                             fileName: "[project]/app/provider/mypage/page.tsx",
-                            lineNumber: 1150,
+                            lineNumber: 1269,
                             columnNumber: 13
                         }, this)
                     ]
                 }, void 0, true, {
                     fileName: "[project]/app/provider/mypage/page.tsx",
-                    lineNumber: 1117,
+                    lineNumber: 1236,
                     columnNumber: 9
                 }, this)
             ]
         }, void 0, true, {
             fileName: "[project]/app/provider/mypage/page.tsx",
-            lineNumber: 913,
+            lineNumber: 1032,
             columnNumber: 7
         }, this)
     }, void 0, false, {
         fileName: "[project]/app/provider/mypage/page.tsx",
-        lineNumber: 912,
+        lineNumber: 1031,
         columnNumber: 5
     }, this);
 }

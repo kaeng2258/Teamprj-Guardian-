@@ -1,6 +1,8 @@
 package com.ll.guardian.domain.alarm.service;
 
 import com.ll.guardian.domain.alarm.dto.ManualMedicineRequest;
+import com.ll.guardian.domain.alarm.dto.MedicationPlanBatchItemRequest;
+import com.ll.guardian.domain.alarm.dto.MedicationPlanBatchRequest;
 import com.ll.guardian.domain.alarm.dto.MedicationPlanRequest;
 import com.ll.guardian.domain.alarm.dto.MedicationPlanResponse;
 import com.ll.guardian.domain.alarm.dto.MedicationPlanUpdateRequest;
@@ -11,6 +13,7 @@ import com.ll.guardian.domain.medicine.repository.MedicineRepository;
 import com.ll.guardian.domain.user.entity.User;
 import com.ll.guardian.domain.user.repository.UserRepository;
 import com.ll.guardian.global.exception.GuardianException;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.springframework.http.HttpStatus;
@@ -40,18 +43,25 @@ public class MedicationPlanService {
         Medicine medicine = resolveMedicine(request);
         String daysOfWeek = String.join(",", request.daysOfWeek());
 
-        MedicationAlarm alarm = MedicationAlarm.builder()
-                .client(client)
-                .medicine(medicine)
-                .dosageAmount(request.dosageAmount())
-                .dosageUnit(request.dosageUnit())
-                .alarmTime(request.alarmTime())
-                .daysOfWeek(daysOfWeek)
-                .active(true)
-                .build();
-
+        MedicationAlarm alarm = createMedicationAlarm(
+                client, medicine, request.dosageAmount(), request.dosageUnit(), request.alarmTime(), daysOfWeek);
         MedicationAlarm saved = medicationAlarmRepository.save(alarm);
         return MedicationPlanResponse.from(saved);
+    }
+
+    public List<MedicationPlanResponse> createPlans(Long clientId, MedicationPlanBatchRequest request) {
+        User client = getUser(clientId);
+        String daysOfWeek = String.join(",", request.daysOfWeek());
+
+        return request.items().stream()
+                .map(item -> {
+                    Medicine medicine = resolveMedicine(item);
+                    MedicationAlarm alarm = createMedicationAlarm(
+                            client, medicine, item.dosageAmount(), item.dosageUnit(), request.alarmTime(), daysOfWeek);
+                    MedicationAlarm saved = medicationAlarmRepository.save(alarm);
+                    return MedicationPlanResponse.from(saved);
+                })
+                .collect(Collectors.toList());
     }
 
     public MedicationPlanResponse updatePlan(Long clientId, Long alarmId, MedicationPlanUpdateRequest request) {
@@ -88,11 +98,18 @@ public class MedicationPlanService {
     }
 
     private Medicine resolveMedicine(MedicationPlanRequest request) {
-        if (request.medicineId() != null) {
-            return getMedicine(request.medicineId());
+        return resolveMedicine(request.medicineId(), request.manualMedicine());
+    }
+
+    private Medicine resolveMedicine(MedicationPlanBatchItemRequest item) {
+        return resolveMedicine(item.medicineId(), item.manualMedicine());
+    }
+
+    private Medicine resolveMedicine(Long medicineId, ManualMedicineRequest manual) {
+        if (medicineId != null) {
+            return getMedicine(medicineId);
         }
 
-        ManualMedicineRequest manual = request.manualMedicine();
         if (manual == null) {
             throw new GuardianException(HttpStatus.BAD_REQUEST, "약품 정보를 입력해주세요.");
         }
@@ -134,5 +151,24 @@ public class MedicationPlanService {
         return medicineRepository
                 .findById(medicineId)
                 .orElseThrow(() -> new GuardianException(HttpStatus.NOT_FOUND, "약품 정보를 찾을 수 없습니다."));
+    }
+
+    private MedicationAlarm createMedicationAlarm(
+            User client,
+            Medicine medicine,
+            Integer dosageAmount,
+            String dosageUnit,
+            LocalTime alarmTime,
+            String daysOfWeek) {
+        String sanitizedUnit = dosageUnit != null ? dosageUnit.trim() : "";
+        return MedicationAlarm.builder()
+                .client(client)
+                .medicine(medicine)
+                .dosageAmount(dosageAmount)
+                .dosageUnit(sanitizedUnit)
+                .alarmTime(alarmTime)
+                .daysOfWeek(daysOfWeek)
+                .active(true)
+                .build();
     }
 }

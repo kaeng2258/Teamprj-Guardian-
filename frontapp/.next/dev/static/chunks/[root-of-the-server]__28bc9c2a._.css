@@ -120,6 +120,7 @@
 @layer theme {
   :root, :host {
     --color-red-50: #fef2f2;
+    --color-red-300: #ffa3a3;
     --color-red-500: #fb2c36;
     --color-red-600: #e40014;
     --color-amber-100: #fef3c6;
@@ -191,6 +192,7 @@
   @supports (color: lab(0% 0 0)) {
     :root, :host {
       --color-red-50: lab(96.5005% 4.18508 1.52328);
+      --color-red-300: lab(76.5514% 36.422 15.5335);
       --color-red-500: lab(55.4814% 75.0732 48.8528);
       --color-red-600: lab(48.4493% 77.4328 61.5452);
       --color-amber-100: lab(95.916% -1.21653 23.111);
@@ -532,10 +534,6 @@
     display: inline-flex;
   }
 
-  .aspect-square {
-    aspect-ratio: 1;
-  }
-
   .h-7 {
     height: calc(var(--spacing) * 7);
   }
@@ -548,20 +546,12 @@
     height: calc(var(--spacing) * 11);
   }
 
-  .min-h-\[2\.5rem\] {
-    min-height: 2.5rem;
-  }
-
   .min-h-\[60px\] {
     min-height: 60px;
   }
 
   .min-h-screen {
     min-height: 100vh;
-  }
-
-  .w-10 {
-    width: calc(var(--spacing) * 10);
   }
 
   .w-full {
@@ -580,20 +570,8 @@
     max-width: var(--container-xl);
   }
 
-  .min-w-\[2\.5rem\] {
-    min-width: 2.5rem;
-  }
-
   .flex-1 {
     flex: 1;
-  }
-
-  .flex-none {
-    flex: none;
-  }
-
-  .grid-cols-3 {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .grid-cols-7 {
@@ -602,10 +580,6 @@
 
   .flex-col {
     flex-direction: column;
-  }
-
-  .flex-nowrap {
-    flex-wrap: nowrap;
   }
 
   .flex-wrap {
@@ -676,14 +650,6 @@
     align-self: flex-start;
   }
 
-  .overflow-x-auto {
-    overflow-x: auto;
-  }
-
-  .rounded {
-    border-radius: .25rem;
-  }
-
   .rounded-2xl {
     border-radius: var(--radius-2xl);
   }
@@ -712,6 +678,11 @@
   .border-b {
     border-bottom-style: var(--tw-border-style);
     border-bottom-width: 1px;
+  }
+
+  .border-dashed {
+    --tw-border-style: dashed;
+    border-style: dashed;
   }
 
   .border-emerald-100 {
@@ -860,10 +831,6 @@
 
   .py-10 {
     padding-block: calc(var(--spacing) * 10);
-  }
-
-  .pb-2 {
-    padding-bottom: calc(var(--spacing) * 2);
   }
 
   .pb-4 {
@@ -1083,6 +1050,12 @@
   }
 
   @media (hover: hover) {
+    .hover\:border-red-300:hover {
+      border-color: var(--color-red-300);
+    }
+  }
+
+  @media (hover: hover) {
     .hover\:border-slate-400:hover {
       border-color: var(--color-slate-400);
     }
@@ -1119,6 +1092,12 @@
   }
 
   @media (hover: hover) {
+    .hover\:text-red-600:hover {
+      color: var(--color-red-600);
+    }
+  }
+
+  @media (hover: hover) {
     .hover\:text-slate-900:hover {
       color: var(--color-slate-900);
     }
@@ -1130,10 +1109,6 @@
 
   .focus\:border-emerald-600:focus {
     border-color: var(--color-emerald-600);
-  }
-
-  .focus\:ring-emerald-500:focus {
-    --tw-ring-color: var(--color-emerald-500);
   }
 
   .focus\:outline-none:focus {
@@ -1174,12 +1149,6 @@
   }
 
   @media (min-width: 40rem) {
-    .sm\:grid-cols-4 {
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-    }
-  }
-
-  @media (min-width: 40rem) {
     .sm\:flex-row {
       flex-direction: row;
     }
@@ -1212,12 +1181,6 @@
   @media (min-width: 48rem) {
     .md\:grid-cols-2 {
       grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-  }
-
-  @media (min-width: 64rem) {
-    .lg\:grid-cols-7 {
-      grid-template-columns: repeat(7, minmax(0, 1fr));
     }
   }
 

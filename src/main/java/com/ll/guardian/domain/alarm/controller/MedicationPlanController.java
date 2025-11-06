@@ -1,5 +1,6 @@
 package com.ll.guardian.domain.alarm.controller;
 
+import com.ll.guardian.domain.alarm.dto.MedicationPlanBatchRequest;
 import com.ll.guardian.domain.alarm.dto.MedicationPlanRequest;
 import com.ll.guardian.domain.alarm.dto.MedicationPlanResponse;
 import com.ll.guardian.domain.alarm.dto.MedicationPlanUpdateRequest;
@@ -38,6 +39,13 @@ public class MedicationPlanController {
             @PathVariable Long clientId, @Valid @RequestBody MedicationPlanRequest request) {
         MedicationPlanResponse response = medicationPlanService.createPlan(clientId, request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    @PostMapping("/batch")
+    public ResponseEntity<List<MedicationPlanResponse>> createPlans(
+            @PathVariable Long clientId, @Valid @RequestBody MedicationPlanBatchRequest request) {
+        List<MedicationPlanResponse> responses = medicationPlanService.createPlans(clientId, request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(responses);
     }
 
     @PutMapping("/{planId}")

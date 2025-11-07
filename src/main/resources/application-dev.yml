@@ -8,19 +8,18 @@ spring:
   output:
     ansi:
       enabled: always
-#  datasource:
-#    driver-class-name: org.h2.Driver
-#    url: jdbc:h2:mem:db_dev;MODE=MYSQL
-#    username: sa
-#    password:
-#  h2:
-#    console:
-#      settings:
-#        web-allow-others: true
   datasource:
-    driver-class-name: org.mariadb.jdbc.Driver
-    url: jdbc:mariadb://127.0.0.1:3306/guardian
-    username: root
+    driver-class-name: org.h2.Driver
+    url: jdbc:h2:mem:guardian_dev;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    username: sa
     password:
+  jpa:
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+  h2:
+    console:
+      settings:
+        web-allow-others: true
 custom:
   fileDirPath: /usr/file

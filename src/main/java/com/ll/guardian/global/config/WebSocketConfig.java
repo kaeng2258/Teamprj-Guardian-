@@ -13,14 +13,13 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
         registry.addEndpoint("/ws")
-                // 개발 편의: 전체 허용
-                // .setAllowedOriginPatterns("*")
-                // 좀 더 안전하게 하려면 아래처럼
                 .setAllowedOriginPatterns(
                         "http://localhost:*",
-                        "https://192.168.0.7:*"
+                        "https://localhost:*",    // ✅ 추가: HTTPS localhost
+                        "http://192.168.0.*:*",  // ✅ 추가: 내부망 HTTP
+                        "https://192.168.0.*:*"  // ✅ 추가: 내부망 HTTPS
                 )
-                .withSockJS();
+                .withSockJS(); // SockJS 사용 시
     }
 
     @Override

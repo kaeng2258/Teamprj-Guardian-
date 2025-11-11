@@ -24,3 +24,41 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+input {
+  color: #111827; /* keep typed text dark for legibility */
+}
+
+input::placeholder {
+  color: #9ca3af;
+}
+
+.animate-panel-from-left {
+  animation: panel-from-left 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.animate-panel-from-right {
+  animation: panel-from-right 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes panel-from-left {
+  0% {
+    opacity: 0;
+    transform: translateX(-32px) scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes panel-from-right {
+  0% {
+    opacity: 0;
+    transform: translateX(32px) scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}

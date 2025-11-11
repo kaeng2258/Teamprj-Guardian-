@@ -98,9 +98,10 @@ export default function Home() {
 
   const tabClassName = useMemo(
     () => ({
-      active: "flex-1 rounded-md bg-black px-3 py-2 text-white",
-      inactive:
-        "flex-1 rounded-md border border-gray-300 px-3 py-2 text-gray-600 hover:border-black",
+      base:
+        "relative z-10 flex-1 rounded-2xl px-4 py-2 text-sm font-semibold uppercase tracking-[0.2em] transition-all duration-300 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-slate-50/70 hover:shadow-lg hover:shadow-slate-900/20 active:shadow-inner",
+      active: "text-slate-900",
+      inactive: "text-slate-100/80 hover:text-white",
     }),
     []
   );
@@ -300,11 +301,17 @@ export default function Home() {
         <h1 className="mb-6 text-2xl font-semibold text-gray-900">
           Guardian 서비스
         </h1>
-        <div className="mb-6 flex gap-2">
+        <div className="relative mb-8 flex overflow-hidden rounded-2xl bg-slate-900/90 p-1 text-sm shadow-lg shadow-slate-900/40">
+          <span
+            aria-hidden
+            className={`pointer-events-none absolute inset-y-1 left-1 w-[calc((100%-0.5rem)/2)] rounded-2xl bg-slate-50/95 shadow-lg shadow-slate-900/30 transition-transform duration-500 ease-out will-change-transform ${
+              activeTab === "login" ? "translate-x-0" : "translate-x-full"
+            }`}
+          />
           <button
-            className={
+            className={`${tabClassName.base} ${
               activeTab === "login" ? tabClassName.active : tabClassName.inactive
-            }
+            }`}
             onClick={() => {
               setActiveTab("login");
               setLoginError("");
@@ -315,11 +322,11 @@ export default function Home() {
             로그인
           </button>
           <button
-            className={
+            className={`${tabClassName.base} ${
               activeTab === "register"
                 ? tabClassName.active
                 : tabClassName.inactive
-            }
+            }`}
             onClick={() => {
               setActiveTab("register");
               setRegisterError("");
@@ -331,236 +338,247 @@ export default function Home() {
           </button>
         </div>
 
-        {activeTab === "login" ? (
-          <form className="flex flex-col gap-4" onSubmit={handleLoginSubmit}>
-            <label className="flex flex-col gap-1">
-              <span className="text-sm text-gray-600">이메일</span>
-              <input
-                aria-label="이메일"
-                autoComplete="email"
-                className="rounded-md border border-gray-300 px-3 py-2 focus:border-black focus:outline-none"
-                onChange={(event) => setLoginEmail(event.target.value)}
-                placeholder="you@example.com"
-                required
-                type="email"
-                value={loginEmail}
-              />
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="text-sm text-gray-600">비밀번호</span>
-              <input
-                aria-label="비밀번호"
-                autoComplete="current-password"
-                className="rounded-md border border-gray-300 px-3 py-2 focus:border-black focus:outline-none"
-                onChange={(event) => setLoginPassword(event.target.value)}
-                placeholder="비밀번호를 입력하세요"
-                required
-                type="password"
-                value={loginPassword}
-              />
-            </label>
-            <button
-              className="rounded-md bg-black px-4 py-2 text-white transition hover:bg-gray-800 disabled:opacity-50"
-              disabled={loginLoading}
-              type="submit"
-            >
-              {loginLoading ? "로그인 중..." : "로그인"}
-            </button>
-            {loginMessage && (
-              <pre className="whitespace-pre-wrap rounded-md bg-green-50 px-3 py-2 text-sm text-green-700">
-                {loginMessage}
-              </pre>
-            )}
-            {loginError && (
-              <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">
-                {loginError}
-              </p>
-            )}
-          </form>
-        ) : (
-          <form
-            className="flex flex-col gap-4"
-            onSubmit={handleRegisterSubmit}
+        <div className="relative overflow-hidden">
+          <div
+            key={activeTab}
+            className={`rounded-2xl border border-slate-100 bg-white/90 p-6 shadow-inner shadow-slate-200 backdrop-blur ${
+              activeTab === "login"
+                ? "animate-panel-from-left"
+                : "animate-panel-from-right"
+            }`}
           >
-            <label className="flex flex-col gap-1">
-              <span className="text-sm text-gray-600">이름</span>
-              <input
-                aria-label="이름"
-                autoComplete="name"
-                className="rounded-md border border-gray-300 px-3 py-2 focus:border-black focus:outline-none"
-                onChange={(event) => setRegisterName(event.target.value)}
-                placeholder="홍길동"
-                required
-                type="text"
-                value={registerName}
-              />
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="text-sm text-gray-600">이메일</span>
-              <div className="flex flex-col gap-2 sm:flex-row">
+            {activeTab === "login" ? (
+              <form className="flex flex-col gap-4" onSubmit={handleLoginSubmit}>
+              <label className="flex flex-col gap-1">
+                <span className="text-sm text-gray-600">이메일</span>
                 <input
-                  aria-label="회원가입 이메일"
+                  aria-label="이메일"
                   autoComplete="email"
-                  className="flex-1 rounded-md border border-gray-300 px-3 py-2 focus:border-black focus:outline-none"
-                  onChange={(event) => {
-                    const value = event.target.value;
-                    setRegisterEmail(value);
-                    if (value !== checkedEmail) {
-                      setEmailCheckStatus("idle");
-                      setEmailCheckMessage("");
-                    }
-                  }}
+                  className="rounded-md border border-gray-300 px-3 py-2 focus:border-black focus:outline-none"
+                  onChange={(event) => setLoginEmail(event.target.value)}
                   placeholder="you@example.com"
                   required
                   type="email"
-                  value={registerEmail}
+                  value={loginEmail}
                 />
-                <button
-                  className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-700 transition hover:border-black disabled:cursor-not-allowed disabled:opacity-60"
-                  disabled={emailCheckStatus === "checking" || !registerEmail}
-                  onClick={handleEmailCheck}
-                  type="button"
-                >
-                  {emailCheckStatus === "checking" ? "확인 중..." : "중복 확인"}
-                </button>
-              </div>
-              {emailCheckMessage && (
-                <p
-                  className={`text-sm ${
-                    emailCheckStatus === "available" ? "text-green-600" : "text-red-600"
-                  }`}
-                >
-                  {emailCheckMessage}
-                </p>
-              )}
-            </label>
-            <div className="grid gap-4 md:grid-cols-2">
+              </label>
               <label className="flex flex-col gap-1">
                 <span className="text-sm text-gray-600">비밀번호</span>
                 <input
-                  aria-label="회원가입 비밀번호"
-                  autoComplete="new-password"
+                  aria-label="비밀번호"
+                  autoComplete="current-password"
                   className="rounded-md border border-gray-300 px-3 py-2 focus:border-black focus:outline-none"
-                  onChange={(event) => setRegisterPassword(event.target.value)}
-                  placeholder="영문, 숫자 포함 8자 이상"
+                  onChange={(event) => setLoginPassword(event.target.value)}
+                  placeholder="비밀번호를 입력하세요"
                   required
                   type="password"
-                  value={registerPassword}
+                  value={loginPassword}
+                />
+              </label>
+              <button
+                className="rounded-md bg-black px-4 py-2 text-white transition hover:bg-gray-800 disabled:opacity-50"
+                disabled={loginLoading}
+                type="submit"
+              >
+                {loginLoading ? "로그인 중..." : "로그인"}
+              </button>
+              {loginMessage && (
+                <pre className="whitespace-pre-wrap rounded-md bg-green-50 px-3 py-2 text-sm text-green-700">
+                  {loginMessage}
+                </pre>
+              )}
+              {loginError && (
+                <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">
+                  {loginError}
+                </p>
+              )}
+              </form>
+            ) : (
+              <form
+                className="flex flex-col gap-4"
+                onSubmit={handleRegisterSubmit}
+              >
+              <label className="flex flex-col gap-1">
+                <span className="text-sm text-gray-600">이름</span>
+                <input
+                  aria-label="이름"
+                  autoComplete="name"
+                  className="rounded-md border border-gray-300 px-3 py-2 focus:border-black focus:outline-none"
+                  onChange={(event) => setRegisterName(event.target.value)}
+                  placeholder="홍길동"
+                  required
+                  type="text"
+                  value={registerName}
                 />
               </label>
               <label className="flex flex-col gap-1">
-                <span className="text-sm text-gray-600">비밀번호 확인</span>
-                <input
-                  aria-label="비밀번호 확인"
-                  autoComplete="new-password"
+                <span className="text-sm text-gray-600">이메일</span>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <input
+                    aria-label="회원가입 이메일"
+                    autoComplete="email"
+                    className="flex-1 rounded-md border border-gray-300 px-3 py-2 focus:border-black focus:outline-none"
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      setRegisterEmail(value);
+                      if (value !== checkedEmail) {
+                        setEmailCheckStatus("idle");
+                        setEmailCheckMessage("");
+                      }
+                    }}
+                    placeholder="you@example.com"
+                    required
+                    type="email"
+                    value={registerEmail}
+                  />
+                  <button
+                    className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-700 transition hover:border-black disabled:cursor-not-allowed disabled:opacity-60"
+                    disabled={emailCheckStatus === "checking" || !registerEmail}
+                    onClick={handleEmailCheck}
+                    type="button"
+                  >
+                    {emailCheckStatus === "checking" ? "확인 중..." : "중복 확인"}
+                  </button>
+                </div>
+                {emailCheckMessage && (
+                  <p
+                    className={`text-sm ${
+                      emailCheckStatus === "available" ? "text-green-600" : "text-red-600"
+                    }`}
+                  >
+                    {emailCheckMessage}
+                  </p>
+                )}
+              </label>
+              <div className="grid gap-4 md:grid-cols-2">
+                <label className="flex flex-col gap-1">
+                  <span className="text-sm text-gray-600">비밀번호</span>
+                  <input
+                    aria-label="회원가입 비밀번호"
+                    autoComplete="new-password"
+                    className="rounded-md border border-gray-300 px-3 py-2 focus:border-black focus:outline-none"
+                    onChange={(event) => setRegisterPassword(event.target.value)}
+                    placeholder="영문, 숫자 포함 8자 이상"
+                    required
+                    type="password"
+                    value={registerPassword}
+                  />
+                </label>
+                <label className="flex flex-col gap-1">
+                  <span className="text-sm text-gray-600">비밀번호 확인</span>
+                  <input
+                    aria-label="비밀번호 확인"
+                    autoComplete="new-password"
+                    className="rounded-md border border-gray-300 px-3 py-2 focus:border-black focus:outline-none"
+                    onChange={(event) =>
+                      setRegisterConfirmPassword(event.target.value)
+                    }
+                    placeholder="비밀번호를 다시 입력하세요"
+                    required
+                    type="password"
+                    value={registerConfirmPassword}
+                  />
+                </label>
+              </div>
+  
+              <label className="flex flex-col gap-1">
+                <span className="text-sm text-gray-600">가입 유형</span>
+                <select
+                  aria-label="가입 유형"
                   className="rounded-md border border-gray-300 px-3 py-2 focus:border-black focus:outline-none"
                   onChange={(event) =>
-                    setRegisterConfirmPassword(event.target.value)
+                    setRegisterRole(event.target.value as UserRoleOption)
                   }
-                  placeholder="비밀번호를 다시 입력하세요"
-                  required
-                  type="password"
-                  value={registerConfirmPassword}
-                />
+                  value={registerRole}
+                >
+                  {Object.entries(roleLabels).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
               </label>
-            </div>
-
-            <label className="flex flex-col gap-1">
-              <span className="text-sm text-gray-600">가입 유형</span>
-              <select
-                aria-label="가입 유형"
-                className="rounded-md border border-gray-300 px-3 py-2 focus:border-black focus:outline-none"
-                onChange={(event) =>
-                  setRegisterRole(event.target.value as UserRoleOption)
-                }
-                value={registerRole}
-              >
-                {Object.entries(roleLabels).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <div className="flex flex-col gap-2">
-              <span className="text-sm text-gray-600">주소</span>
-              <div className="flex flex-col gap-2 sm:flex-row">
+  
+              <div className="flex flex-col gap-2">
+                <span className="text-sm text-gray-600">주소</span>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <input
+                    aria-label="우편번호"
+                    className="flex-1 rounded-md border border-gray-300 px-3 py-2 focus:border-black focus:outline-none sm:max-w-[180px]"
+                    placeholder="우편번호"
+                    readOnly
+                    required
+                    value={registerZipCode}
+                  />
+                  <button
+                    className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-700 transition hover:border-black"
+                    onClick={handleAddressSearch}
+                    type="button"
+                  >
+                    주소 검색
+                  </button>
+                </div>
                 <input
-                  aria-label="우편번호"
-                  className="flex-1 rounded-md border border-gray-300 px-3 py-2 focus:border-black focus:outline-none sm:max-w-[180px]"
-                  placeholder="우편번호"
+                  aria-label="기본 주소"
+                  className="rounded-md border border-gray-300 px-3 py-2 focus:border-black focus:outline-none"
+                  placeholder="기본 주소"
                   readOnly
                   required
-                  value={registerZipCode}
+                  value={registerAddress}
                 />
-                <button
-                  className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-700 transition hover:border-black"
-                  onClick={handleAddressSearch}
-                  type="button"
-                >
-                  주소 검색
-                </button>
+                <input
+                  aria-label="상세 주소"
+                  className="rounded-md border border-gray-300 px-3 py-2 focus:border-black focus:outline-none"
+                  onChange={(event) => setRegisterDetailAddress(event.target.value)}
+                  placeholder="상세 주소를 입력하세요"
+                  value={registerDetailAddress}
+                />
               </div>
-              <input
-                aria-label="기본 주소"
-                className="rounded-md border border-gray-300 px-3 py-2 focus:border-black focus:outline-none"
-                placeholder="기본 주소"
-                readOnly
-                required
-                value={registerAddress}
-              />
-              <input
-                aria-label="상세 주소"
-                className="rounded-md border border-gray-300 px-3 py-2 focus:border-black focus:outline-none"
-                onChange={(event) => setRegisterDetailAddress(event.target.value)}
-                placeholder="상세 주소를 입력하세요"
-                value={registerDetailAddress}
-              />
-            </div>
-
-            <label className="flex items-start gap-2 text-sm text-gray-600">
-              <input
-                checked={registerTermsAgreed}
-                className="mt-1"
-                onChange={(event) => setRegisterTermsAgreed(event.target.checked)}
-                type="checkbox"
-              />
-              <span>이용약관(필수)을 확인하고 동의합니다.</span>
-            </label>
-
-            <label className="flex items-start gap-2 text-sm text-gray-600">
-              <input
-                checked={registerPrivacyAgreed}
-                className="mt-1"
-                onChange={(event) =>
-                  setRegisterPrivacyAgreed(event.target.checked)
-                }
-                type="checkbox"
-              />
-              <span>개인정보 처리방침(필수)에 동의합니다.</span>
-            </label>
-
-            <button
-              className="rounded-md bg-black px-4 py-2 text-white transition hover:bg-gray-800 disabled:opacity-50"
-              disabled={registerLoading}
-              type="submit"
-            >
-              {registerLoading ? "가입 중..." : "회원가입"}
-            </button>
-
-            {registerMessage && (
-              <p className="rounded-md bg-green-50 px-3 py-2 text-sm text-green-700">
-                {registerMessage}
-              </p>
+  
+              <label className="flex items-start gap-2 text-sm text-gray-600">
+                <input
+                  checked={registerTermsAgreed}
+                  className="mt-1"
+                  onChange={(event) => setRegisterTermsAgreed(event.target.checked)}
+                  type="checkbox"
+                />
+                <span>이용약관(필수)을 확인하고 동의합니다.</span>
+              </label>
+  
+              <label className="flex items-start gap-2 text-sm text-gray-600">
+                <input
+                  checked={registerPrivacyAgreed}
+                  className="mt-1"
+                  onChange={(event) =>
+                    setRegisterPrivacyAgreed(event.target.checked)
+                  }
+                  type="checkbox"
+                />
+                <span>개인정보 처리방침(필수)에 동의합니다.</span>
+              </label>
+  
+              <button
+                className="rounded-md bg-black px-4 py-2 text-white transition hover:bg-gray-800 disabled:opacity-50"
+                disabled={registerLoading}
+                type="submit"
+              >
+                {registerLoading ? "가입 중..." : "회원가입"}
+              </button>
+  
+              {registerMessage && (
+                <p className="rounded-md bg-green-50 px-3 py-2 text-sm text-green-700">
+                  {registerMessage}
+                </p>
+              )}
+              {registerError && (
+                <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">
+                  {registerError}
+                </p>
+              )}
+              </form>
             )}
-            {registerError && (
-              <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">
-                {registerError}
-              </p>
-            )}
-          </form>
-        )}
+          </div>
+        </div>
       </main>
     </div>
   );

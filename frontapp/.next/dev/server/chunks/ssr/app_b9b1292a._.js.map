@@ -2,5 +2,5 @@
   "version": 3,
   "sources": [],
   "sections": [
-    {"offset": {"line": 7, "column": 0}, "map": {"version":3,"sources":["file:///C:/Users/User/OneDrive/%EB%B0%94%ED%83%95%20%ED%99%94%EB%A9%B4/fullstack/guardian/Teamprj-Guardian-/frontapp/app/favicon.ico.mjs%20%28structured%20image%20object%29"],"sourcesContent":["import src from \"IMAGE\";\nexport default { src, width: 1258, height: 1264 }\n"],"names":[],"mappings":";;;;AAAA;;uCACe;IAAE,KAAA,mIAAG;IAAE,OAAO;IAAM,QAAQ;AAAK","debugId":null}}]
+    {"offset": {"line": 7, "column": 0}, "map": {"version":3,"sources":["file:///Users/hwangjeongseong/java/Teamprj-Guardian-/frontapp/app/favicon.ico.mjs%20%28structured%20image%20object%29"],"sourcesContent":["import src from \"IMAGE\";\nexport default { src, width: 1258, height: 1264 }\n"],"names":[],"mappings":";;;;AAAA;;uCACe;IAAE,KAAA,mIAAG;IAAE,OAAO;IAAM,QAAQ;AAAK","debugId":null}}]
 }

@@ -1209,6 +1209,14 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+input {
+  color: #111827;
+}
+
+input::placeholder {
+  color: #9ca3af;
+}
+
 @property --tw-space-y-reverse {
   syntax: "*";
   inherits: false;

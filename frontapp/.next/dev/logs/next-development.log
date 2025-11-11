@@ -1,15 +1,2 @@
-[00:00:00.998] Server  LOG     It looks like you're trying to use TypeScript but do not have the required package(s) installed.
-Installing dependencies
-
-If you are not trying to use TypeScript, please remove the tsconfig.json file from your package root (and any TypeScript files in your app and pages directories).
-
-[00:00:01.017] Server  LOG     
-[00:00:01.017] Server  LOG     Installing devDependencies (npm):
-[00:00:01.018] Server  LOG     - typescript
-[00:00:01.018] Server  LOG     - @types/react
-[00:00:01.018] Server  LOG     - @types/node
-[00:00:01.018] Server  LOG     
-[00:00:01.418] Server  ERROR   Failed to install required TypeScript dependencies, please install them manually to continue:
-npm install --save-exact --save-dev typescript @types/react @types/node
-
-[00:00:01.419] Server  ERROR   Unhandled Rejection: {}
+[00:00:04.817] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:00:06.267] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold

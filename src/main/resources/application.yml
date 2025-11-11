@@ -1,4 +1,4 @@
-   # 8443 쓰고 싶으면 바꾸세요
+# 8443 쓰고 싶으면 바꾸세요
 spring:
   profiles:
     active: dev
@@ -32,3 +32,10 @@ logging:
     com.guardian.guardian: DEBUG
     org.hibernate.orm.jdbc.bind: TRACE
     org.hibernate.orm.jdbc.extract: TRACE
+server:
+  servlet:
+    session:
+      cookie:
+        same-site: none
+        secure: true
+  forward-headers-strategy: framework

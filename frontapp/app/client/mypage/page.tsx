@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8090";
+  process.env.NEXT_PUBLIC_API_URL ?? "https://localhost:8081";
 
 type ClientOverview = {
   userId: number | null;

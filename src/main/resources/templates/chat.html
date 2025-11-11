@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <title>Guardian Chat + WebRTC (Horizontal Videos)</title>
+  <title>Guardian Chat + WebRTC (Horizontal · Auto-Subscribe)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <!-- SockJS + STOMP -->
   <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
@@ -14,7 +14,7 @@
       --blue:#2563eb;--blue2:#1d4ed8;--gray:#6b7280;--gray2:#4b5563;--border:#1f2937;
     }
     *{box-sizing:border-box}
-    html,body{height:100%; overflow:hidden;} /* 페이지 전체 스크롤 금지 */
+    html,body{height:100%; overflow:hidden;}
     body{margin:0;background:linear-gradient(180deg,#0b1020,#0f172a);color:var(--text);font:14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,Noto Sans KR,Apple SD Gothic Neo,sans-serif}
 
     /* 전체 레이아웃: 좌(영상) 60% / 우(채팅) 40% */
@@ -62,11 +62,11 @@
       min-height:0;
       display:flex;
       flex-direction:column;
-      overflow:hidden; /* ✅ 박스 고정, 내부만 스크롤 */
+      overflow:hidden;
     }
     .msgs{
       flex:1;
-      overflow:auto; /* ✅ 채팅 박스만 스크롤 */
+      overflow:auto;
       padding:12px;
       min-height:0;
     }
@@ -233,17 +233,42 @@
     });
   }
 
-  async function loadThreads(){ if (!me) return;
-    const r = await fetch(ENDPOINTS.threads(me)); if(!r.ok) return; renderThreads(await r.json());
+  // ===== 데이터 로딩 =====
+async function loadThreads(){
+  if (!me) return;
+  const r = await fetch(ENDPOINTS.threads(me));
+  if(!r.ok) return;
+  const list = await r.json();
+  renderThreads(list);
+
+  // ✅ 아직 방을 선택하지 않았으면 최신 방을 자동 선택
+  if (!currentRoomId && list.length > 0) {
+    await selectRoom(list[0].roomId);
   }
+}
+
+els.meId.onchange = ()=>{
+  me = Number(els.meId.value||0) || null;
+  localStorage.setItem('guardian.me', me || '');
+  loadThreads();
+};
+
   async function loadMessages(roomId){
     const r = await fetch(ENDPOINTS.messages(roomId));
-    if(!r.ok) throw new Error('load messages failed'); return await r.json();
+    if(!r.ok) throw new Error('load messages failed');
+    return await r.json();
   }
-  async function markRead(roomId){ if(!me) return; fetch(ENDPOINTS.read(roomId, me), {method:'POST'}).catch(()=>{}); }
 
-  async function selectRoom(roomId){
-    currentRoomId = roomId;
+  async function markRead(roomId){
+    if(!me) return;
+    fetch(ENDPOINTS.read(roomId, me), {method:'POST'}).catch(()=>{});
+  }
+
+  // ===== 방 선택 =====
+async function selectRoom(roomId){
+  currentRoomId = roomId;
+  localStorage.setItem('guardian.room', String(roomId)); // 마지막 방 기억
+
     seen.clear();
     document.querySelectorAll('.th').forEach(n=>n.classList.toggle('active', Number(n.dataset.roomId)===roomId));
     els.roomTitle.textContent = `Room #${roomId}`;
@@ -256,7 +281,7 @@
     els.msgs.scrollTop = els.msgs.scrollHeight;
     els.btnJump.classList.remove('show');
     await markRead(roomId);
-    subscribe(roomId);
+    subscribe(roomId); // ✅ 구독 갱신
   }
 
   // ===== STOMP =====
@@ -267,8 +292,11 @@
     stomp.debug = null;
     stomp.connect({}, () => {
       els.net.textContent = 'WS 연결됨'; els.net.className = 'status ok';
+      // 이미 방이 있으면 재구독
       if (currentRoomId) subscribe(currentRoomId);
-    }, () => { els.net.textContent = 'WS 연결 끊김'; els.net.className = 'status err'; });
+    }, () => {
+      els.net.textContent = 'WS 연결 끊김'; els.net.className = 'status err';
+    });
   }
 
   function subscribe(roomId){
@@ -276,11 +304,13 @@
     if (subChat) { subChat.unsubscribe(); subChat = null; }
     if (subRtc)  { subRtc.unsubscribe();  subRtc  = null; }
 
+    // 채팅 실시간 수신
     subChat = stomp.subscribe(`/topic/room/${roomId}`, (frame)=>{
       const m = JSON.parse(frame.body);
       renderMsg(m, m.senderId===me);
     });
 
+    // RTC 시그널링
     subRtc = stomp.subscribe(`/topic/rtc/${roomId}`, (frame)=>{
       const sig = JSON.parse(frame.body); // {type, from, sdp?, candidate?}
       handleRtc(sig);
@@ -289,11 +319,18 @@
 
   // ===== 채팅 전송(낙관적 전송 + 조용한 에러 처리) =====
   async function sendChat(){
-    if(!me){ alert('내 사용자 ID'); return; }
-    if(!currentRoomId){ alert('방 선택'); return; }
-    const text = els.input.value.trim(); if(!text) return;
+  if(!me){ alert('내 사용자 ID'); return; }
+  if(!currentRoomId){ alert('방을 먼저 선택하세요'); return; }
+  const text = els.input.value.trim();
+  if(!text) return;
 
-    // 낙관적 렌더(임시 키)
+  if (stomp && stomp.connected) {
+    // ✅ STOMP 경로로만 전송 (낙관적 렌더 X → 중복 표시 방지)
+    const payload = { roomId: currentRoomId, senderId: me, content: text, messageType: 'TEXT', fileUrl: null };
+    stomp.send(`/app/signal/${currentRoomId}`, {}, JSON.stringify(payload));
+    els.input.value = '';
+  } else {
+    // ✅ WS가 끊긴 경우에만 HTTP + 낙관적 렌더
     const temp = {
       messageId: `temp-${Date.now()}-${Math.random()}`,
       senderId: me,
@@ -308,8 +345,6 @@
       const r = await fetch(ENDPOINTS.send(currentRoomId), {
         method:'POST',
         headers:{'Content-Type':'application/json'},
-        mode:'cors',
-        credentials:'include',
         body: JSON.stringify({
           roomId: currentRoomId,
           senderId: me,
@@ -318,31 +353,39 @@
           fileUrl: null
         })
       });
-      if(!r.ok){
-        console.warn('sendChat HTTP non-2xx:', r.status, await r.text());
-      }
-    } catch(err){
-      console.warn('sendChat network error:', err);
-    }
+      if(!r.ok){ console.warn('HTTP send non-2xx', r.status); }
+    } catch(e){ console.warn('HTTP send error', e); }
   }
+}
+
 
   // ===== 방 생성/삭제 =====
   async function openRoom(){
     const c = Number(els.clientId.value||0), p = Number(els.providerId.value||0);
     if(!c || !p){ alert('clientId/providerId'); return; }
-    const r = await fetch(ENDPOINTS.openRoom(), { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({clientId:c, providerId:p}) });
+    const r = await fetch(ENDPOINTS.openRoom(), {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({clientId:c, providerId:p})
+    });
     if(!r.ok){ alert('방 생성 실패'); return; }
-    const room = await r.json(); await loadThreads(); await selectRoom(room.roomId);
+    const room = await r.json();
+    await loadThreads();
+    await selectRoom(room.roomId); // ✅ 생성 직후 실시간 구독
   }
+
   async function deleteRoom(){
     if(!currentRoomId){ alert('방 선택'); return; }
     if(!me){ alert('내 사용자 ID'); return; }
     if(!confirm(`Room #${currentRoomId} 삭제?`)) return;
     const r = await fetch(ENDPOINTS.deleteRoom(currentRoomId, me), { method:'DELETE' });
     if(!r.ok){ alert('삭제 실패'); return; }
-    currentRoomId=null; els.roomTitle.textContent='채팅방 미선택'; els.roomMeta.textContent='내 ID를 입력하고 방을 선택하세요';
+    currentRoomId=null;
+    localStorage.removeItem('guardian.room');
+    els.roomTitle.textContent='채팅방 미선택';
+    els.roomMeta.textContent='내 ID를 입력하고 방을 선택하세요';
     els.msgs.innerHTML='<div class="empty">메시지가 없습니다.</div>';
-    await loadThreads(); hangup();
+    await loadThreads();
+    hangup();
   }
 
   // ===== WebRTC =====
@@ -355,7 +398,6 @@
     pc.ontrack = (e)=>{
       const stream = e.streams[0];
       els.remoteVideo.srcObject = stream;
-
       // 송신측 트랙 종료/음소거 시 즉시 검정화면
       stream.getTracks().forEach(track=>{
         const clear = ()=>{ els.remoteVideo.srcObject = null; };
@@ -507,7 +549,11 @@
   els.btnMic.onclick = toggleMic;
   els.btnShare.onclick = ()=> screenStream ? stopShare() : startShare();
 
-  els.meId.onchange = ()=>{ me = Number(els.meId.value||0) || null; loadThreads(); };
+  els.meId.onchange = ()=>{
+    me = Number(els.meId.value||0) || null;
+    localStorage.setItem('guardian.me', me || '');
+    loadThreads(); // ✅ 가장 최근 방 자동 선택
+  };
 
   // 채팅 박스 전용 스크롤 UX
   els.msgs.addEventListener('scroll', ()=>{
@@ -516,11 +562,47 @@
   });
   els.btnJump.onclick = ()=>{ els.msgs.scrollTop = els.msgs.scrollHeight; els.btnJump.classList.remove('show'); };
 
-  // ===== 초기화 =====
-  (function init(){
-    me = Number(els.meId.value||0) || null;
-    connectWS();
-    if (me) loadThreads();
+  // ===== URL 파라미터 =====
+  function getParams(){
+    const p = new URLSearchParams(location.search);
+    return {
+      me: Number(p.get('me')||0) || null,
+      client: Number(p.get('client')||0) || null,
+      provider: Number(p.get('provider')||0) || null
+    };
+  }
+
+  // ===== 초기화 (자동 복구 + 자동 선택) =====
+  (async function init(){
+    const params = getParams();
+    const savedMe   = Number(localStorage.getItem('guardian.me') || 0) || null;
+    const savedRoom = Number(localStorage.getItem('guardian.room') || 0) || null;
+
+    if (params.me) { me = params.me; els.meId.value = me; localStorage.setItem('guardian.me', me); }
+    else if (savedMe) { me = savedMe; els.meId.value = savedMe; }
+
+    connectWS(); // WS 먼저
+
+    if (me) {
+      await loadThreads(); // ✅ 현재 방 없으면 최신 방 자동 선택
+
+      // URL이 client/provider를 주면 즉시 방 생성/획득 후 구독
+      if (params.client && params.provider) {
+        try{
+          const r = await fetch(ENDPOINTS.openRoom(), {
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({clientId: params.client, providerId: params.provider})
+          });
+          if (r.ok) {
+            const room = await r.json();
+            await selectRoom(room.roomId);
+          }
+        }catch(_){}
+      } else if (savedRoom) {
+        // 마지막으로 열었던 방 복구 시도
+        try{ await selectRoom(savedRoom); }catch(_){}
+      }
+    }
   })();
 </script>
 </body>

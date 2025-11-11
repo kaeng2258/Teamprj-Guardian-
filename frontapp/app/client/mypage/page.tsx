@@ -5,6 +5,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8090";
+const VAPID_PUBLIC_KEY =
+  process.env.NEXT_PUBLIC_WEB_PUSH_VAPID_KEY ?? "";
 
 type ClientOverview = {
   userId: number | null;
@@ -80,6 +82,11 @@ export default function ClientMyPage() {
   const [confirmationMessage, setConfirmationMessage] = useState<
     Record<number, { type: "success" | "error"; text: string } | undefined>
   >({});
+  const [pushStatus, setPushStatus] = useState<
+    "idle" | "requesting" | "enabled" | "error"
+  >("idle");
+  const [pushMessage, setPushMessage] = useState("");
+  const [pushCapable, setPushCapable] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -122,6 +129,19 @@ export default function ClientMyPage() {
     }
     setIsReady(true);
   }, [router]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const supported =
+      "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+    setPushCapable(supported);
+    if (supported && Notification.permission === "granted") {
+      setPushStatus("enabled");
+      setPushMessage("이미 푸시 알림이 허용되었습니다.");
+    }
+  }, []);
 
   const loadMedicationData = useCallback(async () => {
     if (!client.userId) {
@@ -212,6 +232,123 @@ export default function ClientMyPage() {
     }
     loadMedicationData();
   }, [isReady, client.userId, loadMedicationData]);
+
+  const handleEnablePush = useCallback(async () => {
+    if (!client.userId) {
+      setPushStatus("error");
+      setPushMessage("사용자 정보를 먼저 불러온 뒤 다시 시도해주세요.");
+      return;
+    }
+
+    if (typeof window === "undefined" || !pushCapable) {
+      setPushStatus("error");
+      setPushMessage("현재 브라우저에서 웹 푸시를 지원하지 않습니다.");
+      return;
+    }
+
+    if (!VAPID_PUBLIC_KEY) {
+      setPushStatus("error");
+      setPushMessage("VAPID 공개키가 설정되지 않았습니다.");
+      return;
+    }
+
+    const convertKey = (key: string) => {
+      const padding = "=".repeat((4 - (key.length % 4)) % 4);
+      const base64 = (key + padding).replace(/-/g, "+").replace(/_/g, "/");
+      const rawData = window.atob(base64);
+      const outputArray = new Uint8Array(rawData.length);
+      for (let i = 0; i < rawData.length; ++i) {
+        outputArray[i] = rawData.charCodeAt(i);
+      }
+      return outputArray;
+    };
+
+    try {
+      setPushStatus("requesting");
+      setPushMessage("");
+
+      const existingRegistration = await navigator.serviceWorker.getRegistration();
+      const registration =
+        existingRegistration ?? (await navigator.serviceWorker.register("/sw.js"));
+      const readyRegistration = registration.active
+        ? registration
+        : await navigator.serviceWorker.ready;
+
+      if (Notification.permission === "default") {
+        const permission = await Notification.requestPermission();
+        if (permission !== "granted") {
+          throw new Error("알림 권한을 허용해야 푸시 알림을 받을 수 있습니다.");
+        }
+      } else if (Notification.permission === "denied") {
+        throw new Error("브라우저 설정에서 알림 권한이 차단되어 있습니다.");
+      }
+
+      const existingSubscription = await readyRegistration.pushManager.getSubscription();
+      const subscription =
+        existingSubscription ??
+        (await readyRegistration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: convertKey(VAPID_PUBLIC_KEY),
+        }));
+
+      const json = subscription.toJSON() as {
+        endpoint?: string;
+        expirationTime?: number | null;
+        keys?: {
+          auth?: string;
+          p256dh?: string;
+        };
+      };
+      const keys = json.keys ?? {};
+      if (!keys.auth || !keys.p256dh) {
+        throw new Error("브라우저가 푸시 키 정보를 제공하지 못했습니다.");
+      }
+
+      const response = await fetch(
+        `${API_BASE_URL}/api/users/${client.userId}/push/subscriptions`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            endpoint: subscription.endpoint,
+            expirationTime: subscription.expirationTime,
+            keys: {
+              auth: keys.auth,
+              p256dh: keys.p256dh,
+            },
+            userAgent: navigator.userAgent,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const message = await extractApiError(
+          response,
+          "푸시 구독 정보를 저장하지 못했습니다."
+        );
+        throw new Error(message);
+      }
+
+      setPushStatus("enabled");
+      setPushMessage("모바일 브라우저 푸시 알림이 활성화되었습니다.");
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "푸시 알림을 설정하는 동안 문제가 발생했습니다.";
+      setPushStatus("error");
+      setPushMessage(message);
+    }
+  }, [client.userId, pushCapable]);
+
+  const pushButtonDisabled =
+    pushStatus === "requesting" || !pushCapable || !client.userId;
+  const pushHelperText = pushCapable
+    ? pushMessage ||
+      "모바일 Chrome/Safari에서 홈 화면에 추가하면 백그라운드에서도 알림을 받을 수 있습니다."
+    : "현재 기기에서는 웹 푸시를 지원하지 않습니다.";
 
   const sections = useMemo(
     () => [
@@ -423,6 +560,37 @@ export default function ClientMyPage() {
             </section>
           ))}
         </div>
+
+        <section className="rounded-xl border border-indigo-100 bg-indigo-50/60 p-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-indigo-600">
+                모바일 푸시
+              </p>
+              <h2 className="mt-1 text-xl font-bold text-slate-900">
+                브라우저가 꺼져 있어도 복약 알림 받기
+              </h2>
+              <p className="mt-2 text-sm text-slate-600">
+                한 번만 허용하면 모바일에서도 정해진 복약 시간에 맞춰 알림을 전달해 드립니다.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleEnablePush}
+              disabled={pushButtonDisabled}
+              className="h-12 rounded-xl bg-indigo-600 px-6 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-400"
+            >
+              {pushStatus === "requesting" ? "설정 중..." : "푸시 알림 활성화"}
+            </button>
+          </div>
+          <p
+            className={`mt-4 text-sm ${
+              pushStatus === "error" ? "text-red-600" : "text-slate-700"
+            }`}
+          >
+            {pushHelperText}
+          </p>
+        </section>
 
         <section className="rounded-xl border border-slate-200 p-6">
           <div className="flex flex-col gap-2 border-b border-slate-200 pb-4 sm:flex-row sm:items-center sm:justify-between">

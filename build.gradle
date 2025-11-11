@@ -41,6 +41,8 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
 	implementation 'com.auth0:java-jwt:4.4.0'
 	runtimeOnly 'org.mariadb.jdbc:mariadb-java-client:3.4.1'
+	implementation 'nl.martijndwars:web-push:5.1.1'
+	implementation 'org.bouncycastle:bcprov-jdk18on:1.79'
 }
 
 tasks.named('test') {

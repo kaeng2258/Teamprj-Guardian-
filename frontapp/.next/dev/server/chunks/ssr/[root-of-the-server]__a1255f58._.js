@@ -37,7 +37,7 @@ var __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist
 ;
 ;
 ;
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8090";
+const API_BASE_URL = ("TURBOPACK compile-time value", "https://localhost:8081") ?? "https://localhost:8081";
 const roleLabels = {
     CLIENT: "환자",
     PROVIDER: "환자관리인"

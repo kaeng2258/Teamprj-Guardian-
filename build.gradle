@@ -8,6 +8,10 @@ group = 'com.ll'
 version = '0.0.1-SNAPSHOT'
 description = 'Demo project for Spring Boot'
 
+ext {
+	nettyNativeResolverVersion = '4.1.115.Final'
+}
+
 java {
 	toolchain {
 		languageVersion = JavaLanguageVersion.of(17)
@@ -41,6 +45,12 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
 	implementation 'com.auth0:java-jwt:4.4.0'
 	runtimeOnly 'org.mariadb.jdbc:mariadb-java-client:3.4.1'
+	implementation 'org.springframework.boot:spring-boot-starter-webflux' // WebClient
+	annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
+	// Ensure Netty can load the native macOS DNS resolver (prevents fallback warning on Mac)
+	runtimeOnly "io.netty:netty-resolver-dns-native-macos:${nettyNativeResolverVersion}:osx-aarch_64"
+	runtimeOnly "io.netty:netty-resolver-dns-native-macos:${nettyNativeResolverVersion}:osx-x86_64"
+
 	implementation 'nl.martijndwars:web-push:5.1.1'
 	implementation 'org.bouncycastle:bcprov-jdk18on:1.79'
 }

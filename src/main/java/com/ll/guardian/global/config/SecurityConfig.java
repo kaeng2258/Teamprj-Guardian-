@@ -34,6 +34,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
                                 "/api/chat/**",
+                                "/api/push/**",
                                 "/ws/**",
                                 "/topic/**",
                                 "/h2-console/**",

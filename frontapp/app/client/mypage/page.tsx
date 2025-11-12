@@ -4,16 +4,15 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8090";
-const VAPID_PUBLIC_KEY =
-  process.env.NEXT_PUBLIC_WEB_PUSH_VAPID_KEY ?? "";
-  process.env.NEXT_PUBLIC_API_URL ?? "https://localhost:8081";
+  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "";
 
 type ClientOverview = {
   userId: number | null;
   email: string;
   name: string;
 };
+
+type PushStatus = "idle" | "requesting" | "enabled" | "error";
 
 type MedicationPlan = {
   id: number;
@@ -40,6 +39,11 @@ type UserSummary = {
   name: string;
   role: string;
   status: string;
+};
+
+type WebPushConfigResponse = {
+  enabled: boolean;
+  publicKey: string;
 };
 
 async function extractApiError(response: Response, fallback: string) {
@@ -83,6 +87,16 @@ export default function ClientMyPage() {
   const [confirmationMessage, setConfirmationMessage] = useState<
     Record<number, { type: "success" | "error"; text: string } | undefined>
   >({});
+  const [supportsPushApi, setSupportsPushApi] = useState(false);
+  const [pushServiceEnabled, setPushServiceEnabled] = useState(false);
+  const [vapidPublicKey, setVapidPublicKey] = useState("");
+  const [pushStatus, setPushStatus] = useState<PushStatus>("idle");
+  const [pushMessage, setPushMessage] = useState("");
+
+  const pushCapable = useMemo(
+    () => supportsPushApi && pushServiceEnabled && Boolean(vapidPublicKey),
+    [supportsPushApi, pushServiceEnabled, vapidPublicKey]
+  );
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -132,12 +146,62 @@ export default function ClientMyPage() {
     }
     const supported =
       "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
-    setPushCapable(supported);
-    if (supported && Notification.permission === "granted") {
+    setSupportsPushApi(supported);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const fetchConfig = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/push/config`);
+        if (!response.ok) {
+          const message = await extractApiError(
+            response,
+            "웹 푸시 설정 정보를 불러오지 못했습니다."
+          );
+          throw new Error(message);
+        }
+        const data: WebPushConfigResponse = await response.json();
+        if (cancelled) {
+          return;
+        }
+        setVapidPublicKey(data.publicKey ?? "");
+        setPushServiceEnabled(Boolean(data.enabled && data.publicKey));
+        setPushStatus((prev) => (prev === "error" ? "idle" : prev));
+        setPushMessage((prev) =>
+          prev && prev.includes("설정 정보를") ? "" : prev
+        );
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+        const message =
+          error instanceof Error
+            ? error.message
+            : "웹 푸시 설정 정보를 불러오지 못했습니다.";
+        setPushServiceEnabled(false);
+        setVapidPublicKey("");
+        setPushStatus("error");
+        setPushMessage(message);
+      }
+    };
+
+    fetchConfig();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !pushCapable) {
+      return;
+    }
+    if (Notification.permission === "granted") {
       setPushStatus("enabled");
       setPushMessage("이미 푸시 알림이 허용되었습니다.");
     }
-  }, []);
+  }, [pushCapable]);
 
   const loadMedicationData = useCallback(async () => {
     if (!client.userId) {
@@ -242,7 +306,7 @@ export default function ClientMyPage() {
       return;
     }
 
-    if (!VAPID_PUBLIC_KEY) {
+    if (!vapidPublicKey) {
       setPushStatus("error");
       setPushMessage("VAPID 공개키가 설정되지 않았습니다.");
       return;
@@ -284,7 +348,7 @@ export default function ClientMyPage() {
         existingSubscription ??
         (await readyRegistration.pushManager.subscribe({
           userVisibleOnly: true,
-          applicationServerKey: convertKey(VAPID_PUBLIC_KEY),
+          applicationServerKey: convertKey(vapidPublicKey),
         }));
 
       const json = subscription.toJSON() as {
@@ -337,14 +401,26 @@ export default function ClientMyPage() {
       setPushStatus("error");
       setPushMessage(message);
     }
-  }, [client.userId, pushCapable]);
+  }, [client.userId, pushCapable, vapidPublicKey]);
 
   const pushButtonDisabled =
     pushStatus === "requesting" || !pushCapable || !client.userId;
-  const pushHelperText = pushCapable
-    ? pushMessage ||
-      "모바일 Chrome/Safari에서 홈 화면에 추가하면 백그라운드에서도 알림을 받을 수 있습니다."
-    : "현재 기기에서는 웹 푸시를 지원하지 않습니다.";
+
+  const pushHelperText = useMemo(() => {
+    if (pushMessage) {
+      return pushMessage;
+    }
+    if (pushCapable) {
+      return "모바일 Chrome/Safari에서 홈 화면에 추가하면 백그라운드에서도 알림을 받을 수 있습니다.";
+    }
+    if (!supportsPushApi) {
+      return "현재 브라우저에서 웹 푸시를 지원하지 않습니다.";
+    }
+    if (!pushServiceEnabled) {
+      return "서버의 웹 푸시 설정이 비활성화되어 있습니다. 관리자에게 문의해주세요.";
+    }
+    return "VAPID 공개키를 불러오지 못했습니다. 새로고침 후 다시 시도해주세요.";
+  }, [pushCapable, pushMessage, pushServiceEnabled, supportsPushApi]);
 
   const sections = useMemo(
     () => [
@@ -557,7 +633,7 @@ export default function ClientMyPage() {
           ))}
         </div>
 
-        <section className="rounded-xl border border-indigo-100 bg-indigo-50/60 p-6">
+        <section className="rounded-xl border border-indigo-100 bg-indigo-50/60 p-6 md:hidden">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-indigo-600">

@@ -23,3 +23,11 @@ spring:
         web-allow-others: true
 custom:
   fileDirPath: /usr/file
+
+webpush:
+  vapid:
+    public-key: "BBYI8uB4QjU8uB0SaKnqpEKsqPYV80d5_dmuhzKzzYi8daE8tJi1-cV5SywwzgsgN9Ti5vcbR3uSBkEjy3YvyMo"
+    private-key: "Aiwoalc4GXseoWGsOfSSqwDiuFtITXp2kDCSRq1HAWo"
+    subject: "mailto:dev@guardian.local"
+  scheduler:
+    timezone: "Asia/Seoul"

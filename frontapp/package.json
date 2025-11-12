@@ -3,12 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "dev:https": "next dev --experimental-https --experimental-https-key ./localhost-key.pem --experimental-https-cert ./localhost.pem",
+    "dev": "node server.js",
+    "dev:http": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint",
-    "dev:https": "node server.js"
+    "lint": "eslint"
   },
   "dependencies": {
     "next": "^16.0.1",

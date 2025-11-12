@@ -1,5 +1,7 @@
 package com.ll.guardian.global.config;
 
+import java.util.List;
+
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -10,7 +12,7 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
@@ -18,25 +20,39 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
-import java.util.List;
-
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
 public class SecurityConfig {
 
     @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-                .csrf(csrf -> csrf.disable())
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-                .headers(headers -> headers.frameOptions(frameOptions -> frameOptions.disable()))
+                .csrf(csrf -> csrf.disable())
+                .headers(headers -> headers.frameOptions(frame -> frame.disable()))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/h2-console/**").permitAll()
+                        .requestMatchers(
+                                "/api/chat/**",
+                                "/ws/**",
+                                "/topic/**",
+                                "/h2-console/**",
+                                "/",
+                                "/index.html",
+                                "/favicon.ico",
+                                "/error",
+                                "/templates/**",
+                                "/chat.html",
+                                "/chat",
+                                "/search.html",
+                                "/search"
+                        ).permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
-                        .anyRequest().permitAll())
+                        .anyRequest().permitAll()
+                )
                 .formLogin(form -> form.disable())
-                .httpBasic(httpBasic -> httpBasic.disable());
+                .httpBasic(basic -> basic.disable())
+                .logout(logout -> logout.disable());
 
         return http.build();
     }
@@ -55,7 +71,7 @@ public class SecurityConfig {
 
     @Bean
     public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
+        return PasswordEncoderFactories.createDelegatingPasswordEncoder();
     }
 
     @Bean
@@ -65,14 +81,19 @@ public class SecurityConfig {
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
-        CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(List.of("http://localhost:3000"));
-        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(List.of("*"));
-        configuration.setAllowCredentials(true);
+        CorsConfiguration cfg = new CorsConfiguration();
+        cfg.addAllowedOriginPattern("http://localhost:*");
+        cfg.addAllowedOriginPattern("https://localhost:*");
+        cfg.addAllowedOriginPattern("http://127.0.0.1:*");
+        cfg.addAllowedOriginPattern("https://127.0.0.1:*");
+        cfg.addAllowedOriginPattern("http://192.168.*.*:*");
+        cfg.addAllowedOriginPattern("https://192.168.*.*:*");
+        cfg.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"));
+        cfg.setAllowedHeaders(List.of("*"));
+        cfg.setAllowCredentials(true);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", configuration);
+        source.registerCorsConfiguration("/**", cfg);
         return source;
     }
 }

@@ -7,6 +7,7 @@ const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8090";
 const VAPID_PUBLIC_KEY =
   process.env.NEXT_PUBLIC_WEB_PUSH_VAPID_KEY ?? "";
+  process.env.NEXT_PUBLIC_API_URL ?? "https://localhost:8081";
 
 type ClientOverview = {
   userId: number | null;
@@ -82,11 +83,6 @@ export default function ClientMyPage() {
   const [confirmationMessage, setConfirmationMessage] = useState<
     Record<number, { type: "success" | "error"; text: string } | undefined>
   >({});
-  const [pushStatus, setPushStatus] = useState<
-    "idle" | "requesting" | "enabled" | "error"
-  >("idle");
-  const [pushMessage, setPushMessage] = useState("");
-  const [pushCapable, setPushCapable] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") {

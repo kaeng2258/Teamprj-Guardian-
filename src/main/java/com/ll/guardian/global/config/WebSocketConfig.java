@@ -13,19 +13,26 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
         registry.addEndpoint("/ws")
-                // 개발 편의: 전체 허용
-                // .setAllowedOriginPatterns("*")
-                // 좀 더 안전하게 하려면 아래처럼
                 .setAllowedOriginPatterns(
                         "http://localhost:*",
-                        "https://192.168.0.7:*"
+                        "http://127.0.0.1:*",
+                        "http://192.168.*.*:*",
+                        "https://localhost:*",
+                        "https://127.0.0.1:*",
+                        "https://192.168.*.*:*"
                 )
                 .withSockJS();
     }
 
+    /**
+     * /app/** 로 들어오는 메시지는 @MessageMapping 으로 라우팅
+     * /topic/**, /queue/** 는 브로커로 라우팅
+     */
     @Override
     public void configureMessageBroker(MessageBrokerRegistry registry) {
         registry.setApplicationDestinationPrefixes("/app");
-        registry.enableSimpleBroker("/topic");
+        registry.enableSimpleBroker("/topic", "/queue");
+        // 사용자 큐를 쓰면 아래도 사용 가능
+        // registry.setUserDestinationPrefix("/user");
     }
 }

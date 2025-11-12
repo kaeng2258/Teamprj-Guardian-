@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8090";
+  process.env.NEXT_PUBLIC_API_URL ?? "https://localhost:8081";
 
 type AuthMode = "login" | "register";
 type UserRoleOption = "CLIENT" | "PROVIDER";

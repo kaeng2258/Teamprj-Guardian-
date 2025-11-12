@@ -35,7 +35,6 @@ out/
 
 ### VS Code ###
 .vscode/
-
 .application-secret.yml
 
 # macOS system files
@@ -43,3 +42,6 @@ out/
 
 # Node
 node_modules
+
+#keystore
+keystore.p12

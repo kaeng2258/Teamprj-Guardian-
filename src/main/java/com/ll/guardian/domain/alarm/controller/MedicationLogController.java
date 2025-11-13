@@ -2,6 +2,7 @@ package com.ll.guardian.domain.alarm.controller;
 
 import com.ll.guardian.domain.alarm.dto.MedicationLogRequest;
 import com.ll.guardian.domain.alarm.dto.MedicationLogResponse;
+import com.ll.guardian.domain.alarm.dto.MedicationWeeklySummaryResponse;
 import com.ll.guardian.domain.alarm.service.MedicationLogService;
 import jakarta.validation.Valid;
 import java.time.LocalDate;
@@ -57,5 +58,15 @@ public class MedicationLogController {
             @RequestParam("date") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
         List<MedicationLogResponse> logs = medicationLogService.getLogs(clientId, date);
         return ResponseEntity.ok(logs);
+    }
+
+    @GetMapping("/weekly")
+    public ResponseEntity<MedicationWeeklySummaryResponse> getWeeklySummary(
+            @PathVariable Long clientId,
+            @RequestParam(name = "endDate", required = false)
+                    @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+                    LocalDate endDate) {
+        MedicationWeeklySummaryResponse response = medicationLogService.getWeeklySummary(clientId, endDate);
+        return ResponseEntity.ok(response);
     }
 }

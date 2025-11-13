@@ -47,6 +47,7 @@ type MedicationPlan = {
 
 type MedicationLog = {
   id: number;
+  planId?: number | null;
   medicineId: number;
   medicineName: string;
   logTimestamp: string;
@@ -122,6 +123,50 @@ type PlanFormState = {
 type PlanActionMessage = {
   type: "success" | "error";
   text: string;
+};
+
+type MedicationWeeklyDayStatus = {
+  date: string;
+  scheduledCount: number;
+  takenCount: number;
+  manualLogCount: number;
+  status: "NO_SCHEDULE" | "MISSED" | "PARTIAL" | "COMPLETED";
+};
+
+type MedicationWeeklySummary = {
+  startDate: string;
+  endDate: string;
+  days: MedicationWeeklyDayStatus[];
+};
+
+const weeklyStatusConfig: Record<
+  MedicationWeeklyDayStatus["status"],
+  { label: string; icon: string; circle: string; text: string }
+> = {
+  COMPLETED: {
+    label: "완료",
+    icon: "✓",
+    circle: "bg-emerald-600 text-white",
+    text: "text-emerald-700",
+  },
+  PARTIAL: {
+    label: "부분 확인",
+    icon: "½",
+    circle: "bg-amber-500/80 text-white",
+    text: "text-amber-700",
+  },
+  MISSED: {
+    label: "미확인",
+    icon: "!",
+    circle: "bg-rose-600 text-white",
+    text: "text-rose-700",
+  },
+  NO_SCHEDULE: {
+    label: "일정 없음",
+    icon: "-",
+    circle: "bg-slate-200 text-slate-600",
+    text: "text-slate-500",
+  },
 };
 
 const allDays = [
@@ -226,6 +271,15 @@ export default function ProviderMyPage() {
   const [assignmentMessages, setAssignmentMessages] = useState<
     Record<number, PlanActionMessage | undefined>
   >({});
+  const [weeklySummaries, setWeeklySummaries] = useState<
+    Record<number, MedicationWeeklySummary | null>
+  >({});
+  const [weeklySummaryLoading, setWeeklySummaryLoading] = useState<
+    Record<number, boolean>
+  >({});
+  const [weeklySummaryErrors, setWeeklySummaryErrors] = useState<
+    Record<number, string>
+  >({});
   const updatePlanForm = (
     clientId: number,
     updater: (current: PlanFormState) => PlanFormState
@@ -257,6 +311,37 @@ export default function ProviderMyPage() {
       };
     });
   };
+
+  const loadWeeklySummaryForClient = useCallback(
+    async (clientId: number) => {
+      setWeeklySummaryLoading((prev) => ({ ...prev, [clientId]: true }));
+      setWeeklySummaryErrors((prev) => ({ ...prev, [clientId]: "" }));
+      try {
+        const response = await fetch(
+          `${API_BASE_URL}/api/clients/${clientId}/medication/logs/weekly`
+        );
+        if (!response.ok) {
+          const message = await extractApiError(
+            response,
+            "주간 복약 현황을 불러오지 못했습니다."
+          );
+          throw new Error(message);
+        }
+        const summary: MedicationWeeklySummary = await response.json();
+        setWeeklySummaries((prev) => ({ ...prev, [clientId]: summary }));
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : "주간 복약 현황을 불러오지 못했습니다.";
+        setWeeklySummaries((prev) => ({ ...prev, [clientId]: null }));
+        setWeeklySummaryErrors((prev) => ({ ...prev, [clientId]: message }));
+      } finally {
+        setWeeklySummaryLoading((prev) => ({ ...prev, [clientId]: false }));
+      }
+    },
+    []
+  );
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -330,6 +415,9 @@ export default function ProviderMyPage() {
         });
         return next;
       });
+      data.clients.forEach((client) => {
+        loadWeeklySummaryForClient(client.clientId);
+      });
     } catch (error) {
       const message =
         error instanceof Error
@@ -340,7 +428,7 @@ export default function ProviderMyPage() {
     } finally {
       setDashboardLoading(false);
     }
-  }, [provider.userId]);
+  }, [provider.userId, loadWeeklySummaryForClient]);
 
   useEffect(() => {
     if (!isReady || !provider.userId) {
@@ -440,6 +528,25 @@ export default function ProviderMyPage() {
     ).padStart(2, "0")}`;
     return `${datePart} ${timePart}`;
   };
+
+  const formatWeekdayLabel = useCallback((value: string) => {
+    const date = new Date(`${value}T00:00:00`);
+    if (Number.isNaN(date.getTime())) {
+      return "-";
+    }
+    const labels = ["일", "월", "화", "수", "목", "금", "토"];
+    return labels[date.getDay()] ?? "-";
+  }, []);
+
+  const formatCompactDate = useCallback((value: string) => {
+    const date = new Date(`${value}T00:00:00`);
+    if (Number.isNaN(date.getTime())) {
+      return value;
+    }
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${month}.${day}`;
+  }, []);
 
   const mapStatusToLabel = useCallback((status: string) => {
     const labels: Record<string, string> = {
@@ -970,6 +1077,7 @@ export default function ProviderMyPage() {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
+            planId: plan.id,
             medicineId: plan.medicineId,
             logTimestamp: new Date().toISOString(),
             notes: "제공자가 복약을 확인했습니다.",
@@ -1269,6 +1377,10 @@ export default function ProviderMyPage() {
             <div className="mt-4 space-y-6">
               {dashboard.clients.map((client) => {
                 const form = planForms[client.clientId] ?? createInitialFormState();
+                const summary = weeklySummaries[client.clientId] ?? null;
+                const summaryLoadingState =
+                  weeklySummaryLoading[client.clientId] ?? false;
+                const summaryError = weeklySummaryErrors[client.clientId] ?? "";
                 return (
                   <article
                     key={client.clientId}
@@ -1286,6 +1398,84 @@ export default function ProviderMyPage() {
                       </div>
                     </div>
 
+                    <div className="mt-4 rounded-lg border border-emerald-100 bg-emerald-50 p-4">
+                      <div className="flex flex-col gap-2 border-b border-emerald-200 pb-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <h4 className="text-base font-semibold text-emerald-900">
+                            주간 복약 현황
+                          </h4>
+                          <p className="text-xs text-emerald-700">
+                            최근 7일간 복약 확인 추이를 한눈에 확인하세요.
+                          </p>
+                        </div>
+                        <button
+                          className="self-start rounded-md border border-emerald-300 px-3 py-1 text-xs font-medium text-emerald-800 transition hover:border-emerald-400 hover:text-emerald-900 disabled:cursor-not-allowed disabled:opacity-60"
+                          disabled={summaryLoadingState}
+                          onClick={() => loadWeeklySummaryForClient(client.clientId)}
+                          type="button"
+                        >
+                          {summaryLoadingState ? "갱신 중..." : "새로고침"}
+                        </button>
+                      </div>
+                      {client.medicationPlans.length === 0 ? (
+                        <div className="mt-3 rounded-md bg-white px-3 py-2 text-xs text-emerald-800">
+                          아직 복약 일정이 없습니다. 아래 양식에서 일정을 먼저 등록해주세요.
+                        </div>
+                      ) : summaryLoadingState && !summary ? (
+                        <div className="mt-3 rounded-md bg-white/70 px-3 py-2 text-xs text-emerald-800">
+                          주간 현황을 불러오는 중입니다...
+                        </div>
+                      ) : summaryError ? (
+                        <div className="mt-3 rounded-md bg-white px-3 py-2 text-xs text-red-600">
+                          {summaryError}
+                        </div>
+                      ) : summary && summary.days.length > 0 ? (
+                        <div className="mt-3 grid gap-2 sm:grid-cols-3 lg:grid-cols-7">
+                          {summary.days.map((day) => {
+                            const config = weeklyStatusConfig[day.status];
+                            const effectiveTaken = Math.min(
+                              day.scheduledCount,
+                              day.takenCount + day.manualLogCount
+                            );
+                            return (
+                              <div
+                                key={day.date}
+                                className="rounded-md border border-white bg-white p-2 text-center shadow-sm"
+                              >
+                                <div className="flex items-center justify-center">
+                                  <div
+                                    className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold ${config.circle}`}
+                                  >
+                                    {config.icon}
+                                  </div>
+                                </div>
+                                <p className="mt-1 text-xs font-semibold text-slate-900">
+                                  {formatWeekdayLabel(day.date)}
+                                </p>
+                                <p className="text-[11px] text-slate-500">
+                                  {formatCompactDate(day.date)}
+                                </p>
+                                <p className={`mt-1 text-[11px] font-semibold ${config.text}`}>
+                                  {config.label}
+                                </p>
+                                <p className="text-[11px] text-slate-500">
+                                  {day.scheduledCount > 0
+                                    ? `${effectiveTaken}/${day.scheduledCount}`
+                                    : day.manualLogCount > 0
+                                    ? `기록 ${day.manualLogCount}`
+                                    : "일정 없음"}
+                                </p>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div className="mt-3 rounded-md bg-white px-3 py-2 text-xs text-emerald-800">
+                          아직 주간 복약 기록이 없습니다.
+                        </div>
+                      )}
+                    </div>
+
                     <div className="mt-4 grid gap-4 lg:grid-cols-[2fr,1fr]">
                       <div className="space-y-4">
                         {client.medicationPlans.length === 0 ? (
@@ -1296,9 +1486,15 @@ export default function ProviderMyPage() {
                           client.medicationPlans.map((plan) => {
                             const message = planMessages[plan.id];
                             const logMessage = logMessages[plan.id];
-                            const latestLog = client.latestMedicationLogs.find(
-                              (log) => log.medicineId === plan.medicineId
-                            );
+                            const latestLog =
+                              client.latestMedicationLogs.find(
+                                (log) => log.planId === plan.id
+                              ) ??
+                              client.latestMedicationLogs.find(
+                                (log) =>
+                                  !log.planId &&
+                                  log.medicineId === plan.medicineId
+                              );
                             return (
                               <div
                                 key={plan.id}

@@ -10,6 +10,8 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
 import lombok.AccessLevel;
@@ -36,6 +38,10 @@ public class MedicationLog {
     private User client;
 
     @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "alarm_id")
+    private MedicationAlarm alarm;
+
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "medicine_id", nullable = false)
     private Medicine medicine;
 
@@ -45,7 +51,9 @@ public class MedicationLog {
     @Column(name = "notes", columnDefinition = "TEXT")
     private String notes;
 
-    public void update(LocalDateTime logTimestamp, String notes) {
+    public void update(MedicationAlarm alarm, Medicine medicine, LocalDateTime logTimestamp, String notes) {
+        this.alarm = alarm;
+        this.medicine = medicine;
         this.logTimestamp = logTimestamp;
         this.notes = notes;
     }

@@ -27,10 +27,55 @@ type MedicationPlan = {
 
 type MedicationLog = {
   id: number;
+  planId?: number | null;
   medicineId: number;
   medicineName: string;
   logTimestamp: string;
   notes?: string | null;
+};
+
+type MedicationWeeklyDayStatus = {
+  date: string;
+  scheduledCount: number;
+  takenCount: number;
+  manualLogCount: number;
+  status: "NO_SCHEDULE" | "MISSED" | "PARTIAL" | "COMPLETED";
+};
+
+type MedicationWeeklySummary = {
+  startDate: string;
+  endDate: string;
+  days: MedicationWeeklyDayStatus[];
+};
+
+const weeklyStatusConfig: Record<
+  MedicationWeeklyDayStatus["status"],
+  { label: string; icon: string; circle: string; text: string }
+> = {
+  COMPLETED: {
+    label: "완료",
+    icon: "✓",
+    circle: "bg-emerald-600 text-white",
+    text: "text-emerald-700",
+  },
+  PARTIAL: {
+    label: "부분 확인",
+    icon: "½",
+    circle: "bg-amber-500/80 text-white",
+    text: "text-amber-700",
+  },
+  MISSED: {
+    label: "미확인",
+    icon: "!",
+    circle: "bg-rose-600 text-white",
+    text: "text-rose-700",
+  },
+  NO_SCHEDULE: {
+    label: "일정 없음",
+    icon: "-",
+    circle: "bg-slate-200 text-slate-600",
+    text: "text-slate-500",
+  },
 };
 
 type UserSummary = {
@@ -82,11 +127,15 @@ export default function ClientMyPage() {
   const [plans, setPlans] = useState<MedicationPlan[]>([]);
   const [planLoading, setPlanLoading] = useState(false);
   const [planError, setPlanError] = useState("");
+  const [plansInitialized, setPlansInitialized] = useState(false);
   const [todayLogs, setTodayLogs] = useState<Record<number, MedicationLog | undefined>>({});
   const [confirmationState, setConfirmationState] = useState<Record<number, "idle" | "confirming">>({});
   const [confirmationMessage, setConfirmationMessage] = useState<
     Record<number, { type: "success" | "error"; text: string } | undefined>
   >({});
+  const [weeklySummary, setWeeklySummary] = useState<MedicationWeeklySummary | null>(null);
+  const [weeklySummaryLoading, setWeeklySummaryLoading] = useState(false);
+  const [weeklySummaryError, setWeeklySummaryError] = useState("");
   const [supportsPushApi, setSupportsPushApi] = useState(false);
   const [pushServiceEnabled, setPushServiceEnabled] = useState(false);
   const [vapidPublicKey, setVapidPublicKey] = useState("");
@@ -203,11 +252,45 @@ export default function ClientMyPage() {
     }
   }, [pushCapable]);
 
+  const loadWeeklySummary = useCallback(async () => {
+    if (!client.userId) {
+      return;
+    }
+
+    setWeeklySummaryLoading(true);
+    setWeeklySummaryError("");
+
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/clients/${client.userId}/medication/logs/weekly`
+      );
+      if (!response.ok) {
+        const message = await extractApiError(
+          response,
+          "주간 복약 현황을 불러오지 못했습니다."
+        );
+        throw new Error(message);
+      }
+      const summary: MedicationWeeklySummary = await response.json();
+      setWeeklySummary(summary);
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "주간 복약 현황을 불러오지 못했습니다.";
+      setWeeklySummary(null);
+      setWeeklySummaryError(message);
+    } finally {
+      setWeeklySummaryLoading(false);
+    }
+  }, [client.userId]);
+
   const loadMedicationData = useCallback(async () => {
     if (!client.userId) {
       return;
     }
 
+    loadWeeklySummary();
     setPlanLoading(true);
     setPlanError("");
     setConfirmationMessage({});
@@ -250,24 +333,27 @@ export default function ClientMyPage() {
       }
 
       const logsData: MedicationLog[] = await logsResponse.json();
+      const latestByPlan = new Map<number, MedicationLog>();
       const latestByMedicine = new Map<number, MedicationLog>();
       logsData.forEach((log) => {
-        const existing = latestByMedicine.get(log.medicineId);
+        const mapKey = log.planId ?? null;
+        const targetMap = mapKey ? latestByPlan : latestByMedicine;
+        const key = mapKey ?? log.medicineId;
+        const existing = targetMap.get(key);
         if (!existing) {
-          latestByMedicine.set(log.medicineId, log);
+          targetMap.set(key, log);
           return;
         }
-
         const currentTime = new Date(log.logTimestamp).getTime();
         const existingTime = new Date(existing.logTimestamp).getTime();
         if (Number.isFinite(currentTime) && currentTime > existingTime) {
-          latestByMedicine.set(log.medicineId, log);
+          targetMap.set(key, log);
         }
       });
 
       const record: Record<number, MedicationLog | undefined> = {};
       planData.forEach((plan) => {
-        const log = latestByMedicine.get(plan.medicineId);
+        const log = latestByPlan.get(plan.id) ?? latestByMedicine.get(plan.medicineId);
         if (log) {
           record[plan.id] = log;
         }
@@ -283,8 +369,9 @@ export default function ClientMyPage() {
       setTodayLogs({});
     } finally {
       setPlanLoading(false);
+      setPlansInitialized(true);
     }
-  }, [client.userId]);
+  }, [client.userId, loadWeeklySummary]);
 
   useEffect(() => {
     if (!isReady || !client.userId) {
@@ -503,6 +590,23 @@ export default function ClientMyPage() {
     return `${hour}:${minute}`;
   };
 
+  const formatWeekdayLabel = useCallback((value: string) => {
+    const day = new Date(`${value}T00:00:00`);
+    const labels = ["일", "월", "화", "수", "목", "금", "토"];
+    const index = Number.isNaN(day.getDay()) ? -1 : day.getDay();
+    return index >= 0 ? labels[index] : "-";
+  }, []);
+
+  const formatCompactDate = useCallback((value: string) => {
+    const date = new Date(`${value}T00:00:00`);
+    if (Number.isNaN(date.getTime())) {
+      return value;
+    }
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${month}.${day}`;
+  }, []);
+
   const handleMedicationConfirm = async (plan: MedicationPlan) => {
     if (!client.userId) {
       return;
@@ -520,6 +624,7 @@ export default function ClientMyPage() {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
+            planId: plan.id,
             medicineId: plan.medicineId,
             logTimestamp: new Date().toISOString(),
             notes: "사용자가 복약을 확인했습니다.",
@@ -764,6 +869,91 @@ export default function ClientMyPage() {
               })
             )}
           </div>
+        </section>
+
+        <section className="rounded-xl border border-amber-100 bg-amber-50 p-6">
+          <div className="flex flex-col gap-2 border-b border-amber-200 pb-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-xl font-semibold text-amber-900">주간 복약 현황</h2>
+              <p className="text-sm text-amber-700">
+                최근 7일 동안의 복약 기록을 요일별 아이콘으로 확인할 수 있습니다.
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                className="rounded-md border border-amber-300 px-3 py-1.5 text-sm text-amber-800 transition hover:border-amber-400 hover:text-amber-900 disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={weeklySummaryLoading}
+                onClick={loadWeeklySummary}
+                type="button"
+              >
+                {weeklySummaryLoading ? "갱신 중..." : "주간 새로고침"}
+              </button>
+            </div>
+          </div>
+          {!planLoading && plansInitialized && planError.trim().length === 0 && plans.length === 0 ? (
+            <div className="mt-4 rounded-md bg-white px-4 py-3 text-sm text-amber-800">
+              아직 복약 일정이 없습니다. 담당자에게 일정을 등록해 달라고 요청해주세요.
+            </div>
+          ) : weeklySummaryLoading && !weeklySummary ? (
+            <div className="mt-4 rounded-md bg-white/70 px-4 py-3 text-sm text-amber-800">
+              주간 복약 현황을 불러오는 중입니다...
+            </div>
+          ) : weeklySummaryError ? (
+            <div className="mt-4 rounded-md bg-white px-4 py-3 text-sm text-red-600">
+              {weeklySummaryError}
+            </div>
+          ) : weeklySummary && weeklySummary.days.length > 0 ? (
+            <div className="mt-4 grid gap-3 sm:grid-cols-3 lg:grid-cols-7">
+              {weeklySummary.days.map((day) => {
+                const config = weeklyStatusConfig[day.status];
+                const effectiveTaken = Math.min(
+                  day.scheduledCount,
+                  day.takenCount + day.manualLogCount
+                );
+                return (
+                  <div
+                    key={day.date}
+                    className="rounded-lg border border-white bg-white p-3 shadow-sm"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={`flex h-10 w-10 items-center justify-center rounded-full text-base font-semibold ${config.circle}`}
+                      >
+                        {config.icon}
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-amber-500">
+                          {formatWeekdayLabel(day.date)}요일
+                        </p>
+                        <p className="text-sm font-semibold text-slate-900">
+                          {formatCompactDate(day.date)}
+                        </p>
+                      </div>
+                    </div>
+                    <p className={`mt-3 text-sm font-semibold ${config.text}`}>
+                      {config.label}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      {day.scheduledCount > 0
+                        ? `확인 ${effectiveTaken}/${day.scheduledCount}`
+                        : day.manualLogCount > 0
+                        ? `기록 ${day.manualLogCount}건`
+                        : "일정 없음"}
+                    </p>
+                    {day.manualLogCount > 0 && day.scheduledCount > 0 && (
+                      <p className="mt-0.5 text-xs text-amber-600">
+                        수동 기록 {day.manualLogCount}건 포함
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="mt-4 rounded-md bg-white px-4 py-3 text-sm text-amber-800">
+              아직 복약 기록이 없습니다. 복약 확인을 기록해 주세요.
+            </div>
+          )}
         </section>
 
         <section className="rounded-xl border border-indigo-200 bg-indigo-50 p-6">

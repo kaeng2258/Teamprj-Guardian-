@@ -18,14 +18,10 @@ spring:
       ddl-auto: update
     properties:
       hibernate:
-<<<<<<< HEAD
-        dialect: org.hibernate.dialect.H2Dialect
-=======
         dialect: org.hibernate.dialect.MariaDBDialect
   h2:
     console:
       enabled: false
->>>>>>> origin/js
 custom:
   fileDirPath: /usr/file
 

@@ -1,5 +1,6 @@
 "use client";
-
+import MyChatRooms from "@/components/MyChatRooms";
+import { InlineDrugSearch } from "@/components/InlineDrugSearch";
 import { useRouter } from "next/navigation";
 import {
   ChangeEvent,
@@ -1081,6 +1082,11 @@ export default function ProviderMyPage() {
             </section>
           ))}
         </div>
+        {/* 내 채팅방 (프로바이더 본인 것만) */}
+        <MyChatRooms role="PROVIDER" userId={provider.userId} />
+
+        {/* 디테일 페이지 안에서 바로 e약은요 검색 */}
+        <InlineDrugSearch />
 
         <section className="rounded-xl border border-emerald-200 bg-white p-6">
           <div className="flex flex-col gap-2 border-b border-emerald-200 pb-4 sm:flex-row sm:items-center sm:justify-between">

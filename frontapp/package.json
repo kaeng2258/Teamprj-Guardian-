@@ -1,27 +1,32 @@
 {
-  "name": "frontapp",
-  "version": "0.1.0",
-  "private": true,
-  "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "eslint",
-    "dev:https": "node server.js"
-  },
-  "dependencies": {
-    "next": "^16.0.1",
-    "react": "^19.2.0",
-    "react-dom": "^19.2.0"
-  },
-  "devDependencies": {
-    "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "eslint": "^9",
-    "eslint-config-next": "16.0.1",
-    "tailwindcss": "^4",
-    "typescript": "^5"
-  }
+ "type": "module",
+ "name": "frontapp",
+ "version": "0.1.0",
+ "private": true,
+ "scripts": {
+  "dev": "next dev -p 3000",
+  "build": "next build",
+  "start": "next start -p 3000",
+  "lint": "eslint",
+  "dev:https": "node server.js"
+ },
+ "dependencies": {
+  "@stomp/stompjs": "^7.0.0",
+  "next": "14.2.15",
+  "react": "18.3.1",
+  "react-dom": "18.3.1",
+  "sockjs-client": "^1.6.1"
+ },
+ "devDependencies": {
+  "@types/sockjs-client": "^1.5.4",
+   "@types/node": "^20",
+  "@types/react": "^19",
+  "@types/react-dom": "^19",
+  "autoprefixer": "^10.4.20",
+  "eslint": "^9",
+  "eslint-config-next": "16.0.1",
+  "postcss": "^8.4.40",
+  "tailwindcss": "^3.4.14",
+  "typescript": "^5"
+ }
 }

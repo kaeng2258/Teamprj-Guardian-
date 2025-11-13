@@ -26,7 +26,13 @@ import java.util.Map;
 @RequiredArgsConstructor
 @RequestMapping(value = "/api/chat", produces = MediaType.APPLICATION_JSON_VALUE)
 @CrossOrigin(
-        origins = {"http://localhost:3000", "http://localhost:5173", "http://localhost:8081"},
+        origins = {
+                "http://localhost:3000",
+                "https://localhost:3000",
+                "http://localhost:5173",
+                "http://localhost:8081",
+                "https://localhost:8081"
+        },
         allowCredentials = "true"
 )
 public class ChatController {
@@ -55,9 +61,14 @@ public class ChatController {
     }
 
     @GetMapping("/rooms/{roomId}/messages")
-    public List<ChatMessageResponse> getMessages(@PathVariable Long roomId) {
-        return chatService.getMessages(roomId);
+    public MessagesResponse getMessages(@PathVariable Long roomId) {
+        List<ChatMessageResponse> messages = chatService.getMessages(roomId);
+        return new MessagesResponse(messages);
     }
+
+    // 프론트용 래퍼
+    public record MessagesResponse(List<ChatMessageResponse> messages) { }
+
 
     @PostMapping("/rooms/{roomId}/read")
     public void markRead(@PathVariable Long roomId, @RequestParam @NotNull Long userId) {

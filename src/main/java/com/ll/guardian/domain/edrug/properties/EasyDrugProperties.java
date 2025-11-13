@@ -1,4 +1,3 @@
-// src/main/java/com/ll/guardian/domain/edrug/properties/EasyDrugProperties.java
 package com.ll.guardian.domain.edrug.properties;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;

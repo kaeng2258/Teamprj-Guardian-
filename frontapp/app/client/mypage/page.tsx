@@ -5,13 +5,15 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? "https://localhost:8081";
+  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "";
 
 type ClientOverview = {
   userId: number | null;
   email: string;
   name: string;
 };
+
+type PushStatus = "idle" | "requesting" | "enabled" | "error";
 
 type MedicationPlan = {
   id: number;
@@ -26,10 +28,55 @@ type MedicationPlan = {
 
 type MedicationLog = {
   id: number;
+  planId?: number | null;
   medicineId: number;
   medicineName: string;
   logTimestamp: string;
   notes?: string | null;
+};
+
+type MedicationWeeklyDayStatus = {
+  date: string;
+  scheduledCount: number;
+  takenCount: number;
+  manualLogCount: number;
+  status: "NO_SCHEDULE" | "MISSED" | "PARTIAL" | "COMPLETED";
+};
+
+type MedicationWeeklySummary = {
+  startDate: string;
+  endDate: string;
+  days: MedicationWeeklyDayStatus[];
+};
+
+const weeklyStatusConfig: Record<
+  MedicationWeeklyDayStatus["status"],
+  { label: string; icon: string; circle: string; text: string }
+> = {
+  COMPLETED: {
+    label: "완료",
+    icon: "✓",
+    circle: "bg-emerald-600 text-white",
+    text: "text-emerald-700",
+  },
+  PARTIAL: {
+    label: "부분 확인",
+    icon: "½",
+    circle: "bg-amber-500/80 text-white",
+    text: "text-amber-700",
+  },
+  MISSED: {
+    label: "미확인",
+    icon: "!",
+    circle: "bg-rose-600 text-white",
+    text: "text-rose-700",
+  },
+  NO_SCHEDULE: {
+    label: "일정 없음",
+    icon: "-",
+    circle: "bg-slate-200 text-slate-600",
+    text: "text-slate-500",
+  },
 };
 
 type UserSummary = {
@@ -38,6 +85,11 @@ type UserSummary = {
   name: string;
   role: string;
   status: string;
+};
+
+type WebPushConfigResponse = {
+  enabled: boolean;
+  publicKey: string;
 };
 
 async function extractApiError(response: Response, fallback: string) {
@@ -76,11 +128,25 @@ export default function ClientMyPage() {
   const [plans, setPlans] = useState<MedicationPlan[]>([]);
   const [planLoading, setPlanLoading] = useState(false);
   const [planError, setPlanError] = useState("");
+  const [plansInitialized, setPlansInitialized] = useState(false);
   const [todayLogs, setTodayLogs] = useState<Record<number, MedicationLog | undefined>>({});
   const [confirmationState, setConfirmationState] = useState<Record<number, "idle" | "confirming">>({});
   const [confirmationMessage, setConfirmationMessage] = useState<
     Record<number, { type: "success" | "error"; text: string } | undefined>
   >({});
+  const [weeklySummary, setWeeklySummary] = useState<MedicationWeeklySummary | null>(null);
+  const [weeklySummaryLoading, setWeeklySummaryLoading] = useState(false);
+  const [weeklySummaryError, setWeeklySummaryError] = useState("");
+  const [supportsPushApi, setSupportsPushApi] = useState(false);
+  const [pushServiceEnabled, setPushServiceEnabled] = useState(false);
+  const [vapidPublicKey, setVapidPublicKey] = useState("");
+  const [pushStatus, setPushStatus] = useState<PushStatus>("idle");
+  const [pushMessage, setPushMessage] = useState("");
+
+  const pushCapable = useMemo(
+    () => supportsPushApi && pushServiceEnabled && Boolean(vapidPublicKey),
+    [supportsPushApi, pushServiceEnabled, vapidPublicKey]
+  );
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -124,11 +190,108 @@ export default function ClientMyPage() {
     setIsReady(true);
   }, [router]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const supported =
+      "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+    setSupportsPushApi(supported);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const fetchConfig = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/push/config`);
+        if (!response.ok) {
+          const message = await extractApiError(
+            response,
+            "웹 푸시 설정 정보를 불러오지 못했습니다."
+          );
+          throw new Error(message);
+        }
+        const data: WebPushConfigResponse = await response.json();
+        if (cancelled) {
+          return;
+        }
+        setVapidPublicKey(data.publicKey ?? "");
+        setPushServiceEnabled(Boolean(data.enabled && data.publicKey));
+        setPushStatus((prev) => (prev === "error" ? "idle" : prev));
+        setPushMessage((prev) =>
+          prev && prev.includes("설정 정보를") ? "" : prev
+        );
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+        const message =
+          error instanceof Error
+            ? error.message
+            : "웹 푸시 설정 정보를 불러오지 못했습니다.";
+        setPushServiceEnabled(false);
+        setVapidPublicKey("");
+        setPushStatus("error");
+        setPushMessage(message);
+      }
+    };
+
+    fetchConfig();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !pushCapable) {
+      return;
+    }
+    if (Notification.permission === "granted") {
+      setPushStatus("enabled");
+      setPushMessage("이미 푸시 알림이 허용되었습니다.");
+    }
+  }, [pushCapable]);
+
+  const loadWeeklySummary = useCallback(async () => {
+    if (!client.userId) {
+      return;
+    }
+
+    setWeeklySummaryLoading(true);
+    setWeeklySummaryError("");
+
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/clients/${client.userId}/medication/logs/weekly`
+      );
+      if (!response.ok) {
+        const message = await extractApiError(
+          response,
+          "주간 복약 현황을 불러오지 못했습니다."
+        );
+        throw new Error(message);
+      }
+      const summary: MedicationWeeklySummary = await response.json();
+      setWeeklySummary(summary);
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "주간 복약 현황을 불러오지 못했습니다.";
+      setWeeklySummary(null);
+      setWeeklySummaryError(message);
+    } finally {
+      setWeeklySummaryLoading(false);
+    }
+  }, [client.userId]);
+
   const loadMedicationData = useCallback(async () => {
     if (!client.userId) {
       return;
     }
 
+    loadWeeklySummary();
     setPlanLoading(true);
     setPlanError("");
     setConfirmationMessage({});
@@ -171,24 +334,27 @@ export default function ClientMyPage() {
       }
 
       const logsData: MedicationLog[] = await logsResponse.json();
+      const latestByPlan = new Map<number, MedicationLog>();
       const latestByMedicine = new Map<number, MedicationLog>();
       logsData.forEach((log) => {
-        const existing = latestByMedicine.get(log.medicineId);
+        const mapKey = log.planId ?? null;
+        const targetMap = mapKey ? latestByPlan : latestByMedicine;
+        const key = mapKey ?? log.medicineId;
+        const existing = targetMap.get(key);
         if (!existing) {
-          latestByMedicine.set(log.medicineId, log);
+          targetMap.set(key, log);
           return;
         }
-
         const currentTime = new Date(log.logTimestamp).getTime();
         const existingTime = new Date(existing.logTimestamp).getTime();
         if (Number.isFinite(currentTime) && currentTime > existingTime) {
-          latestByMedicine.set(log.medicineId, log);
+          targetMap.set(key, log);
         }
       });
 
       const record: Record<number, MedicationLog | undefined> = {};
       planData.forEach((plan) => {
-        const log = latestByMedicine.get(plan.medicineId);
+        const log = latestByPlan.get(plan.id) ?? latestByMedicine.get(plan.medicineId);
         if (log) {
           record[plan.id] = log;
         }
@@ -204,8 +370,9 @@ export default function ClientMyPage() {
       setTodayLogs({});
     } finally {
       setPlanLoading(false);
+      setPlansInitialized(true);
     }
-  }, [client.userId]);
+  }, [client.userId, loadWeeklySummary]);
 
   useEffect(() => {
     if (!isReady || !client.userId) {
@@ -213,6 +380,135 @@ export default function ClientMyPage() {
     }
     loadMedicationData();
   }, [isReady, client.userId, loadMedicationData]);
+
+  const handleEnablePush = useCallback(async () => {
+    if (!client.userId) {
+      setPushStatus("error");
+      setPushMessage("사용자 정보를 먼저 불러온 뒤 다시 시도해주세요.");
+      return;
+    }
+
+    if (typeof window === "undefined" || !pushCapable) {
+      setPushStatus("error");
+      setPushMessage("현재 브라우저에서 웹 푸시를 지원하지 않습니다.");
+      return;
+    }
+
+    if (!vapidPublicKey) {
+      setPushStatus("error");
+      setPushMessage("VAPID 공개키가 설정되지 않았습니다.");
+      return;
+    }
+
+    const convertKey = (key: string) => {
+      const padding = "=".repeat((4 - (key.length % 4)) % 4);
+      const base64 = (key + padding).replace(/-/g, "+").replace(/_/g, "/");
+      const rawData = window.atob(base64);
+      const outputArray = new Uint8Array(rawData.length);
+      for (let i = 0; i < rawData.length; ++i) {
+        outputArray[i] = rawData.charCodeAt(i);
+      }
+      return outputArray;
+    };
+
+    try {
+      setPushStatus("requesting");
+      setPushMessage("");
+
+      const existingRegistration = await navigator.serviceWorker.getRegistration();
+      const registration =
+        existingRegistration ?? (await navigator.serviceWorker.register("/sw.js"));
+      const readyRegistration = registration.active
+        ? registration
+        : await navigator.serviceWorker.ready;
+
+      if (Notification.permission === "default") {
+        const permission = await Notification.requestPermission();
+        if (permission !== "granted") {
+          throw new Error("알림 권한을 허용해야 푸시 알림을 받을 수 있습니다.");
+        }
+      } else if (Notification.permission === "denied") {
+        throw new Error("브라우저 설정에서 알림 권한이 차단되어 있습니다.");
+      }
+
+      const existingSubscription = await readyRegistration.pushManager.getSubscription();
+      const subscription =
+        existingSubscription ??
+        (await readyRegistration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: convertKey(vapidPublicKey),
+        }));
+
+      const json = subscription.toJSON() as {
+        endpoint?: string;
+        expirationTime?: number | null;
+        keys?: {
+          auth?: string;
+          p256dh?: string;
+        };
+      };
+      const keys = json.keys ?? {};
+      if (!keys.auth || !keys.p256dh) {
+        throw new Error("브라우저가 푸시 키 정보를 제공하지 못했습니다.");
+      }
+
+      const response = await fetch(
+        `${API_BASE_URL}/api/users/${client.userId}/push/subscriptions`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            endpoint: subscription.endpoint,
+            expirationTime: subscription.expirationTime,
+            keys: {
+              auth: keys.auth,
+              p256dh: keys.p256dh,
+            },
+            userAgent: navigator.userAgent,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const message = await extractApiError(
+          response,
+          "푸시 구독 정보를 저장하지 못했습니다."
+        );
+        throw new Error(message);
+      }
+
+      setPushStatus("enabled");
+      setPushMessage("모바일 브라우저 푸시 알림이 활성화되었습니다.");
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "푸시 알림을 설정하는 동안 문제가 발생했습니다.";
+      setPushStatus("error");
+      setPushMessage(message);
+    }
+  }, [client.userId, pushCapable, vapidPublicKey]);
+
+  const pushButtonDisabled =
+    pushStatus === "requesting" || !pushCapable || !client.userId;
+
+  const pushHelperText = useMemo(() => {
+    if (pushMessage) {
+      return pushMessage;
+    }
+    if (pushCapable) {
+      return "모바일 Chrome/Safari에서 홈 화면에 추가하면 백그라운드에서도 알림을 받을 수 있습니다.";
+    }
+    if (!supportsPushApi) {
+      return "현재 브라우저에서 웹 푸시를 지원하지 않습니다.";
+    }
+    if (!pushServiceEnabled) {
+      return "서버의 웹 푸시 설정이 비활성화되어 있습니다. 관리자에게 문의해주세요.";
+    }
+    return "VAPID 공개키를 불러오지 못했습니다. 새로고침 후 다시 시도해주세요.";
+  }, [pushCapable, pushMessage, pushServiceEnabled, supportsPushApi]);
 
   const sections = useMemo(
     () => [
@@ -295,6 +591,23 @@ export default function ClientMyPage() {
     return `${hour}:${minute}`;
   };
 
+  const formatWeekdayLabel = useCallback((value: string) => {
+    const day = new Date(`${value}T00:00:00`);
+    const labels = ["일", "월", "화", "수", "목", "금", "토"];
+    const index = Number.isNaN(day.getDay()) ? -1 : day.getDay();
+    return index >= 0 ? labels[index] : "-";
+  }, []);
+
+  const formatCompactDate = useCallback((value: string) => {
+    const date = new Date(`${value}T00:00:00`);
+    if (Number.isNaN(date.getTime())) {
+      return value;
+    }
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${month}.${day}`;
+  }, []);
+
   const handleMedicationConfirm = async (plan: MedicationPlan) => {
     if (!client.userId) {
       return;
@@ -312,6 +625,7 @@ export default function ClientMyPage() {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
+            planId: plan.id,
             medicineId: plan.medicineId,
             logTimestamp: new Date().toISOString(),
             notes: "사용자가 복약을 확인했습니다.",
@@ -427,8 +741,42 @@ export default function ClientMyPage() {
         {/* 내 채팅방 (클라이언트 본인 것만) */}
         <MyChatRooms role="CLIENT" userId={client.userId} />
 
+<<<<<<< HEAD
         {/* 디테일 페이지 안에서 바로 e약은요 검색 */}
         <InlineDrugSearch />
+=======
+        <section className="rounded-xl border border-indigo-100 bg-indigo-50/60 p-6 md:hidden">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-indigo-600">
+                모바일 푸시
+              </p>
+              <h2 className="mt-1 text-xl font-bold text-slate-900">
+                브라우저가 꺼져 있어도 복약 알림 받기
+              </h2>
+              <p className="mt-2 text-sm text-slate-600">
+                한 번만 허용하면 모바일에서도 정해진 복약 시간에 맞춰 알림을 전달해 드립니다.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleEnablePush}
+              disabled={pushButtonDisabled}
+              className="h-12 rounded-xl bg-indigo-600 px-6 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-400"
+            >
+              {pushStatus === "requesting" ? "설정 중..." : "푸시 알림 활성화"}
+            </button>
+          </div>
+          <p
+            className={`mt-4 text-sm ${
+              pushStatus === "error" ? "text-red-600" : "text-slate-700"
+            }`}
+          >
+            {pushHelperText}
+          </p>
+        </section>
+
+>>>>>>> origin/js
         <section className="rounded-xl border border-slate-200 p-6">
           <div className="flex flex-col gap-2 border-b border-slate-200 pb-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -529,6 +877,91 @@ export default function ClientMyPage() {
               })
             )}
           </div>
+        </section>
+
+        <section className="rounded-xl border border-amber-100 bg-amber-50 p-6">
+          <div className="flex flex-col gap-2 border-b border-amber-200 pb-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-xl font-semibold text-amber-900">주간 복약 현황</h2>
+              <p className="text-sm text-amber-700">
+                최근 7일 동안의 복약 기록을 요일별 아이콘으로 확인할 수 있습니다.
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                className="rounded-md border border-amber-300 px-3 py-1.5 text-sm text-amber-800 transition hover:border-amber-400 hover:text-amber-900 disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={weeklySummaryLoading}
+                onClick={loadWeeklySummary}
+                type="button"
+              >
+                {weeklySummaryLoading ? "갱신 중..." : "주간 새로고침"}
+              </button>
+            </div>
+          </div>
+          {!planLoading && plansInitialized && planError.trim().length === 0 && plans.length === 0 ? (
+            <div className="mt-4 rounded-md bg-white px-4 py-3 text-sm text-amber-800">
+              아직 복약 일정이 없습니다. 담당자에게 일정을 등록해 달라고 요청해주세요.
+            </div>
+          ) : weeklySummaryLoading && !weeklySummary ? (
+            <div className="mt-4 rounded-md bg-white/70 px-4 py-3 text-sm text-amber-800">
+              주간 복약 현황을 불러오는 중입니다...
+            </div>
+          ) : weeklySummaryError ? (
+            <div className="mt-4 rounded-md bg-white px-4 py-3 text-sm text-red-600">
+              {weeklySummaryError}
+            </div>
+          ) : weeklySummary && weeklySummary.days.length > 0 ? (
+            <div className="mt-4 grid gap-3 sm:grid-cols-3 lg:grid-cols-7">
+              {weeklySummary.days.map((day) => {
+                const config = weeklyStatusConfig[day.status];
+                const effectiveTaken = Math.min(
+                  day.scheduledCount,
+                  day.takenCount + day.manualLogCount
+                );
+                return (
+                  <div
+                    key={day.date}
+                    className="rounded-lg border border-white bg-white p-3 shadow-sm"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={`flex h-10 w-10 items-center justify-center rounded-full text-base font-semibold ${config.circle}`}
+                      >
+                        {config.icon}
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-amber-500">
+                          {formatWeekdayLabel(day.date)}요일
+                        </p>
+                        <p className="text-sm font-semibold text-slate-900">
+                          {formatCompactDate(day.date)}
+                        </p>
+                      </div>
+                    </div>
+                    <p className={`mt-3 text-sm font-semibold ${config.text}`}>
+                      {config.label}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      {day.scheduledCount > 0
+                        ? `확인 ${effectiveTaken}/${day.scheduledCount}`
+                        : day.manualLogCount > 0
+                        ? `기록 ${day.manualLogCount}건`
+                        : "일정 없음"}
+                    </p>
+                    {day.manualLogCount > 0 && day.scheduledCount > 0 && (
+                      <p className="mt-0.5 text-xs text-amber-600">
+                        수동 기록 {day.manualLogCount}건 포함
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="mt-4 rounded-md bg-white px-4 py-3 text-sm text-amber-800">
+              아직 복약 기록이 없습니다. 복약 확인을 기록해 주세요.
+            </div>
+          )}
         </section>
 
         <section className="rounded-xl border border-indigo-200 bg-indigo-50 p-6">

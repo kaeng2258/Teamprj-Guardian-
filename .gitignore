@@ -34,7 +34,7 @@ out/
 /.nb-gradle/
 
 ### VS Code ###
-
+.vscode/
 .application-secret.yml
 
 # macOS system files
@@ -42,3 +42,9 @@ out/
 
 # Node
 node_modules
+<<<<<<< HEAD
+=======
+
+#keystore
+keystore.p12
+>>>>>>> origin/js

@@ -1,5 +1,6 @@
 "use client";
-
+import MyChatRooms from "@/components/MyChatRooms";
+import { InlineDrugSearch } from "@/components/InlineDrugSearch";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -423,7 +424,11 @@ export default function ClientMyPage() {
             </section>
           ))}
         </div>
+        {/* 내 채팅방 (클라이언트 본인 것만) */}
+        <MyChatRooms role="CLIENT" userId={client.userId} />
 
+        {/* 디테일 페이지 안에서 바로 e약은요 검색 */}
+        <InlineDrugSearch />
         <section className="rounded-xl border border-slate-200 p-6">
           <div className="flex flex-col gap-2 border-b border-slate-200 pb-4 sm:flex-row sm:items-center sm:justify-between">
             <div>

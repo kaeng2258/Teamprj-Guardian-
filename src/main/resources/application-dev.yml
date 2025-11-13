@@ -17,9 +17,5 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.H2Dialect
-  h2:
-    console:
-      settings:
-        web-allow-others: true
 custom:
   fileDirPath: /usr/file

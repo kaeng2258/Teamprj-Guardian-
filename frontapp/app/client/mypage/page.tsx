@@ -741,10 +741,10 @@ export default function ClientMyPage() {
         {/* 내 채팅방 (클라이언트 본인 것만) */}
         <MyChatRooms role="CLIENT" userId={client.userId} />
 
-<<<<<<< HEAD
+
         {/* 디테일 페이지 안에서 바로 e약은요 검색 */}
         <InlineDrugSearch />
-=======
+
         <section className="rounded-xl border border-indigo-100 bg-indigo-50/60 p-6 md:hidden">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -776,7 +776,7 @@ export default function ClientMyPage() {
           </p>
         </section>
 
->>>>>>> origin/js
+
         <section className="rounded-xl border border-slate-200 p-6">
           <div className="flex flex-col gap-2 border-b border-slate-200 pb-4 sm:flex-row sm:items-center sm:justify-between">
             <div>

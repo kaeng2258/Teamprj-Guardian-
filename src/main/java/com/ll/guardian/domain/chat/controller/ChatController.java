@@ -66,9 +66,7 @@ public class ChatController {
         return new MessagesResponse(messages);
     }
 
-    // 프론트용 래퍼
-    public record MessagesResponse(List<ChatMessageResponse> messages) { }
-
+    public record MessagesResponse(List<ChatMessageResponse> messages) {}
 
     @PostMapping("/rooms/{roomId}/read")
     public void markRead(@PathVariable Long roomId, @RequestParam @NotNull Long userId) {

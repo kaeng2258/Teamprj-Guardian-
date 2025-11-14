@@ -17,11 +17,17 @@ import java.util.List;
 @Slf4j
 @RequiredArgsConstructor
 @RequestMapping("/api/drugs")
+@CrossOrigin(
+        origins = {
+                "http://localhost:3000", "https://localhost:3000",
+                "http://localhost:8081", "https://localhost:8081"
+        }
+)
 public class EasyDrugApiController {
 
     private final EasyDrugService easyDrugService;
 
-    // ✅ 검색: /api/drugs/search?query=타이레놀&page=1&size=10
+    // 🔍 검색: /api/drugs/search?query=타이레놀&page=1&size=10
     @GetMapping("/search")
     public Mono<SearchResponse> search(
             @RequestParam String query,
@@ -39,10 +45,10 @@ public class EasyDrugApiController {
         return easyDrugService.search(trimmed, safePage, safeSize)
                 .doOnError(e -> log.warn("edrug api search failed", e))
                 .onErrorReturn(Collections.emptyList())
-                .map(SearchResponse::new); // { items: [...] } 형태로 감싸기
+                .map(SearchResponse::new); // { items: [...] }
     }
 
-    // ✅ 상세: /api/drugs/{itemSeq}
+    // 📄 상세: /api/drugs/{itemSeq}
     @GetMapping("/{itemSeq}")
     public Mono<DrugDetail> detail(
             @PathVariable String itemSeq,
@@ -55,6 +61,6 @@ public class EasyDrugApiController {
                 ));
     }
 
-    // 프론트 api.ts 가 기대하는 구조: { items: [ DrugSummary, ... ] }
-    public record SearchResponse(List<DrugSummary> items) { }
+    // 프론트가 기대하는 형태: { "items": [ DrugSummary, ... ] }
+    public record SearchResponse(List<DrugSummary> items) {}
 }

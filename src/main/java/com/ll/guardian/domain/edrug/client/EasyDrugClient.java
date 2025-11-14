@@ -308,8 +308,16 @@ public class EasyDrugClient implements DrugInfoRepository {
         return (v == null || v.isNull()) ? "" : v.asText();
     }
 
-    private static String firstNonEmpty(String... values) {
-        for (String v : values) if (StringUtils.hasText(v)) return v;
+    private String firstNonEmpty(String... values) {
+        for (String v : values) {
+            if (StringUtils.hasText(v)) {
+                // 🔹 이미지 URL 같은 경우 http -> https로 변경
+                if (v.startsWith("http://")) {
+                    return "https://" + v.substring("http://".length());
+                }
+                return v;
+            }
+        }
         return "";
     }
     private String normalizedServiceKey() {

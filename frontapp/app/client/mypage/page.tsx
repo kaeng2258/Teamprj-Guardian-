@@ -24,6 +24,10 @@ type MedicationPlan = {
   alarmTime: string;
   daysOfWeek: string[];
   active: boolean;
+  providerName?: string | null;
+  providerEmail?: string | null;
+  providerPhone?: string | null;
+  providerOrganization?: string | null;
 };
 
 type MedicationLog = {
@@ -92,6 +96,34 @@ type WebPushConfigResponse = {
   publicKey: string;
 };
 
+type ClientPanel = "schedule" | "drug" | "chat";
+
+const clientQuickActions: Array<{
+  value: ClientPanel;
+  label: string;
+  description: string;
+  accent: string;
+}> = [
+  {
+    value: "schedule",
+    label: "복약 일정 확인",
+    description: "오늘 일정과 주간 현황",
+    accent: "bg-indigo-600",
+  },
+  {
+    value: "drug",
+    label: "약 검색",
+    description: "e약은요 기반 조회",
+    accent: "bg-emerald-500",
+  },
+  {
+    value: "chat",
+    label: "채팅방",
+    description: "제공자와 실시간 대화",
+    accent: "bg-sky-500",
+  },
+];
+
 async function extractApiError(response: Response, fallback: string) {
   try {
     const data = await response.clone().json();
@@ -142,6 +174,7 @@ export default function ClientMyPage() {
   const [vapidPublicKey, setVapidPublicKey] = useState("");
   const [pushStatus, setPushStatus] = useState<PushStatus>("idle");
   const [pushMessage, setPushMessage] = useState("");
+  const [activePanel, setActivePanel] = useState<ClientPanel>("schedule");
 
   const pushCapable = useMemo(
     () => supportsPushApi && pushServiceEnabled && Boolean(vapidPublicKey),
@@ -687,27 +720,60 @@ export default function ClientMyPage() {
   return (
     <div className="min-h-screen bg-slate-50 px-4 py-10">
       <main className="mx-auto flex w-full max-w-4xl flex-col gap-6 rounded-2xl bg-white p-8 shadow-xl">
-        <header className="flex flex-col gap-2 border-b border-slate-200 pb-6 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-wide text-indigo-600">
-              Guardian
-            </p>
-            <h1 className="text-3xl font-bold text-slate-900">
-              클라이언트 마이페이지
-            </h1>
-            <p className="text-sm text-slate-600">
-              복약 서비스 이용 현황과 알림 설정을 한곳에서 관리하세요.
-            </p>
+        <header className="flex flex-col gap-4 border-b border-slate-200 pb-6">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-wide text-indigo-600">
+                Guardian
+              </p>
+              <h1 className="text-3xl font-bold text-slate-900">
+                클라이언트 마이페이지
+              </h1>
+              <p className="text-sm text-slate-600">
+                복약 서비스 이용 현황과 알림 설정을 한곳에서 관리하세요.
+              </p>
+            </div>
+            <button
+              className="h-11 rounded-md border border-slate-300 px-5 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:text-slate-900"
+              onClick={handleLogout}
+              type="button"
+            >
+              로그아웃
+            </button>
           </div>
-          <button
-            className="h-11 rounded-md border border-slate-300 px-5 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:text-slate-900"
-            onClick={handleLogout}
-            type="button"
-          >
-            로그아웃
-          </button>
+          <div className="grid gap-3 sm:grid-cols-3">
+            {clientQuickActions.map((action) => {
+              const isActive = activePanel === action.value;
+              return (
+                <button
+                  key={action.value}
+                  type="button"
+                  onClick={() => setActivePanel(action.value)}
+                  className={`group flex flex-col gap-1 rounded-2xl border px-4 py-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow ${
+                    isActive
+                      ? "border-indigo-500 bg-indigo-50"
+                      : "border-slate-200 bg-white hover:border-indigo-300"
+                  }`}
+                >
+                  <span
+                    className={`inline-flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold text-white ${action.accent}`}
+                  >
+                    {action.label.slice(0, 1)}
+                  </span>
+                  <span className="text-sm font-semibold text-slate-900">
+                    {action.label}
+                  </span>
+                  <span className="text-xs text-slate-500">
+                    {action.description}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </header>
 
+        {activePanel === "schedule" && (
+          <>
         <div className="grid gap-6 md:grid-cols-2">
           {sections.map((section) => (
             <section
@@ -738,12 +804,6 @@ export default function ClientMyPage() {
             </section>
           ))}
         </div>
-        {/* 내 채팅방 (클라이언트 본인 것만) */}
-        <MyChatRooms role="CLIENT" userId={client.userId} />
-
-
-        {/* 디테일 페이지 안에서 바로 e약은요 검색 */}
-        <InlineDrugSearch />
 
         <section className="rounded-xl border border-indigo-100 bg-indigo-50/60 p-6 md:hidden">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -820,6 +880,18 @@ export default function ClientMyPage() {
                   plan.daysOfWeek.length > 0
                     ? plan.daysOfWeek.map(mapDayToLabel).join(", ")
                     : "요일 정보 없음";
+                const providerRaw = plan.providerName?.trim();
+                const providerName =
+                  providerRaw && providerRaw.length > 0
+                    ? providerRaw
+                    : "담당 제공자 정보 없음";
+                const providerMeta = [
+                  plan.providerOrganization?.trim(),
+                  plan.providerEmail?.trim(),
+                  plan.providerPhone?.trim(),
+                ]
+                  .filter((value) => value && value.length > 0)
+                  .join(" · ");
 
                 return (
                   <article
@@ -846,6 +918,17 @@ export default function ClientMyPage() {
                       >
                         {statusLabel}
                       </span>
+                    </div>
+                    <div className="mt-3 rounded-md border border-slate-200 bg-white px-3 py-2">
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                        담당 제공자
+                      </p>
+                      <p className="text-sm font-semibold text-slate-900">
+                        {providerName}
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        {providerMeta || "연락처 정보 없음"}
+                      </p>
                     </div>
                     <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                       <button
@@ -973,6 +1056,20 @@ export default function ClientMyPage() {
             필요한 기능이 있다면 관리자에게 알려주세요.
           </p>
         </section>
+        </>
+      )}
+
+      {activePanel === "drug" && (
+        <section className="rounded-2xl border border-slate-200 bg-white p-6">
+          <InlineDrugSearch />
+        </section>
+      )}
+
+      {activePanel === "chat" && (
+        <section className="rounded-2xl border border-slate-200 bg-white p-6">
+          <MyChatRooms role="CLIENT" userId={client.userId} />
+        </section>
+      )}
       </main>
     </div>
   );

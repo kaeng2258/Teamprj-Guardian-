@@ -1,18 +1,20 @@
 import fs from "fs";
 import https from "https";
 import next from "next";
+import path from "path";
+import { fileURLToPath } from "url";
 
 const dev = process.env.NODE_ENV !== "production";
 const app = next({ dev });
 const handle = app.getRequestHandler();
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const certsDir = path.resolve(__dirname, "../certs");
+
 const httpsOptions = {
-  key: fs.readFileSync(
-    "C:/Users/User/OneDrive/바탕 화면/fullstack/guardian/Teamprj-Guardian-/certs/localhost-key.pem"
-  ),
-  cert: fs.readFileSync(
-    "C:/Users/User/OneDrive/바탕 화면/fullstack/guardian/Teamprj-Guardian-/certs/localhost.pem"
-  ),
+  key: fs.readFileSync(path.join(certsDir, "localhost-key.pem")),
+  cert: fs.readFileSync(path.join(certsDir, "localhost.pem")),
 };
 
 app.prepare().then(() => {

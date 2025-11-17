@@ -13,12 +13,14 @@ import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
+import org.springframework.dao.DataIntegrityViolationException;
 
 @Service
 @Transactional(readOnly = true)
@@ -66,10 +68,74 @@ public class DrugInfoService {
                 .orElseThrow(() -> new GuardianException(org.springframework.http.HttpStatus.NOT_FOUND, "약품 정보를 찾을 수 없습니다."));
     }
 
-    private void syncWithExternalApi(String keyword) {
+    @Transactional
+    public Medicine importFromEasyDrug(String itemSeq, String itemName) {
+        if (!StringUtils.hasText(itemSeq)) {
+            throw new GuardianException(HttpStatus.BAD_REQUEST, "품목 기준 코드를 입력해주세요.");
+        }
+
+        String normalizedSeq = itemSeq.trim();
+        return medicineRepository
+                .findByProductCode(normalizedSeq)
+                .orElseGet(() -> importOrCreateFallback(normalizedSeq, itemName));
+    }
+
+    private Medicine findByNameOrThrow(String name) {
+        return medicineRepository
+                .findByNameIgnoreCase(name.trim())
+                .orElseThrow(() -> new GuardianException(HttpStatus.NOT_FOUND, "약품 정보를 찾을 수 없습니다."));
+    }
+
+    private Medicine importOrCreateFallback(String itemSeq, String itemName) {
+        List<Medicine> synced = syncByItemSeq(itemSeq);
+        if (!synced.isEmpty()) {
+            return medicineRepository
+                    .findByProductCode(itemSeq)
+                    .orElseThrow(() -> new GuardianException(HttpStatus.NOT_FOUND, "약품 정보를 찾을 수 없습니다."));
+        }
+
+        if (StringUtils.hasText(itemName)) {
+            String normalizedName = itemName.trim();
+            List<Medicine> keywordSynced = syncWithExternalApi(normalizedName);
+            if (!keywordSynced.isEmpty()) {
+                return medicineRepository
+                        .findByProductCode(itemSeq)
+                        .orElseGet(() -> findByNameOrCreatePlaceholder(itemSeq, normalizedName));
+            }
+            return findByNameOrCreatePlaceholder(itemSeq, normalizedName);
+        }
+
+        return createPlaceholderMedicine(itemSeq, "등록되지 않은 약품");
+    }
+
+    private Medicine findByNameOrCreatePlaceholder(String itemSeq, String name) {
+        return medicineRepository
+                .findByNameIgnoreCase(name)
+                .orElseGet(() -> createPlaceholderMedicine(itemSeq, name));
+    }
+
+    private Medicine createPlaceholderMedicine(String itemSeq, String name) {
+        String normalizedName = StringUtils.hasText(name) ? name.trim() : "등록되지 않은 약품";
+        String normalizedSeq = StringUtils.hasText(itemSeq) ? itemSeq.trim() : null;
+        try {
+            return medicineRepository
+                    .findByProductCode(normalizedSeq)
+                    .orElseGet(() -> medicineRepository.save(Medicine.builder()
+                            .productCode(normalizedSeq)
+                            .name(normalizedName)
+                            .build()));
+        } catch (DataIntegrityViolationException ex) {
+            log.warn("Duplicate medicine detected while importing itemSeq={}, retrying lookup", normalizedSeq);
+            return medicineRepository
+                    .findByProductCode(normalizedSeq)
+                    .orElseThrow(() -> new GuardianException(HttpStatus.INTERNAL_SERVER_ERROR, "약품 정보를 저장하지 못했습니다."));
+        }
+    }
+
+    private List<Medicine> syncWithExternalApi(String keyword) {
         if (!StringUtils.hasText(apiKey)) {
             log.debug("Skipping e약은요 sync because API key is missing.");
-            return;
+            return Collections.emptyList();
         }
 
         try {
@@ -85,13 +151,46 @@ public class DrugInfoService {
             ResponseEntity<String> response = restTemplate.getForEntity(url, String.class);
             if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
                 log.warn("e약은요 API 호출이 실패했습니다. status={}, body={}", response.getStatusCode(), response.getBody());
-                return;
+                return Collections.emptyList();
             }
 
             List<Medicine> synced = parseAndPersist(response.getBody());
             log.debug("Synced {} medicines from e약은요 for keyword='{}'", synced.size(), keyword);
+            return synced;
         } catch (Exception e) {
             log.warn("e약은요 API 호출 실패, 로컬 DB로 대체합니다. cause={}", e.getMessage());
+            return Collections.emptyList();
+        }
+    }
+
+    private List<Medicine> syncByItemSeq(String itemSeq) {
+        if (!StringUtils.hasText(apiKey)) {
+            log.debug("Skipping e약은요 sync because API key is missing.");
+            return Collections.emptyList();
+        }
+
+        try {
+            String url = UriComponentsBuilder.fromHttpUrl(apiBaseUrl + "/getDrbEasyDrugInfoList")
+                    .queryParam("serviceKey", apiKey)
+                    .queryParam("type", "json")
+                    .queryParam("itemSeq", itemSeq)
+                    .queryParam("pageNo", 1)
+                    .queryParam("numOfRows", 1)
+                    .build()
+                    .toUriString();
+
+            ResponseEntity<String> response = restTemplate.getForEntity(url, String.class);
+            if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
+                log.warn("e약은요 API 호출이 실패했습니다. status={}, body={}", response.getStatusCode(), response.getBody());
+                return Collections.emptyList();
+            }
+
+            List<Medicine> synced = parseAndPersist(response.getBody());
+            log.debug("Synced {} medicines from e약은요 for itemSeq='{}'", synced.size(), itemSeq);
+            return synced;
+        } catch (Exception e) {
+            log.warn("e약은요 API 호출 실패, 로컬 DB로 대체합니다. cause={}", e.getMessage());
+            return Collections.emptyList();
         }
     }
 

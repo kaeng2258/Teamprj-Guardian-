@@ -12,16 +12,17 @@
  },
  "dependencies": {
   "@stomp/stompjs": "^7.0.0",
+  "@tailwindcss/postcss": "^4.1.17",
   "next": "14.2.15",
   "react": "18.3.1",
   "react-dom": "18.3.1",
   "sockjs-client": "^1.6.1"
  },
  "devDependencies": {
-  "@types/sockjs-client": "^1.5.4",
-   "@types/node": "^20",
+  "@types/node": "^20",
   "@types/react": "^19",
   "@types/react-dom": "^19",
+  "@types/sockjs-client": "^1.5.4",
   "autoprefixer": "^10.4.20",
   "eslint": "^9",
   "eslint-config-next": "16.0.1",
@@ -30,4 +31,3 @@
   "typescript": "^5"
  }
 }
-

@@ -1,6 +1,7 @@
 "use client";
 import MyChatRooms from "@/components/MyChatRooms";
 import { InlineDrugSearch } from "@/components/InlineDrugSearch";
+import { DrugDetailModal } from "@/components/DrugDetailModal";
 import { useRouter } from "next/navigation";
 import {
   ChangeEvent,
@@ -68,6 +69,16 @@ type MedicineSummary = {
   productCode?: string | null;
 };
 
+type EasyDrugSearchResult = {
+  itemSeq: string;
+  itemName: string;
+  entpName?: string;
+  etcOtcName?: string;
+  className?: string;
+  chart?: string;
+  itemImage?: string;
+};
+
 type ProviderClientSearchResult = {
   clientId: number;
   name: string;
@@ -105,7 +116,7 @@ type PlanFormItemState = {
   mode: "search" | "manual";
   manualMedicine: ManualMedicineForm;
   medicineKeyword: string;
-  medicineResults: MedicineSummary[];
+  medicineResults: EasyDrugSearchResult[];
   selectedMedicineId: number | null;
   dosageAmount: string;
   dosageUnit: string;
@@ -281,6 +292,9 @@ export default function ProviderMyPage() {
   const [weeklySummaryErrors, setWeeklySummaryErrors] = useState<
     Record<number, string>
   >({});
+  const [selectedDrugDetailSeq, setSelectedDrugDetailSeq] = useState<
+    string | null
+  >(null);
   const updatePlanForm = (
     clientId: number,
     updater: (current: PlanFormState) => PlanFormState
@@ -693,9 +707,9 @@ export default function ProviderMyPage() {
 
     try {
       const response = await fetch(
-        `${API_BASE_URL}/api/medicines/search?keyword=${encodeURIComponent(
+        `${API_BASE_URL}/api/drugs/search?query=${encodeURIComponent(
           keyword
-        )}`
+        )}&size=12`
       );
       if (!response.ok) {
         const message = await extractApiError(
@@ -705,7 +719,8 @@ export default function ProviderMyPage() {
         throw new Error(message);
       }
 
-      const medicines: MedicineSummary[] = await response.json();
+      const payload: { items: EasyDrugSearchResult[] } = await response.json();
+      const medicines = payload.items ?? [];
       updatePlanFormItem(clientId, itemIndex, (current) => ({
         ...current,
         medicineResults: medicines,
@@ -733,25 +748,74 @@ export default function ProviderMyPage() {
     }
   };
 
-  const handleSelectMedicine = (
+  const handleSelectMedicine = async (
     clientId: number,
     itemIndex: number,
-    medicine: MedicineSummary
+    medicine: EasyDrugSearchResult
   ) => {
     updatePlanFormItem(
       clientId,
       itemIndex,
       (current) => ({
         ...current,
-        mode: "search",
-        selectedMedicineId: medicine.id,
-        medicineKeyword: medicine.name,
-        medicineResults: [],
-        manualMedicine: createEmptyManualMedicine(),
-        searching: false,
+        searching: true,
       }),
       { resetStatus: true }
     );
+
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/medicines/easy-drug/import`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            itemSeq: medicine.itemSeq,
+            itemName: medicine.itemName,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const message = await extractApiError(
+          response,
+          "약품 정보를 가져오지 못했습니다."
+        );
+        throw new Error(message);
+      }
+
+      const summary: MedicineSummary = await response.json();
+      updatePlanFormItem(clientId, itemIndex, (current) => ({
+        ...current,
+        mode: "search",
+        selectedMedicineId: summary.id,
+        medicineKeyword: summary.name ?? medicine.itemName,
+        medicineResults: [],
+        manualMedicine: createEmptyManualMedicine(),
+        searching: false,
+      }));
+      updatePlanForm(clientId, (current) => ({
+        ...current,
+        error: "",
+        message: "",
+      }));
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "약품 정보를 가져오지 못했습니다.";
+      updatePlanFormItem(clientId, itemIndex, (current) => ({
+        ...current,
+        searching: false,
+      }));
+      updatePlanForm(clientId, (current) => ({
+        ...current,
+        error: message,
+        message: "",
+      }));
+    }
   };
 
   const handlePlanModeChange = (
@@ -1684,33 +1748,90 @@ export default function ProviderMyPage() {
                                       </button>
                                     </div>
                                     {item.medicineResults.length > 0 && (
-                                      <div className="rounded-md border border-slate-200 bg-white p-2">
+                                      <div className="rounded-md border border-slate-200 bg-white p-3">
                                         <p className="text-xs text-slate-500">
-                                          검색 결과를 선택하세요.
+                                          e약은요 검색 결과입니다. 일정을
+                                          등록할 약품을 선택하세요.
                                         </p>
-                                        <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                                        <div className="mt-3 space-y-2">
                                           {item.medicineResults.map((medicine) => (
-                                            <button
-                                              key={medicine.id}
-                                              className="rounded-md border border-white bg-white px-3 py-2 text-left text-sm text-slate-700 transition hover:border-emerald-300 hover:text-emerald-700"
-                                              onClick={(event) => {
-                                                event.preventDefault();
-                                                handleSelectMedicine(
-                                                  client.clientId,
-                                                  index,
-                                                  medicine
-                                                );
-                                              }}
+                                            <div
+                                              key={medicine.itemSeq}
+                                              className="rounded-md border border-slate-200 bg-slate-50 p-3"
                                             >
-                                              <span className="font-medium">
-                                                {medicine.name}
-                                              </span>
-                                              {medicine.productCode && (
-                                                <span className="block text-xs text-slate-500">
-                                                  {medicine.productCode}
-                                                </span>
-                                              )}
-                                            </button>
+                                              <div className="flex gap-3">
+                                                {medicine.itemImage ? (
+                                                  <img
+                                                    src={medicine.itemImage}
+                                                    alt={medicine.itemName}
+                                                    className="h-16 w-16 rounded border border-slate-200 object-contain"
+                                                  />
+                                                ) : (
+                                                  <div className="h-16 w-16 rounded border border-dashed border-slate-300" />
+                                                )}
+                                                <div className="flex-1 text-left">
+                                                  <p className="text-sm font-semibold text-slate-900">
+                                                    {medicine.itemName}
+                                                  </p>
+                                                  <p className="text-xs text-slate-600">
+                                                    {medicine.entpName ??
+                                                      "제조사 정보 없음"}
+                                                  </p>
+                                                  <div className="mt-1 flex flex-wrap gap-1 text-[11px] text-slate-500">
+                                                    {medicine.etcOtcName && (
+                                                      <span className="rounded bg-white px-2 py-0.5">
+                                                        {medicine.etcOtcName}
+                                                      </span>
+                                                    )}
+                                                    {medicine.className && (
+                                                      <span className="rounded bg-white px-2 py-0.5">
+                                                        {medicine.className}
+                                                      </span>
+                                                    )}
+                                                    {medicine.chart && (
+                                                      <span className="rounded bg-white px-2 py-0.5">
+                                                        {medicine.chart}
+                                                      </span>
+                                                    )}
+                                                  </div>
+                                                  <p className="mt-1 text-[11px] text-slate-500">
+                                                    품목 기준 코드:{" "}
+                                                    {medicine.itemSeq}
+                                                  </p>
+                                                </div>
+                                              </div>
+                                              <div className="mt-3 flex flex-wrap gap-2">
+                                                <button
+                                                  type="button"
+                                                  className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-emerald-300"
+                                                  disabled={item.searching}
+                                                  onClick={(event) => {
+                                                    event.preventDefault();
+                                                    handleSelectMedicine(
+                                                      client.clientId,
+                                                      index,
+                                                      medicine
+                                                    );
+                                                  }}
+                                                >
+                                                  {item.searching
+                                                    ? "불러오는 중..."
+                                                    : "이 약 일정에 추가"}
+                                                </button>
+                                                <button
+                                                  type="button"
+                                                  className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-slate-400 hover:text-slate-800"
+                                                  onClick={(event) => {
+                                                    event.preventDefault();
+                                                    setSelectedDrugDetailSeq(
+                                                      medicine.itemSeq
+                                                    );
+                                                  }}
+                                                >
+                                                  상세 보기
+                                                </button>
+                                              </div>
+                                            </div>
                                           ))}
                                         </div>
                                       </div>
@@ -1999,6 +2120,12 @@ export default function ProviderMyPage() {
           )}
         </section>
       </main>
+      {selectedDrugDetailSeq && (
+        <DrugDetailModal
+          itemSeq={selectedDrugDetailSeq}
+          onClose={() => setSelectedDrugDetailSeq(null)}
+        />
+      )}
     </div>
   );
 }

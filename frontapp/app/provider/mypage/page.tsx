@@ -151,6 +151,8 @@ type MedicationWeeklySummary = {
   days: MedicationWeeklyDayStatus[];
 };
 
+type ProviderPanel = "client" | "drug" | "chat";
+
 const weeklyStatusConfig: Record<
   MedicationWeeklyDayStatus["status"],
   { label: string; icon: string; circle: string; text: string }
@@ -180,6 +182,32 @@ const weeklyStatusConfig: Record<
     text: "text-slate-500",
   },
 };
+
+const providerQuickActions: Array<{
+  value: ProviderPanel;
+  label: string;
+  description: string;
+  accent: string;
+}> = [
+  {
+    value: "client",
+    label: "클라이언트 관리",
+    description: "담당자 배정 및 복약 일정",
+    accent: "bg-emerald-600",
+  },
+  {
+    value: "drug",
+    label: "약 검색",
+    description: "e약은요 기반 약품 조회",
+    accent: "bg-amber-500",
+  },
+  {
+    value: "chat",
+    label: "채팅방",
+    description: "실시간 상담 및 공지",
+    accent: "bg-sky-500",
+  },
+];
 
 const allDays = [
   { value: "MONDAY", label: "월" },
@@ -292,6 +320,8 @@ export default function ProviderMyPage() {
   const [weeklySummaryErrors, setWeeklySummaryErrors] = useState<
     Record<number, string>
   >({});
+  const [activePanel, setActivePanel] =
+    useState<ProviderPanel>("client");
   const [selectedDrugDetailSeq, setSelectedDrugDetailSeq] = useState<
     string | null
   >(null);
@@ -1203,63 +1233,89 @@ export default function ProviderMyPage() {
   return (
     <div className="min-h-screen bg-slate-50 px-4 py-10">
       <main className="mx-auto flex w-full max-w-6xl flex-col gap-6 rounded-2xl bg-white p-8 shadow-xl">
-        <header className="flex flex-col gap-2 border-b border-slate-200 pb-6 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-wide text-emerald-600">
-              Guardian Provider
-            </p>
-            <h1 className="text-3xl font-bold text-slate-900">
-              환자 관리인 마이페이지
-            </h1>
-            <p className="text-sm text-slate-600">
-              담당 클라이언트의 복약 스케줄을 확인하고 직접 관리할 수 있습니다.
-            </p>
+        <header className="flex flex-col gap-4 border-b border-slate-200 pb-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
+              <p className="text-4xl font-semibold uppercase tracking-wide text-emerald-600">
+                Guardian Provider
+              </p>
+              <h1 className="text-2xl font-bold text-slate-900">
+                프로바이더 마이페이지
+              </h1>
+            </div>
+            <button
+              className="h-10 rounded-md border border-red-400 px-4 text-sm font-semibold text-red-500 transition hover:border-red-500 hover:bg-red-50 hover:text-red-600"
+              onClick={handleLogout}
+              type="button"
+            >
+              로그아웃
+            </button>
           </div>
-          <button
-            className="h-11 rounded-md border border-slate-300 px-5 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:text-slate-900"
-            onClick={handleLogout}
-            type="button"
-          >
-            로그아웃
-          </button>
+          <div className="flex flex-col gap-3">
+            <div className="grid gap-3 sm:grid-cols-3">
+              {providerQuickActions.map((action) => {
+                const isActive = activePanel === action.value;
+                return (
+                  <button
+                    key={action.value}
+                    type="button"
+                    onClick={() => setActivePanel(action.value)}
+                    className={`group flex flex-col gap-1 rounded-2xl border px-4 py-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow md:h-full ${
+                      isActive
+                        ? "border-emerald-500 bg-emerald-50"
+                        : "border-slate-200 bg-white hover:border-emerald-300"
+                    }`}
+                  >
+                    <span
+                      className={`inline-flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold text-white ${action.accent}`}
+                    >
+                      {action.label.slice(0, 1)}
+                    </span>
+                    <span className="text-sm font-semibold text-slate-900">
+                      {action.label}
+                    </span>
+                    <span className="text-xs text-slate-500">
+                      {action.description}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </header>
 
-        <div className="grid gap-6 md:grid-cols-2">
-          {summarySections.map((section) => (
-            <section
-              key={section.title}
-              className="rounded-xl border border-slate-200 p-6"
-            >
-              <h2 className="text-xl font-semibold text-slate-900">
-                {section.title}
-              </h2>
-              <p className="mt-1 text-sm text-slate-500">
-                {section.description}
-              </p>
-              <dl className="mt-4 space-y-3">
-                {section.rows.map((row) => (
-                  <div
-                    key={row.label}
-                    className="flex items-center justify-between rounded-lg bg-slate-50 px-4 py-3"
-                  >
-                    <dt className="text-sm font-medium text-slate-600">
-                      {row.label}
-                    </dt>
-                    <dd className="text-sm font-semibold text-slate-900">
-                      {row.value}
-                    </dd>
-                  </div>
-                ))}
-              </dl>
-            </section>
-          ))}
-        </div>
-        {/* 내 채팅방 (프로바이더 본인 것만) */}
-        <MyChatRooms role="PROVIDER" userId={provider.userId} />
-
-        {/* 디테일 페이지 안에서 바로 e약은요 검색 */}
-        <InlineDrugSearch />
-
+        {activePanel === "client" && (
+          <>
+            <div className="grid gap-6 md:grid-cols-2">
+              {summarySections.map((section) => (
+                <section
+                  key={section.title}
+                  className="rounded-xl border border-slate-200 p-6"
+                >
+                  <h2 className="text-xl font-semibold text-slate-900">
+                    {section.title}
+                  </h2>
+                  <p className="mt-1 text-sm text-slate-500">
+                    {section.description}
+                  </p>
+                  <dl className="mt-4 space-y-3">
+                    {section.rows.map((row) => (
+                      <div
+                        key={row.label}
+                        className="flex items-center justify-between rounded-lg bg-slate-50 px-4 py-3"
+                      >
+                        <dt className="text-sm font-medium text-slate-600">
+                          {row.label}
+                        </dt>
+                        <dd className="text-sm font-semibold text-slate-900">
+                          {row.value}
+                        </dd>
+                      </div>
+                    ))}
+                  </dl>
+                </section>
+              ))}
+            </div>
         <section className="rounded-xl border border-emerald-200 bg-white p-6">
           <div className="flex flex-col gap-2 border-b border-emerald-200 pb-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -2119,6 +2175,20 @@ export default function ProviderMyPage() {
             </div>
           )}
         </section>
+        </>
+      )}
+
+      {activePanel === "drug" && (
+        <section className="rounded-2xl border border-slate-200 bg-white p-6">
+          <InlineDrugSearch />
+        </section>
+      )}
+
+      {activePanel === "chat" && (
+        <section className="rounded-2xl border border-slate-200 bg-white p-6">
+          <MyChatRooms role="PROVIDER" userId={provider.userId} />
+        </section>
+      )}
       </main>
       {selectedDrugDetailSeq && (
         <DrugDetailModal

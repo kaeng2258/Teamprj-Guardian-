@@ -126,6 +126,11 @@ type PlanActionMessage = {
   text: string;
 };
 
+type ChatRoomEnsureResult = {
+  success: boolean;
+  message?: string;
+};
+
 type MedicationWeeklyDayStatus = {
   date: string;
   scheduledCount: number;
@@ -246,6 +251,9 @@ export default function ProviderMyPage() {
   const [dashboard, setDashboard] = useState<ProviderDashboardResponse | null>(
     null
   );
+  const [providerProfileId, setProviderProfileId] = useState<number | null>(
+    null
+  );
   const [dashboardLoading, setDashboardLoading] = useState(false);
   const [dashboardError, setDashboardError] = useState("");
   const [planForms, setPlanForms] = useState<Record<number, PlanFormState>>({});
@@ -272,6 +280,7 @@ export default function ProviderMyPage() {
   const [assignmentMessages, setAssignmentMessages] = useState<
     Record<number, PlanActionMessage | undefined>
   >({});
+  const [chatRoomsRefreshToken, setChatRoomsRefreshToken] = useState(0);
   const [weeklySummaries, setWeeklySummaries] = useState<
     Record<number, MedicationWeeklySummary | null>
   >({});
@@ -407,6 +416,7 @@ export default function ProviderMyPage() {
 
       const data: ProviderDashboardResponse = await response.json();
       setDashboard(data);
+      setProviderProfileId(data.providerId ?? null);
       setPlanForms((prev) => {
         const next = { ...prev };
         data.clients.forEach((client) => {
@@ -613,6 +623,49 @@ export default function ProviderMyPage() {
     }
   };
 
+  const openChatRoomForClient = useCallback(
+    async (clientId: number): Promise<ChatRoomEnsureResult> => {
+      if (!providerProfileId) {
+        return {
+          success: false,
+          message: "??? ?? ID? ??? ? ?? ???? ??? ?????.",
+        };
+      }
+
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/chat/rooms`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            clientId,
+            providerId: providerProfileId,
+          }),
+        });
+
+        if (!response.ok) {
+          const message = await extractApiError(
+            response,
+            "???? ???? ?????."
+          );
+          throw new Error(message);
+        }
+
+        await response.json();
+        setChatRoomsRefreshToken((prev) => prev + 1);
+        return { success: true };
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : "???? ???? ?????.";
+        return { success: false, message };
+      }
+    },
+    [providerProfileId]
+  );
+
   const handleAssignClient = async (clientId: number) => {
     if (!provider.userId) {
       return;
@@ -645,9 +698,18 @@ export default function ProviderMyPage() {
       if (searchKeyword.trim()) {
         await handleClientSearch();
       }
+      const chatResult = await openChatRoomForClient(clientId);
+      const successText = chatResult.success
+        ? "클라이언트를 배정하고 채팅방을 자동으로 개설했습니다."
+        : `클라이언트 배정은 완료되었지만 채팅방 개설 중 문제가 발생했습니다.${
+            chatResult.message ? ` ${chatResult.message}` : ""
+          }`;
       setAssignmentMessages((prev) => ({
         ...prev,
-        [clientId]: { type: "success", text: "클라이언트가 배정되었습니다." },
+        [clientId]: {
+          type: chatResult.success ? "success" : "error",
+          text: successText,
+        },
       }));
     } catch (error) {
       const message =
@@ -1191,7 +1253,12 @@ export default function ProviderMyPage() {
           ))}
         </div>
         {/* 내 채팅방 (프로바이더 본인 것만) */}
-        <MyChatRooms role="PROVIDER" userId={provider.userId} />
+        <MyChatRooms
+          refreshToken={chatRoomsRefreshToken}
+          role="PROVIDER"
+          providerProfileId={providerProfileId}
+          userId={provider.userId}
+        />
 
         {/* 디테일 페이지 안에서 바로 e약은요 검색 */}
         <InlineDrugSearch />

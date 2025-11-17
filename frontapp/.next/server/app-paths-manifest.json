@@ -1,4 +1,6 @@
 {
+  "/provider/mypage/page": "app/provider/mypage/page.js",
+  "/favicon.ico/route": "app/favicon.ico/route.js",
   "/client/mypage/page": "app/client/mypage/page.js",
   "/page": "app/page.js"
 }

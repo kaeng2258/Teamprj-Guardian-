@@ -4,8 +4,8 @@ spring:
     active: dev
     include: secret
   datasource:
-    url: jdbc:mariadb://127.0.0.1:3306/guardian
-    driver-class-name: org.mariadb.jdbc.Driver
+    url: jdbc:mysql://127.0.0.1:3306/guardian?createDatabaseIfNotExist=true&characterEncoding=UTF-8&serverTimezone=Asia/Seoul
+    driver-class-name: com.mysql.cj.jdbc.Driver
     username: root
     password:
   jpa:

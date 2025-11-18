@@ -1463,7 +1463,7 @@ const reopenOnDataRef = useRef(false);
                     <span className="text-sm font-semibold text-slate-900">
                       {action.label}
                     </span>
-                    <span className="text-xs text-slate-500">
+                    <span className="text-[11px] leading-tight text-slate-500">
                       {action.description}
                     </span>
                   </button>

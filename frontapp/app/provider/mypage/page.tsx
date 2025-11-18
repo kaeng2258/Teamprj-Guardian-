@@ -584,13 +584,6 @@ const reopenOnDataRef = useRef(false);
 
     const exists = filteredClients.some((client) => client.clientId === expandedClientId);
 
-    if (!accordionInitializedRef.current || reopenOnDataRef.current) {
-      accordionInitializedRef.current = true;
-      reopenOnDataRef.current = false;
-      setExpandedClientId(filteredClients[0]?.clientId ?? null);
-      return;
-    }
-
     if (!exists && expandedClientId !== null) {
       setExpandedClientId(filteredClients[0]?.clientId ?? null);
     }

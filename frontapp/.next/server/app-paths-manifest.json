@@ -1,6 +1,6 @@
 {
   "/client/mypage/page": "app/client/mypage/page.js",
-  "/provider/mypage/page": "app/provider/mypage/page.js",
   "/chat/page": "app/chat/page.js",
-  "/page": "app/page.js"
+  "/page": "app/page.js",
+  "/provider/mypage/page": "app/provider/mypage/page.js"
 }

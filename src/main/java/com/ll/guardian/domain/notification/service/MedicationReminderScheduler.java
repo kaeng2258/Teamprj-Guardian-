@@ -2,6 +2,7 @@ package com.ll.guardian.domain.notification.service;
 
 import com.ll.guardian.domain.alarm.entity.MedicationAlarm;
 import com.ll.guardian.domain.alarm.repository.MedicationAlarmRepository;
+import com.ll.guardian.domain.alarm.repository.MedicationLogRepository;
 import com.ll.guardian.domain.notification.entity.WebPushSubscription;
 import com.ll.guardian.global.config.properties.WebPushProperties;
 import java.time.DayOfWeek;
@@ -26,15 +27,18 @@ public class MedicationReminderScheduler {
 
     private final MedicationAlarmRepository medicationAlarmRepository;
     private final WebPushSubscriptionService subscriptionService;
+    private final MedicationLogRepository medicationLogRepository;
     private final WebPushSender webPushSender;
     private final ZoneId zoneId;
 
     public MedicationReminderScheduler(
             MedicationAlarmRepository medicationAlarmRepository,
+            MedicationLogRepository medicationLogRepository,
             WebPushSubscriptionService subscriptionService,
             WebPushSender webPushSender,
             WebPushProperties properties) {
         this.medicationAlarmRepository = medicationAlarmRepository;
+        this.medicationLogRepository = medicationLogRepository;
         this.subscriptionService = subscriptionService;
         this.webPushSender = webPushSender;
         this.zoneId = resolveZoneId(properties);
@@ -48,45 +52,88 @@ public class MedicationReminderScheduler {
         }
 
         LocalDateTime now = LocalDateTime.now(zoneId).truncatedTo(ChronoUnit.MINUTES);
-        DayOfWeek today = now.getDayOfWeek();
-
         List<MedicationAlarm> alarms = medicationAlarmRepository.findByActiveTrue();
-        alarms.stream()
-                .filter(alarm -> matchesDay(alarm, today))
-                .filter(alarm -> alarm.getAlarmTime().truncatedTo(ChronoUnit.MINUTES).equals(now.toLocalTime()))
-                .forEach(alarm -> notifySubscribers(alarm, now));
+        if (alarms.isEmpty()) {
+            return;
+        }
+
+        sendScheduledNotifications(alarms, now);
+        sendReminderNotifications(alarms, now);
     }
 
-    private void notifySubscribers(MedicationAlarm alarm, LocalDateTime scheduledTime) {
+    private void sendScheduledNotifications(List<MedicationAlarm> alarms, LocalDateTime now) {
+        DayOfWeek today = now.getDayOfWeek();
+        LocalTime targetTime = now.toLocalTime();
+        alarms.stream()
+                .filter(alarm -> matchesDay(alarm, today))
+                .filter(alarm -> alarm.getAlarmTime().truncatedTo(ChronoUnit.MINUTES).equals(targetTime))
+                .forEach(alarm -> notifySubscribers(alarm, now, false));
+    }
+
+    private void sendReminderNotifications(List<MedicationAlarm> alarms, LocalDateTime now) {
+        LocalDateTime reminderReference = now.minusMinutes(50).truncatedTo(ChronoUnit.MINUTES);
+        DayOfWeek reminderDay = reminderReference.getDayOfWeek();
+        LocalTime reminderTime = reminderReference.toLocalTime();
+
+        alarms.stream()
+                .filter(alarm -> matchesDay(alarm, reminderDay))
+                .filter(alarm -> alarm.getAlarmTime().truncatedTo(ChronoUnit.MINUTES).equals(reminderTime))
+                .forEach(alarm -> sendReminderIfUnconfirmed(alarm, reminderReference, now));
+    }
+
+    private void sendReminderIfUnconfirmed(MedicationAlarm alarm, LocalDateTime scheduledTime, LocalDateTime now) {
+        if (alarm.getId() == null) {
+            return;
+        }
+        if (hasConfirmedMedication(alarm, scheduledTime, now)) {
+            return;
+        }
+        notifySubscribers(alarm, scheduledTime, true);
+    }
+
+    private boolean hasConfirmedMedication(MedicationAlarm alarm, LocalDateTime scheduledTime, LocalDateTime windowEnd) {
+        LocalDateTime windowStart = scheduledTime.minusMinutes(10);
+        return medicationLogRepository.existsByAlarm_IdAndLogTimestampBetween(
+                alarm.getId(), windowStart, windowEnd);
+    }
+
+    private void notifySubscribers(MedicationAlarm alarm, LocalDateTime scheduledTime, boolean reminder) {
         List<WebPushSubscription> subscriptions = subscriptionService.findByUser(alarm.getClient().getId());
         if (subscriptions.isEmpty()) {
             return;
         }
 
-        Map<String, Object> payload = buildPayload(alarm, scheduledTime);
+        Map<String, Object> payload = buildPayload(alarm, scheduledTime, reminder);
         subscriptions.forEach(subscription -> webPushSender.send(subscription, payload));
     }
 
-    private Map<String, Object> buildPayload(MedicationAlarm alarm, LocalDateTime scheduledTime) {
+    private Map<String, Object> buildPayload(MedicationAlarm alarm, LocalDateTime scheduledTime, boolean reminder) {
         String medicineName = alarm.getMedicine().getName();
-        String body = String.format(
-                "%s %d%s 복용할 시간입니다.",
-                medicineName,
-                alarm.getDosageAmount(),
-                StringUtils.hasText(alarm.getDosageUnit()) ? alarm.getDosageUnit() : "");
+        String dosageUnit = StringUtils.hasText(alarm.getDosageUnit()) ? alarm.getDosageUnit() : "";
+        String body =
+                reminder
+                        ? String.format(
+                                "%s %d%s 복용까지 10분 남았습니다. 복약을 확인해주세요.",
+                                medicineName, alarm.getDosageAmount(), dosageUnit)
+                        : String.format(
+                                "%s %d%s 복용할 시간입니다.", medicineName, alarm.getDosageAmount(), dosageUnit);
 
         Map<String, Object> data = new HashMap<>();
         data.put("alarmId", alarm.getId());
         data.put("clientId", alarm.getClient().getId());
         data.put("medicineId", alarm.getMedicine().getId());
         data.put("scheduledAt", scheduledTime.toString());
+        data.put("reminder", reminder);
 
         Map<String, Object> notification = new HashMap<>();
         notification.put("title", "복약 알림");
         notification.put("body", body);
         notification.put("icon", "/vercel.svg");
-        notification.put("tag", "medication-" + alarm.getId());
+        notification.put("tag", reminder ? "medication-" + alarm.getId() + "-reminder" : "medication-" + alarm.getId());
         notification.put("data", data);
+        if (reminder) {
+            notification.put("renotify", true);
+        }
         return notification;
     }
 

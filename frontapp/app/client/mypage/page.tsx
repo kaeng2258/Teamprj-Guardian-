@@ -641,6 +641,59 @@ export default function ClientMyPage() {
     return `${month}.${day}`;
   }, []);
 
+  const WeeklyDayCard = ({
+    day,
+    className = "",
+  }: {
+    day: MedicationWeeklyDayStatus;
+    className?: string;
+  }) => {
+    const config = weeklyStatusConfig[day.status];
+    const effectiveTaken = Math.min(
+      day.scheduledCount,
+      day.takenCount + day.manualLogCount
+    );
+    const combinedClassName = [
+      "flex flex-col rounded-2xl border border-slate-200/80 bg-white/90 p-3 shadow-sm",
+      className,
+    ]
+      .filter(Boolean)
+      .join(" ");
+
+    return (
+      <div className={combinedClassName}>
+        <div className="flex items-center justify-between gap-3">
+          <div
+            className={`flex h-12 w-12 items-center justify-center rounded-full text-lg font-semibold ${config.circle}`}
+          >
+            {config.icon}
+          </div>
+          <div className="text-right">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+              {formatWeekdayLabel(day.date)}요일
+            </p>
+            <p className="text-sm font-semibold text-slate-900">
+              {formatCompactDate(day.date)}
+            </p>
+          </div>
+        </div>
+        <p className={`mt-3 text-sm font-semibold ${config.text}`}>{config.label}</p>
+        <p className="mt-1 text-xs text-slate-500">
+          {day.scheduledCount > 0
+            ? `확인 ${effectiveTaken}/${day.scheduledCount}`
+            : day.manualLogCount > 0
+            ? `기록 ${day.manualLogCount}건`
+            : "일정 없음"}
+        </p>
+        {day.manualLogCount > 0 && day.scheduledCount > 0 && (
+          <p className="mt-0.5 text-xs text-amber-600">
+            수동 기록 {day.manualLogCount}건 포함
+          </p>
+        )}
+      </div>
+    );
+  };
+
   const handleMedicationConfirm = async (plan: MedicationPlan) => {
     if (!client.userId) {
       return;
@@ -694,6 +747,7 @@ export default function ClientMyPage() {
     }
   };
 
+
   const handleLogout = () => {
     if (typeof window === "undefined") {
       return;
@@ -718,15 +772,15 @@ export default function ClientMyPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 px-4 py-10">
-      <main className="mx-auto flex w-full max-w-4xl flex-col gap-6 rounded-2xl bg-white p-8 shadow-xl">
-        <header className="flex flex-col gap-4 border-b border-slate-200 pb-6">
+    <div className="min-h-screen bg-slate-50 px-3 py-6 sm:px-6 sm:py-10">
+      <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 rounded-3xl bg-white p-4 shadow-lg sm:p-8">
+        <header className="flex flex-col gap-4 border-b border-slate-200 pb-5">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-sm font-semibold uppercase tracking-wide text-indigo-600">
                 Guardian
               </p>
-              <h1 className="text-3xl font-bold text-slate-900">
+              <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">
                 클라이언트 마이페이지
               </h1>
               <p className="text-sm text-slate-600">
@@ -749,14 +803,14 @@ export default function ClientMyPage() {
                   key={action.value}
                   type="button"
                   onClick={() => setActivePanel(action.value)}
-                  className={`group flex flex-col gap-1 rounded-2xl border px-4 py-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow ${
+                  className={`group flex flex-col gap-1 rounded-2xl border px-3 py-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow sm:px-4 ${
                     isActive
                       ? "border-indigo-500 bg-indigo-50"
                       : "border-slate-200 bg-white hover:border-indigo-300"
                   }`}
                 >
                   <span
-                    className={`inline-flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold text-white ${action.accent}`}
+                    className={`inline-flex h-8 w-8 items-center justify-center rounded-full text-[0.7rem] font-semibold text-white ${action.accent}`}
                   >
                     {action.label.slice(0, 1)}
                   </span>
@@ -774,13 +828,13 @@ export default function ClientMyPage() {
 
         {activePanel === "schedule" && (
           <>
-        <div className="grid gap-6 md:grid-cols-2">
+        <div className="grid gap-4 md:grid-cols-2 md:gap-6">
           {sections.map((section) => (
             <section
               key={section.title}
-              className="rounded-xl border border-slate-200 p-6"
+              className="rounded-2xl border border-slate-200 p-4 sm:p-6"
             >
-              <h2 className="text-xl font-semibold text-slate-900">
+              <h2 className="text-lg font-semibold text-slate-900 sm:text-xl">
                 {section.title}
               </h2>
               <p className="mt-1 text-sm text-slate-500">
@@ -790,7 +844,7 @@ export default function ClientMyPage() {
                 {section.rows.map((row) => (
                   <div
                     key={row.label}
-                    className="flex items-center justify-between rounded-lg bg-slate-50 px-4 py-3"
+                    className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2 sm:px-4 sm:py-3"
                   >
                     <dt className="text-sm font-medium text-slate-600">
                       {row.label}
@@ -805,16 +859,16 @@ export default function ClientMyPage() {
           ))}
         </div>
 
-        <section className="rounded-xl border border-indigo-100 bg-indigo-50/60 p-6 md:hidden">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <section className="rounded-2xl border border-indigo-100 bg-indigo-50/70 p-4 sm:p-6 md:hidden">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-indigo-600">
                 모바일 푸시
               </p>
-              <h2 className="mt-1 text-xl font-bold text-slate-900">
+              <h2 className="mt-1 text-lg font-bold text-slate-900">
                 브라우저가 꺼져 있어도 복약 알림 받기
               </h2>
-              <p className="mt-2 text-sm text-slate-600">
+              <p className="mt-1.5 text-sm text-slate-600">
                 한 번만 허용하면 모바일에서도 정해진 복약 시간에 맞춰 알림을 전달해 드립니다.
               </p>
             </div>
@@ -822,7 +876,7 @@ export default function ClientMyPage() {
               type="button"
               onClick={handleEnablePush}
               disabled={pushButtonDisabled}
-              className="h-12 rounded-xl bg-indigo-600 px-6 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-400"
+              className="h-11 w-full rounded-xl bg-indigo-600 px-4 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-400 sm:h-12 sm:w-auto sm:px-6"
             >
               {pushStatus === "requesting" ? "설정 중..." : "푸시 알림 활성화"}
             </button>
@@ -837,10 +891,10 @@ export default function ClientMyPage() {
         </section>
 
 
-        <section className="rounded-xl border border-slate-200 p-6">
+        <section className="rounded-2xl border border-slate-200 p-4 sm:p-6">
           <div className="flex flex-col gap-2 border-b border-slate-200 pb-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-xl font-semibold text-slate-900">복약 확인</h2>
+              <h2 className="text-lg font-semibold text-slate-900 sm:text-xl">복약 확인</h2>
               <p className="text-sm text-slate-500">
                 오늘 예정된 복약 일정을 확인하고 복약 여부를 기록하세요.
               </p>
@@ -855,23 +909,37 @@ export default function ClientMyPage() {
             </button>
           </div>
 
-          <div className="mt-4 space-y-4">
+          <div className="mt-4 space-y-3 sm:space-y-4">
             {planLoading ? (
-              <div className="rounded-md bg-slate-50 px-4 py-3 text-sm text-slate-600">
+              <div className="rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-600">
                 복약 정보를 불러오는 중입니다...
               </div>
             ) : planError ? (
-              <div className="rounded-md bg-red-50 px-4 py-3 text-sm text-red-600">
+              <div className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-600">
                 {planError}
               </div>
             ) : plans.length === 0 ? (
-              <div className="rounded-md bg-slate-50 px-4 py-3 text-sm text-slate-600">
+              <div className="rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-600">
                 등록된 복약 일정이 없습니다. 담당자에게 일정을 요청해주세요.
               </div>
             ) : (
               plans.map((plan) => {
                 const log = todayLogs[plan.id];
                 const alreadyConfirmed = Boolean(log);
+                const now = new Date();
+                const planTime = new Date();
+                const [hour, minute] = plan.alarmTime.split(":").map(Number);
+                planTime.setHours(hour ?? 0, minute ?? 0, 0, 0);
+                const diffMs = now.getTime() - planTime.getTime();
+                const isSameDay = (() => {
+                  const todayWeekday = mapDayToLabel(
+                    ["SUNDAY","MONDAY","TUESDAY","WEDNESDAY","THURSDAY","FRIDAY","SATURDAY"][now.getDay()]
+                  );
+                  return plan.daysOfWeek.includes(
+                    ["SUNDAY","MONDAY","TUESDAY","WEDNESDAY","THURSDAY","FRIDAY","SATURDAY"][now.getDay()]
+                  );
+                })();
+                const withinWindow = isSameDay && diffMs >= 0 && diffMs <= 60 * 60 * 1000 && daySummary.includes(mapDayToLabel(["SUNDAY","MONDAY","TUESDAY","WEDNESDAY","THURSDAY","FRIDAY","SATURDAY"][now.getDay()]));
                 const message = confirmationMessage[plan.id];
                 const statusLabel = alreadyConfirmed
                   ? `${formatLogTime(log?.logTimestamp)} 확인`
@@ -896,11 +964,11 @@ export default function ClientMyPage() {
                 return (
                   <article
                     key={plan.id}
-                    className="rounded-lg border border-slate-200 bg-slate-50 p-4 shadow-sm"
+                    className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4 shadow-sm sm:p-5"
                   >
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                       <div>
-                        <h3 className="text-lg font-semibold text-slate-900">
+                        <h3 className="text-base font-semibold text-slate-900 sm:text-lg">
                           {plan.medicineName}
                         </h3>
                         <p className="text-sm text-slate-600">
@@ -919,7 +987,7 @@ export default function ClientMyPage() {
                         {statusLabel}
                       </span>
                     </div>
-                    <div className="mt-3 rounded-md border border-slate-200 bg-white px-3 py-2">
+                    <div className="mt-3 rounded-xl border border-slate-200 bg-white px-3 py-2">
                       <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                         담당 제공자
                       </p>
@@ -931,18 +999,24 @@ export default function ClientMyPage() {
                       </p>
                     </div>
                     <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                      <button
-                        className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-indigo-300"
-                        disabled={confirmationState[plan.id] === "confirming"}
-                        onClick={() => handleMedicationConfirm(plan)}
-                        type="button"
-                      >
-                        {confirmationState[plan.id] === "confirming"
-                          ? "저장 중..."
-                          : alreadyConfirmed
-                          ? "다시 확인"
-                          : "복약 확인"}
-                      </button>
+                      {withinWindow ? (
+                        <button
+                          className="w-full rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-indigo-300 sm:w-auto"
+                          disabled={confirmationState[plan.id] === "confirming"}
+                          onClick={() => handleMedicationConfirm(plan)}
+                          type="button"
+                        >
+                          {confirmationState[plan.id] === "confirming"
+                            ? "저장 중..."
+                            : alreadyConfirmed
+                            ? "복용 완료"
+                            : "복용 완료"}
+                        </button>
+                      ) : (
+                        <p className="text-sm text-slate-500">
+                          아직 복용시간이 아닙니다
+                        </p>
+                      )}
                       {message && (
                         <p
                           className={`text-sm ${
@@ -962,10 +1036,10 @@ export default function ClientMyPage() {
           </div>
         </section>
 
-        <section className="rounded-xl border border-amber-100 bg-amber-50 p-6">
+        <section className="rounded-2xl border border-amber-100 bg-amber-50 p-4 sm:p-6">
           <div className="flex flex-col gap-2 border-b border-amber-200 pb-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-xl font-semibold text-amber-900">주간 복약 현황</h2>
+              <h2 className="text-lg font-semibold text-amber-900 sm:text-xl">주간 복약 현황</h2>
               <p className="text-sm text-amber-700">
                 최근 7일 동안의 복약 기록을 요일별 아이콘으로 확인할 수 있습니다.
               </p>
@@ -982,76 +1056,49 @@ export default function ClientMyPage() {
             </div>
           </div>
           {!planLoading && plansInitialized && planError.trim().length === 0 && plans.length === 0 ? (
-            <div className="mt-4 rounded-md bg-white px-4 py-3 text-sm text-amber-800">
+            <div className="mt-4 rounded-xl bg-white px-3 py-2 text-sm text-amber-800">
               아직 복약 일정이 없습니다. 담당자에게 일정을 등록해 달라고 요청해주세요.
             </div>
           ) : weeklySummaryLoading && !weeklySummary ? (
-            <div className="mt-4 rounded-md bg-white/70 px-4 py-3 text-sm text-amber-800">
+            <div className="mt-4 rounded-xl bg-white/70 px-3 py-2 text-sm text-amber-800">
               주간 복약 현황을 불러오는 중입니다...
             </div>
           ) : weeklySummaryError ? (
-            <div className="mt-4 rounded-md bg-white px-4 py-3 text-sm text-red-600">
+            <div className="mt-4 rounded-xl bg-white px-3 py-2 text-sm text-red-600">
               {weeklySummaryError}
             </div>
           ) : weeklySummary && weeklySummary.days.length > 0 ? (
-            <div className="mt-4 grid gap-3 sm:grid-cols-3 lg:grid-cols-7">
-              {weeklySummary.days.map((day) => {
-                const config = weeklyStatusConfig[day.status];
-                const effectiveTaken = Math.min(
-                  day.scheduledCount,
-                  day.takenCount + day.manualLogCount
-                );
-                return (
-                  <div
-                    key={day.date}
-                    className="rounded-lg border border-white bg-white p-3 shadow-sm"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div
-                        className={`flex h-10 w-10 items-center justify-center rounded-full text-base font-semibold ${config.circle}`}
-                      >
-                        {config.icon}
-                      </div>
-                      <div>
-                        <p className="text-xs font-semibold uppercase tracking-wide text-amber-500">
-                          {formatWeekdayLabel(day.date)}요일
-                        </p>
-                        <p className="text-sm font-semibold text-slate-900">
-                          {formatCompactDate(day.date)}
-                        </p>
-                      </div>
-                    </div>
-                    <p className={`mt-3 text-sm font-semibold ${config.text}`}>
-                      {config.label}
-                    </p>
-                    <p className="mt-1 text-xs text-slate-500">
-                      {day.scheduledCount > 0
-                        ? `확인 ${effectiveTaken}/${day.scheduledCount}`
-                        : day.manualLogCount > 0
-                        ? `기록 ${day.manualLogCount}건`
-                        : "일정 없음"}
-                    </p>
-                    {day.manualLogCount > 0 && day.scheduledCount > 0 && (
-                      <p className="mt-0.5 text-xs text-amber-600">
-                        수동 기록 {day.manualLogCount}건 포함
-                      </p>
-                    )}
-                  </div>
-                );
-              })}
+            <div className="mt-4">
+              <div className="-mx-1 flex gap-3 overflow-x-auto pb-3 sm:hidden">
+                {weeklySummary.days.map((day) => (
+                  <WeeklyDayCard
+                    key={`mobile-weekly-${day.date}`}
+                    day={day}
+                    className="min-w-[200px] flex-shrink-0"
+                  />
+                ))}
+              </div>
+              <div className="hidden gap-3 sm:grid sm:grid-cols-3 lg:grid-cols-7">
+                {weeklySummary.days.map((day) => (
+                  <WeeklyDayCard
+                    key={`desktop-weekly-${day.date}`}
+                    day={day}
+                  />
+                ))}
+              </div>
             </div>
           ) : (
-            <div className="mt-4 rounded-md bg-white px-4 py-3 text-sm text-amber-800">
+            <div className="mt-4 rounded-xl bg-white px-3 py-2 text-sm text-amber-800">
               아직 복약 기록이 없습니다. 복약 확인을 기록해 주세요.
             </div>
           )}
         </section>
 
-        <section className="rounded-xl border border-indigo-200 bg-indigo-50 p-6">
+        <section className="rounded-2xl border border-indigo-200 bg-indigo-50 p-4 sm:p-6">
           <h2 className="text-lg font-semibold text-indigo-900">
             다음 단계 미리 보기
           </h2>
-          <p className="mt-2 text-sm text-indigo-700">
+          <p className="mt-1.5 text-sm text-indigo-700">
             복약 일정, 알림 이력, 담당 제공자와의 커뮤니케이션 도구가 곧 연결될 예정입니다.
             필요한 기능이 있다면 관리자에게 알려주세요.
           </p>
@@ -1060,13 +1107,13 @@ export default function ClientMyPage() {
       )}
 
       {activePanel === "drug" && (
-        <section className="rounded-2xl border border-slate-200 bg-white p-6">
+        <section className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6">
           <InlineDrugSearch />
         </section>
       )}
 
       {activePanel === "chat" && (
-        <section className="rounded-2xl border border-slate-200 bg-white p-6">
+        <section className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6">
           <MyChatRooms role="CLIENT" userId={client.userId} />
         </section>
       )}

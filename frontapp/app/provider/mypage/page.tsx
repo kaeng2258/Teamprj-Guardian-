@@ -193,13 +193,13 @@ const providerQuickActions: Array<{
     value: "client",
     label: "클라이언트 관리",
     description: "담당자 배정 및 복약 일정",
-    accent: "bg-emerald-600",
+    accent: "bg-indigo-600",
   },
   {
     value: "drug",
     label: "약 검색",
     description: "e약은요 기반 약품 조회",
-    accent: "bg-amber-500",
+    accent: "bg-emerald-500",
   },
   {
     value: "chat",
@@ -450,7 +450,18 @@ export default function ProviderMyPage() {
       }
 
       const data: ProviderDashboardResponse = await response.json();
-      setDashboard(data);
+      const normalized: ProviderDashboardResponse = {
+        ...data,
+        clients: data.clients.map((client) => ({
+          ...client,
+          latestMedicationLogs: [...(client.latestMedicationLogs ?? [])].sort(
+            (a, b) =>
+              new Date(b.logTimestamp).getTime() -
+              new Date(a.logTimestamp).getTime()
+          ),
+        })),
+      };
+      setDashboard(normalized);
       setPlanForms((prev) => {
         const next = { ...prev };
         data.clients.forEach((client) => {
@@ -592,6 +603,61 @@ export default function ProviderMyPage() {
     const day = String(date.getDate()).padStart(2, "0");
     return `${month}.${day}`;
   }, []);
+
+  const WeeklyDayCard = ({
+    day,
+    className = "",
+  }: {
+    day: MedicationWeeklyDayStatus;
+    className?: string;
+  }) => {
+    const config = weeklyStatusConfig[day.status];
+    const effectiveTaken = Math.min(
+      day.scheduledCount,
+      day.takenCount + day.manualLogCount
+    );
+    const combinedClassName = [
+      "flex flex-col rounded-2xl border border-slate-200/80 bg-white/90 p-3 shadow-sm",
+      className,
+    ]
+      .filter(Boolean)
+      .join(" ");
+
+    return (
+      <div className={combinedClassName}>
+        <div className="flex items-center justify-between gap-3">
+          <div
+            className={`flex h-12 w-12 items-center justify-center rounded-full text-lg font-semibold ${config.circle}`}
+          >
+            {config.icon}
+          </div>
+          <div className="text-right">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+              {formatWeekdayLabel(day.date)}요일
+            </p>
+            <p className="text-sm font-semibold text-slate-900">
+              {formatCompactDate(day.date)}
+            </p>
+          </div>
+        </div>
+        <p className={`mt-3 text-sm font-semibold ${config.text}`}>
+          {config.label}
+        </p>
+        <p className="mt-1 text-xs text-slate-500">
+          {day.scheduledCount > 0
+            ? `${effectiveTaken}/${day.scheduledCount}`
+            : day.manualLogCount > 0
+            ? `기록 ${day.manualLogCount}`
+            : "일정 없음"}
+        </p>
+        {day.manualLogCount > 0 && day.scheduledCount > 0 && (
+          <p className="mt-0.5 text-xs text-amber-600">
+            수동 기록 {day.manualLogCount}건 포함
+          </p>
+        )}
+      </div>
+    );
+  };
 
   const mapStatusToLabel = useCallback((status: string) => {
     const labels: Record<string, string> = {
@@ -1188,6 +1254,36 @@ export default function ProviderMyPage() {
         throw new Error(message);
       }
 
+      const savedLog: MedicationLog = await response.json();
+
+      setDashboard((prev) => {
+        if (!prev) {
+          return prev;
+        }
+        return {
+          ...prev,
+          clients: prev.clients.map((client) => {
+            if (client.clientId !== clientId) {
+              return client;
+            }
+            const nextLogs = [
+              savedLog,
+              ...(client.latestMedicationLogs ?? []).filter((log) => log.id !== savedLog.id),
+            ]
+              .sort(
+                (a, b) =>
+                  new Date(b.logTimestamp).getTime() -
+                  new Date(a.logTimestamp).getTime()
+              )
+              .slice(0, 5);
+            return {
+              ...client,
+              latestMedicationLogs: nextLogs,
+            };
+          }),
+        };
+      });
+
       await loadDashboard();
       setLogMessages((prev) => ({
         ...prev,
@@ -1231,15 +1327,15 @@ export default function ProviderMyPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 px-4 py-10">
-      <main className="mx-auto flex w-full max-w-6xl flex-col gap-6 rounded-2xl bg-white p-8 shadow-xl">
-        <header className="flex flex-col gap-4 border-b border-slate-200 pb-6">
+    <div className="min-h-screen bg-slate-50 px-3 py-6 sm:px-6 sm:py-10">
+      <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 rounded-3xl bg-white p-4 shadow-lg sm:p-8">
+        <header className="flex flex-col gap-4 border-b border-slate-200 pb-5">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
-              <p className="text-4xl font-semibold uppercase tracking-wide text-emerald-600">
+              <p className="text-2xl font-semibold uppercase tracking-wide text-indigo-600 sm:text-3xl">
                 Guardian Provider
               </p>
-              <h1 className="text-2xl font-bold text-slate-900">
+              <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">
                 프로바이더 마이페이지
               </h1>
             </div>
@@ -1260,14 +1356,14 @@ export default function ProviderMyPage() {
                     key={action.value}
                     type="button"
                     onClick={() => setActivePanel(action.value)}
-                    className={`group flex flex-col gap-1 rounded-2xl border px-4 py-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow md:h-full ${
+                    className={`group flex flex-col gap-1 rounded-2xl border px-3 py-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow md:h-full sm:px-4 ${
                       isActive
-                        ? "border-emerald-500 bg-emerald-50"
-                        : "border-slate-200 bg-white hover:border-emerald-300"
+                        ? "border-indigo-500 bg-indigo-50/80"
+                        : "border-slate-200 bg-white hover:border-indigo-300"
                     }`}
                   >
                     <span
-                      className={`inline-flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold text-white ${action.accent}`}
+                      className={`inline-flex h-8 w-8 items-center justify-center rounded-full text-[0.7rem] font-semibold text-white ${action.accent}`}
                     >
                       {action.label.slice(0, 1)}
                     </span>
@@ -1286,13 +1382,13 @@ export default function ProviderMyPage() {
 
         {activePanel === "client" && (
           <>
-            <div className="grid gap-6 md:grid-cols-2">
+            <div className="grid gap-4 md:grid-cols-2 md:gap-6">
               {summarySections.map((section) => (
                 <section
                   key={section.title}
-                  className="rounded-xl border border-slate-200 p-6"
+                  className="rounded-2xl border border-slate-200 p-4 sm:p-6"
                 >
-                  <h2 className="text-xl font-semibold text-slate-900">
+                  <h2 className="text-lg font-semibold text-slate-900 sm:text-xl">
                     {section.title}
                   </h2>
                   <p className="mt-1 text-sm text-slate-500">
@@ -1302,7 +1398,7 @@ export default function ProviderMyPage() {
                     {section.rows.map((row) => (
                       <div
                         key={row.label}
-                        className="flex items-center justify-between rounded-lg bg-slate-50 px-4 py-3"
+                        className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2 sm:px-4 sm:py-3"
                       >
                         <dt className="text-sm font-medium text-slate-600">
                           {row.label}
@@ -1316,13 +1412,13 @@ export default function ProviderMyPage() {
                 </section>
               ))}
             </div>
-        <section className="rounded-xl border border-emerald-200 bg-white p-6">
-          <div className="flex flex-col gap-2 border-b border-emerald-200 pb-4 sm:flex-row sm:items-center sm:justify-between">
+        <section className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6">
+          <div className="flex flex-col gap-2 border-b border-slate-200 pb-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-lg font-semibold text-emerald-900">
+              <h2 className="text-lg font-semibold text-slate-900">
                 클라이언트 검색 및 배정
               </h2>
-              <p className="text-sm text-emerald-700">
+              <p className="text-sm text-slate-600">
                 이름 또는 이메일로 클라이언트를 찾아 배정 여부를 확인하고 배정을 진행하세요.
               </p>
             </div>
@@ -1335,7 +1431,7 @@ export default function ProviderMyPage() {
             }}
           >
             <input
-              className="flex-1 rounded-md border border-emerald-300 px-3 py-2 text-sm focus:border-emerald-600 focus:outline-none"
+              className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
               onChange={(event) => {
                 setSearchKeyword(event.target.value);
                 if (searchError) {
@@ -1346,7 +1442,7 @@ export default function ProviderMyPage() {
               value={searchKeyword}
             />
             <button
-              className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-emerald-300"
+              className="w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-indigo-300 sm:w-auto"
               disabled={searchLoading}
               type="submit"
             >
@@ -1359,7 +1455,7 @@ export default function ProviderMyPage() {
           )}
 
           {searchLoading ? (
-            <div className="mt-4 rounded-md bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+            <div className="mt-4 rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-600">
               검색 중입니다...
             </div>
           ) : searchResults.length > 0 ? (
@@ -1401,21 +1497,21 @@ export default function ProviderMyPage() {
                 return (
                   <article
                     key={result.clientId}
-                    className="rounded-lg border border-emerald-100 bg-emerald-50 p-4"
+                    className="rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm sm:p-5"
                   >
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                       <div>
-                        <h3 className="text-lg font-semibold text-emerald-900">
+                        <h3 className="text-base font-semibold text-slate-900 sm:text-lg">
                           {result.name} 님
                         </h3>
-                        <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
-                          <span className="rounded-full bg-white px-2 py-1 font-medium text-emerald-600">
+                        <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                          <span className="rounded-full bg-slate-100 px-2 py-1 font-medium text-indigo-700">
                             {statusLabel}
                           </span>
-                          <span className="text-emerald-700">{result.email}</span>
+                          <span>{result.email}</span>
                         </div>
                       </div>
-                      <div className="text-right text-xs text-emerald-700">
+                      <div className="text-right text-xs text-slate-500">
                         현재 배정:
                         {" "}
                         {assignedToOther
@@ -1425,14 +1521,14 @@ export default function ProviderMyPage() {
                           : "없음"}
                       </div>
                     </div>
-                    <div className="mt-3 grid gap-2 text-sm text-emerald-800 sm:grid-cols-2">
+                    <div className="mt-3 grid gap-2 text-sm text-slate-600 sm:grid-cols-2">
                       <p>주소: {addressDisplay}</p>
                       <p>나이: {ageDisplay}</p>
                       <p>복약 주기: {cycleDisplay}</p>
                     </div>
                     <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                       <button
-                        className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-emerald-300"
+                        className="w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-indigo-300 sm:w-auto"
                         disabled={buttonDisabled}
                         onClick={() => handleAssignClient(result.clientId)}
                         type="button"
@@ -1443,7 +1539,7 @@ export default function ProviderMyPage() {
                         <p
                           className={`text-sm ${
                             assignMessage.type === "success"
-                              ? "text-emerald-700"
+                              ? "text-indigo-700"
                               : "text-red-600"
                           }`}
                         >
@@ -1461,24 +1557,24 @@ export default function ProviderMyPage() {
               })}
             </div>
           ) : searchKeyword.trim().length > 0 && searchMessage ? (
-            <div className="mt-4 rounded-md bg-slate-50 px-4 py-3 text-sm text-slate-600">
+            <div className="mt-4 rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-600">
               {searchMessage}
             </div>
           ) : null}
         </section>
 
-        <section className="rounded-xl border border-emerald-200 bg-emerald-50 p-6">
-          <div className="flex flex-col gap-2 border-b border-emerald-200 pb-4 sm:flex-row sm:items-center sm:justify-between">
+        <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:p-6">
+          <div className="flex flex-col gap-2 border-b border-slate-200 pb-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-lg font-semibold text-emerald-900">
+              <h2 className="text-lg font-semibold text-slate-900">
                 담당 클라이언트 복약 관리
               </h2>
-              <p className="text-sm text-emerald-700">
+              <p className="text-sm text-slate-600">
                 복약 스케줄을 등록하거나 복약 여부를 대신 기록할 수 있습니다.
               </p>
             </div>
             <button
-              className="self-start rounded-md border border-emerald-300 px-3 py-1.5 text-sm text-emerald-800 transition hover:border-emerald-400 hover:text-emerald-900 disabled:cursor-not-allowed disabled:opacity-60"
+              className="self-start rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-700 transition hover:border-indigo-400 hover:text-indigo-900 disabled:cursor-not-allowed disabled:opacity-60"
               disabled={dashboardLoading}
               onClick={loadDashboard}
               type="button"
@@ -1488,15 +1584,15 @@ export default function ProviderMyPage() {
           </div>
 
           {dashboardLoading && !dashboard ? (
-            <div className="mt-4 rounded-md bg-white px-4 py-3 text-sm text-emerald-700">
+            <div className="mt-4 rounded-xl bg-white px-3 py-2 text-sm text-slate-600">
               복약 정보를 불러오는 중입니다...
             </div>
           ) : dashboardError ? (
-            <div className="mt-4 rounded-md bg-red-50 px-4 py-3 text-sm text-red-600">
+            <div className="mt-4 rounded-xl bg-red-50 px-3 py-2 text-sm text-red-600">
               {dashboardError}
             </div>
           ) : !dashboard || dashboard.clients.length === 0 ? (
-            <div className="mt-4 rounded-md bg-white px-4 py-3 text-sm text-emerald-700">
+            <div className="mt-4 rounded-xl bg-white px-3 py-2 text-sm text-slate-600">
               현재 배정된 클라이언트가 없습니다. 관리자에게 문의해주세요.
             </div>
           ) : (
@@ -1510,11 +1606,11 @@ export default function ProviderMyPage() {
                 return (
                   <article
                     key={client.clientId}
-                    className="rounded-lg border border-white bg-white p-5 shadow-sm"
+                    className="rounded-2xl border border-white bg-white p-4 shadow-sm sm:p-5"
                   >
                     <div className="flex flex-col gap-2 border-b border-slate-200 pb-4 sm:flex-row sm:items-center sm:justify-between">
                       <div>
-                        <h3 className="text-xl font-semibold text-slate-900">
+                        <h3 className="text-lg font-semibold text-slate-900 sm:text-xl">
                           {client.clientName} 님
                         </h3>
                         <p className="text-sm text-slate-500">
@@ -1524,18 +1620,18 @@ export default function ProviderMyPage() {
                       </div>
                     </div>
 
-                    <div className="mt-4 rounded-lg border border-emerald-100 bg-emerald-50 p-4">
-                      <div className="flex flex-col gap-2 border-b border-emerald-200 pb-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="mt-4 rounded-2xl border border-amber-100 bg-amber-50 p-4 sm:p-5">
+                      <div className="flex flex-col gap-2 border-b border-amber-200 pb-3 sm:flex-row sm:items-center sm:justify-between">
                         <div>
-                          <h4 className="text-base font-semibold text-emerald-900">
+                          <h4 className="text-base font-semibold text-amber-900">
                             주간 복약 현황
                           </h4>
-                          <p className="text-xs text-emerald-700">
+                          <p className="text-xs text-amber-700">
                             최근 7일간 복약 확인 추이를 한눈에 확인하세요.
                           </p>
                         </div>
                         <button
-                          className="self-start rounded-md border border-emerald-300 px-3 py-1 text-xs font-medium text-emerald-800 transition hover:border-emerald-400 hover:text-emerald-900 disabled:cursor-not-allowed disabled:opacity-60"
+                          className="self-start rounded-md border border-amber-300 px-3 py-1 text-xs font-medium text-amber-800 transition hover:border-amber-400 hover:text-amber-900 disabled:cursor-not-allowed disabled:opacity-60"
                           disabled={summaryLoadingState}
                           onClick={() => loadWeeklySummaryForClient(client.clientId)}
                           type="button"
@@ -1544,59 +1640,39 @@ export default function ProviderMyPage() {
                         </button>
                       </div>
                       {client.medicationPlans.length === 0 ? (
-                        <div className="mt-3 rounded-md bg-white px-3 py-2 text-xs text-emerald-800">
+                        <div className="mt-3 rounded-xl bg-white px-3 py-2 text-xs text-amber-800">
                           아직 복약 일정이 없습니다. 아래 양식에서 일정을 먼저 등록해주세요.
                         </div>
                       ) : summaryLoadingState && !summary ? (
-                        <div className="mt-3 rounded-md bg-white/70 px-3 py-2 text-xs text-emerald-800">
+                        <div className="mt-3 rounded-xl bg-white/70 px-3 py-2 text-xs text-amber-800">
                           주간 현황을 불러오는 중입니다...
                         </div>
                       ) : summaryError ? (
-                        <div className="mt-3 rounded-md bg-white px-3 py-2 text-xs text-red-600">
+                        <div className="mt-3 rounded-xl bg-white px-3 py-2 text-xs text-red-600">
                           {summaryError}
                         </div>
                       ) : summary && summary.days.length > 0 ? (
-                        <div className="mt-3 grid gap-2 sm:grid-cols-3 lg:grid-cols-7">
-                          {summary.days.map((day) => {
-                            const config = weeklyStatusConfig[day.status];
-                            const effectiveTaken = Math.min(
-                              day.scheduledCount,
-                              day.takenCount + day.manualLogCount
-                            );
-                            return (
-                              <div
-                                key={day.date}
-                                className="rounded-md border border-white bg-white p-2 text-center shadow-sm"
-                              >
-                                <div className="flex items-center justify-center">
-                                  <div
-                                    className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold ${config.circle}`}
-                                  >
-                                    {config.icon}
-                                  </div>
-                                </div>
-                                <p className="mt-1 text-xs font-semibold text-slate-900">
-                                  {formatWeekdayLabel(day.date)}
-                                </p>
-                                <p className="text-[11px] text-slate-500">
-                                  {formatCompactDate(day.date)}
-                                </p>
-                                <p className={`mt-1 text-[11px] font-semibold ${config.text}`}>
-                                  {config.label}
-                                </p>
-                                <p className="text-[11px] text-slate-500">
-                                  {day.scheduledCount > 0
-                                    ? `${effectiveTaken}/${day.scheduledCount}`
-                                    : day.manualLogCount > 0
-                                    ? `기록 ${day.manualLogCount}`
-                                    : "일정 없음"}
-                                </p>
-                              </div>
-                            );
-                          })}
+                        <div className="mt-3">
+                          <div className="-mx-1 flex gap-3 overflow-x-auto pb-3 sm:hidden">
+                            {summary.days.map((day) => (
+                              <WeeklyDayCard
+                                key={`mobile-weekly-${client.clientId}-${day.date}`}
+                                day={day}
+                                className="min-w-[200px] flex-shrink-0"
+                              />
+                            ))}
+                          </div>
+                          <div className="hidden gap-3 sm:grid sm:grid-cols-3 lg:grid-cols-7">
+                            {summary.days.map((day) => (
+                              <WeeklyDayCard
+                                key={`desktop-weekly-${client.clientId}-${day.date}`}
+                                day={day}
+                              />
+                            ))}
+                          </div>
                         </div>
                       ) : (
-                        <div className="mt-3 rounded-md bg-white px-3 py-2 text-xs text-emerald-800">
+                        <div className="mt-3 rounded-xl bg-white px-3 py-2 text-xs text-amber-800">
                           아직 주간 복약 기록이 없습니다.
                         </div>
                       )}
@@ -1605,7 +1681,7 @@ export default function ProviderMyPage() {
                     <div className="mt-4 grid gap-4 lg:grid-cols-[2fr,1fr]">
                       <div className="space-y-4">
                         {client.medicationPlans.length === 0 ? (
-                          <div className="rounded-md bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                          <div className="rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-600">
                             등록된 복약 일정이 없습니다. 아래 양식을 통해 일정을 추가해주세요.
                           </div>
                         ) : (
@@ -1624,11 +1700,11 @@ export default function ProviderMyPage() {
                             return (
                               <div
                                 key={plan.id}
-                                className="rounded-md border border-slate-200 bg-slate-50 p-4"
+                                className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
                               >
                                 <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                                   <div>
-                                    <h4 className="text-lg font-semibold text-slate-900">
+                                    <h4 className="text-base font-semibold text-slate-900 sm:text-lg">
                                       {plan.medicineName}
                                     </h4>
                                     <p className="text-sm text-slate-600">
@@ -1662,7 +1738,7 @@ export default function ProviderMyPage() {
                                       : "기록 없음"}
                                   </p>
                                   <button
-                                    className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-emerald-300"
+                                    className="w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-indigo-300 sm:w-auto"
                                     disabled={logProcessing[plan.id] === "loading"}
                                     onClick={() =>
                                       handleRecordMedication(client.clientId, plan)
@@ -1671,14 +1747,14 @@ export default function ProviderMyPage() {
                                   >
                                     {logProcessing[plan.id] === "loading"
                                       ? "기록 중..."
-                                      : "복약 확인 기록"}
+                                      : "복약 확정"}
                                   </button>
                                 </div>
                                 {logMessage && (
                                   <p
                                     className={`mt-2 text-sm ${
                                       logMessage.type === "success"
-                                        ? "text-emerald-600"
+                                        ? "text-indigo-600"
                                         : "text-red-600"
                                     }`}
                                   >
@@ -1689,7 +1765,7 @@ export default function ProviderMyPage() {
                                   <p
                                     className={`mt-1 text-xs ${
                                       message.type === "success"
-                                        ? "text-emerald-600"
+                                        ? "text-indigo-600"
                                         : "text-red-600"
                                     }`}
                                   >
@@ -1751,8 +1827,8 @@ export default function ProviderMyPage() {
                                     }
                                     className={`rounded-md border px-4 py-2 text-xs font-semibold transition ${
                                       item.mode === "search"
-                                        ? "border-emerald-500 bg-emerald-50 text-emerald-700"
-                                        : "border-slate-300 bg-white text-slate-600 hover:border-slate-400"
+                                        ? "border-indigo-500 bg-indigo-50 text-indigo-700"
+                                        : "border-slate-300 bg-white text-slate-600 hover:border-indigo-300"
                                     }`}
                                   >
                                     약 검색
@@ -1764,8 +1840,8 @@ export default function ProviderMyPage() {
                                     }
                                     className={`rounded-md border px-4 py-2 text-xs font-semibold transition ${
                                       item.mode === "manual"
-                                        ? "border-emerald-500 bg-emerald-50 text-emerald-700"
-                                        : "border-slate-300 bg-white text-slate-600 hover:border-slate-400"
+                                        ? "border-indigo-500 bg-indigo-50 text-indigo-700"
+                                        : "border-slate-300 bg-white text-slate-600 hover:border-indigo-300"
                                     }`}
                                   >
                                     직접 입력
@@ -1776,7 +1852,7 @@ export default function ProviderMyPage() {
                                   <>
                                     <div className="flex flex-col gap-2 sm:flex-row">
                                       <input
-                                        className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-emerald-600 focus:outline-none"
+                                        className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
                                         placeholder="약품명으로 검색"
                                         value={item.medicineKeyword}
                                         onChange={(event) =>
@@ -1793,7 +1869,7 @@ export default function ProviderMyPage() {
                                         }
                                       />
                                       <button
-                                        className="rounded-md border border-emerald-300 px-3 py-2 text-sm text-emerald-700 transition hover:border-emerald-400 hover:text-emerald-900 disabled:cursor-not-allowed disabled:opacity-50"
+                                        className="rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-700 transition hover:border-indigo-400 hover:text-indigo-900 disabled:cursor-not-allowed disabled:opacity-50"
                                         disabled={item.searching}
                                         onClick={(event) => {
                                           event.preventDefault();
@@ -1859,7 +1935,7 @@ export default function ProviderMyPage() {
                                               <div className="mt-3 flex flex-wrap gap-2">
                                                 <button
                                                   type="button"
-                                                  className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-emerald-300"
+                                                className="rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-indigo-300"
                                                   disabled={item.searching}
                                                   onClick={(event) => {
                                                     event.preventDefault();
@@ -1903,7 +1979,7 @@ export default function ProviderMyPage() {
                                         약품 이름<span className="text-red-500">*</span>
                                       </label>
                                       <input
-                                        className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-emerald-600 focus:outline-none"
+                                        className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
                                         placeholder="직접 입력할 약품 이름"
                                         value={item.manualMedicine.name}
                                         onChange={(event: ChangeEvent<HTMLInputElement>) =>
@@ -1921,7 +1997,7 @@ export default function ProviderMyPage() {
                                         제품 코드 (선택)
                                       </label>
                                       <input
-                                        className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-emerald-600 focus:outline-none"
+                                        className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
                                         placeholder="예) 국문 제품 코드"
                                         value={item.manualMedicine.productCode}
                                         onChange={(event: ChangeEvent<HTMLInputElement>) =>
@@ -1939,7 +2015,7 @@ export default function ProviderMyPage() {
                                         효능 / 효과 (선택)
                                       </label>
                                       <textarea
-                                        className="min-h-[60px] rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-emerald-600 focus:outline-none"
+                                        className="min-h-[60px] rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
                                         placeholder="약품의 주요 효능을 입력하세요."
                                         value={item.manualMedicine.efficacy}
                                         onChange={(event: ChangeEvent<HTMLTextAreaElement>) =>
@@ -1957,7 +2033,7 @@ export default function ProviderMyPage() {
                                         복용 방법 (선택)
                                       </label>
                                       <textarea
-                                        className="min-h-[60px] rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-emerald-600 focus:outline-none"
+                                        className="min-h-[60px] rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
                                         placeholder="예) 1일 3회, 1회 1정 등"
                                         value={item.manualMedicine.usageDosage}
                                         onChange={(event: ChangeEvent<HTMLTextAreaElement>) =>
@@ -1975,7 +2051,7 @@ export default function ProviderMyPage() {
                                         주의 사항 (선택)
                                       </label>
                                       <textarea
-                                        className="min-h-[60px] rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-emerald-600 focus:outline-none"
+                                        className="min-h-[60px] rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
                                         placeholder="주의사항이나 알레르기 정보를 입력하세요."
                                         value={item.manualMedicine.caution}
                                         onChange={(event: ChangeEvent<HTMLTextAreaElement>) =>
@@ -1993,7 +2069,7 @@ export default function ProviderMyPage() {
                                         부작용 (선택)
                                       </label>
                                       <textarea
-                                        className="min-h-[60px] rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-emerald-600 focus:outline-none"
+                                        className="min-h-[60px] rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
                                         placeholder="예상되는 부작용을 입력하세요."
                                         value={item.manualMedicine.sideEffects}
                                         onChange={(event: ChangeEvent<HTMLTextAreaElement>) =>
@@ -2011,7 +2087,7 @@ export default function ProviderMyPage() {
                                         비고 (선택)
                                       </label>
                                       <textarea
-                                        className="min-h-[60px] rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-emerald-600 focus:outline-none"
+                                        className="min-h-[60px] rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
                                         placeholder="추가 메모를 입력하세요."
                                         value={item.manualMedicine.description}
                                         onChange={(event: ChangeEvent<HTMLTextAreaElement>) =>
@@ -2032,7 +2108,7 @@ export default function ProviderMyPage() {
                                       복용량
                                     </label>
                                     <input
-                                      className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-emerald-600 focus:outline-none"
+                                      className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
                                       min={1}
                                       type="number"
                                       value={item.dosageAmount}
@@ -2054,7 +2130,7 @@ export default function ProviderMyPage() {
                                       복용 단위
                                     </label>
                                     <input
-                                      className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-emerald-600 focus:outline-none"
+                                      className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
                                       placeholder="ex) 정, 캡슐"
                                       value={item.dosageUnit}
                                       onChange={(event) =>
@@ -2076,7 +2152,7 @@ export default function ProviderMyPage() {
                             <button
                               type="button"
                               onClick={() => handleAddPlanItem(client.clientId)}
-                              className="rounded-md border border-dashed border-emerald-300 px-3 py-2 text-sm font-medium text-emerald-700 transition hover:border-emerald-400 hover:text-emerald-900"
+                              className="rounded-md border border-dashed border-indigo-300 px-3 py-2 text-sm font-medium text-indigo-700 transition hover:border-indigo-400 hover:text-indigo-900"
                             >
                               + 약품 항목 추가
                             </button>
@@ -2086,7 +2162,7 @@ export default function ProviderMyPage() {
                               알람 시간
                             </label>
                             <input
-                              className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-emerald-600 focus:outline-none"
+                              className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
                               onChange={(event) =>
                                 updatePlanForm(client.clientId, (current) => ({
                                   ...current,
@@ -2117,9 +2193,9 @@ export default function ProviderMyPage() {
                                     <span
                                       className={`flex h-10 items-center justify-center rounded-lg border text-xs font-semibold transition ${
                                         isSelected
-                                          ? "border-emerald-500 bg-emerald-100 text-emerald-700 shadow-sm"
-                                          : "border-slate-300 bg-white text-slate-600 hover:border-emerald-400 hover:text-emerald-700"
-                                      } peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-emerald-500`}
+                                          ? "border-indigo-500 bg-indigo-100 text-indigo-700 shadow-sm"
+                                          : "border-slate-300 bg-white text-slate-600 hover:border-indigo-400 hover:text-indigo-700"
+                                      } peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-indigo-500`}
                                     >
                                       {day.label}
                                     </span>
@@ -2132,10 +2208,10 @@ export default function ProviderMyPage() {
                             <p className="text-sm text-red-600">{form.error}</p>
                           )}
                           {form.message && (
-                            <p className="text-sm text-emerald-600">{form.message}</p>
+                            <p className="text-sm text-indigo-600">{form.message}</p>
                           )}
                           <button
-                            className="w-full rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-emerald-300"
+                            className="w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-indigo-300"
                             disabled={form.submitting}
                             type="submit"
                           >
@@ -2151,7 +2227,14 @@ export default function ProviderMyPage() {
                           <p className="text-sm text-slate-600">기록이 없습니다.</p>
                         ) : (
                           <ul className="space-y-2">
-                            {client.latestMedicationLogs.slice(0, 5).map((log) => (
+                            {[...client.latestMedicationLogs]
+                              .sort(
+                                (a, b) =>
+                                  new Date(b.logTimestamp).getTime() -
+                                  new Date(a.logTimestamp).getTime()
+                              )
+                              .slice(0, 8)
+                              .map((log) => (
                               <li
                                 key={log.id}
                                 className="rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-700"
@@ -2179,13 +2262,13 @@ export default function ProviderMyPage() {
       )}
 
       {activePanel === "drug" && (
-        <section className="rounded-2xl border border-slate-200 bg-white p-6">
+        <section className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6">
           <InlineDrugSearch />
         </section>
       )}
 
       {activePanel === "chat" && (
-        <section className="rounded-2xl border border-slate-200 bg-white p-6">
+        <section className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6">
           <MyChatRooms role="PROVIDER" userId={provider.userId} />
         </section>
       )}

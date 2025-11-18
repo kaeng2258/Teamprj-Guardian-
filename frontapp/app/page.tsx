@@ -8,6 +8,7 @@ const API_BASE_URL =
 
 type AuthMode = "login" | "register";
 type UserRoleOption = "CLIENT" | "PROVIDER";
+type RegisterRoleValue = "" | UserRoleOption;
 
 type ApiErrorPayload = {
   message?: string;
@@ -77,7 +78,7 @@ export default function Home() {
   const [loginError, setLoginError] = useState("");
   const [loginLoading, setLoginLoading] = useState(false);
 
-  const [registerRole, setRegisterRole] = useState<UserRoleOption>("CLIENT");
+  const [registerRole, setRegisterRole] = useState<RegisterRoleValue>("");
   const [registerName, setRegisterName] = useState("");
   const [registerEmail, setRegisterEmail] = useState("");
   const [registerPassword, setRegisterPassword] = useState("");
@@ -174,6 +175,11 @@ export default function Home() {
     setRegisterMessage("");
     setRegisterError("");
 
+    if (!registerRole) {
+      setRegisterError("회원 유형을 선택해주세요.");
+      return;
+    }
+
     if (registerPassword !== registerConfirmPassword) {
       setRegisterError("비밀번호 확인이 일치하지 않습니다.");
       return;
@@ -228,6 +234,7 @@ export default function Home() {
       setRegisterZipCode("");
       setRegisterAddress("");
       setRegisterDetailAddress("");
+      setRegisterRole("");
       setRegisterPassword("");
       setRegisterConfirmPassword("");
       setEmailCheckStatus("idle");
@@ -487,10 +494,13 @@ export default function Home() {
                   aria-label="가입 유형"
                   className="rounded-md border border-gray-300 px-3 py-2 focus:border-black focus:outline-none"
                   onChange={(event) =>
-                    setRegisterRole(event.target.value as UserRoleOption)
+                    setRegisterRole(event.target.value as RegisterRoleValue)
                   }
                   value={registerRole}
                 >
+                  <option disabled value="">
+                    회원 유형을 선택하세요
+                  </option>
                   {Object.entries(roleLabels).map(([value, label]) => (
                     <option key={value} value={value}>
                       {label}

@@ -19,7 +19,8 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                         "http://192.168.*.*:*",
                         "https://localhost:*",
                         "https://127.0.0.1:*",
-                        "https://192.168.*.*:*"
+                        "https://192.168.*.*:*",
+                        "*"
                 )
                 .withSockJS();
     }

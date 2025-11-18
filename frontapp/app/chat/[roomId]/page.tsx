@@ -1,52 +1,66 @@
-// =============================
-// app/chat/[roomId]/page.tsx — 채팅방 화면
-// =============================
+// frontapp/app/chat/[roomId]/page.tsx
 "use client";
+
 import React, { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { api } from "@/lib/api";
 import ChatRoom from "@/components/ChatRoom";
-
+import type { ChatMessage } from "@/hooks/useStomp";
+import { api } from "@/lib/api";
 
 export default function ChatRoomPage() {
-const params = useParams();
-const roomId = Number(params.roomId);
-const [initial, setInitial] = useState<{ id: number; senderId: number; senderName: string; content: string; createdAt: string }[]>([]);
-const [me] = useState<{ id: number; name: string }>({ id: 999, name: "Me" }); // TODO: 로그인 세션 연동
-const [err, setErr] = useState<string | null>(null);
+  const params = useParams();
+  const roomId = Number(params.roomId);
+  const [initial, setInitial] = useState<ChatMessage[]>([]);
+  const [me, setMe] = useState<{ id: number; name: string }>({
+    id: 0,
+    name: "",
+  });
+  const [err, setErr] = useState<string | null>(null);
 
+  // ✅ 내 정보(localStorage)에서 가져오기
+  useEffect(() => {
+    if (typeof window === "undefined") return;
 
-useEffect(() => {
-(async () => {
-try {
-const data = await api.getRoomHistory(roomId);
-// 초기 이력은 ChatRoom 내부 실시간 목록과 시각적으로만 합칩니다 (간단 처리)
-setInitial(data.messages as any);
-} catch (e: any) { setErr(e.message); }
-})();
-}, [roomId]);
+    const rawId = window.localStorage.getItem("userId");
+    const id = rawId ? Number(rawId) : 0;
 
+    // 로그인 시 userName 을 꼭 localStorage 에 넣어두면 가장 좋음
+    // 예: localStorage.setItem("userName", loginResult.name);
+    const storedName =
+      window.localStorage.getItem("userName") ??
+      window.localStorage.getItem("userEmail") ??
+      "";
 
-return (
-<div style={{display:"grid", gap:12}}>
-<h1>채팅방 #{roomId}</h1>
-{err && <p style={{color:"crimson"}}>{err}</p>}
-{/* 초기 메시지 출력 */}
-{!!initial?.length && (
-<div style={{border:"1px dashed #ddd", padding:10, borderRadius:8}}>
-<b>이전 대화</b>
-<div style={{maxHeight:200, overflow:"auto", marginTop:8}}>
-{initial.map(m => (
-<div key={m.id} style={{marginBottom:8}}>
-<b>{m.senderName}</b>
-<div>{m.content}</div>
-<small style={{color:"#888"}}>{new Date(m.createdAt).toLocaleString()}</small>
-</div>
-))}
-</div>
-</div>
-)}
-<ChatRoom roomId={roomId} me={me} />
-</div>
-);
+    setMe({
+      id,
+      name: storedName || (id ? `사용자#${id}` : "Me"),
+    });
+  }, []);
+
+  // ✅ 기존 대화 이력 가져오기
+  useEffect(() => {
+    if (!roomId) return;
+
+    (async () => {
+      try {
+        const data = await api.getRoomHistory(roomId);
+        setInitial(data.messages as ChatMessage[]);
+      } catch (e: any) {
+        setErr(e.message ?? "채팅 이력을 불러오지 못했습니다.");
+      }
+    })();
+  }, [roomId]);
+
+  return (
+    <div className="min-h-screen bg-slate-50 px-4 py-10">
+      <main className="mx-auto w-full max-w-6xl rounded-2xl bg-white p-6 shadow-xl">
+        {err && (
+          <p className="mb-3 text-sm text-red-600">
+            에러: {err}
+          </p>
+        )}
+        <ChatRoom roomId={roomId} me={me} initialMessages={initial} />
+      </main>
+    </div>
+  );
 }

@@ -5,17 +5,22 @@ import { useEffect, useRef, useState } from "react";
 import { Client, IMessage } from "@stomp/stompjs";
 import SockJS from "sockjs-client";
 
-const WS_BASE =
-  process.env.NEXT_PUBLIC_WS_URL ?? "wss://localhost:8081/ws";
+// 환경변수에 ws://, wss:// 를 넣어도 SockJS 에서 쓸 수 있게 변환
+const rawWs =
+  process.env.NEXT_PUBLIC_WS_URL ?? "https://localhost:8081/ws";
+const WS_ENDPOINT = rawWs.startsWith("ws")
+  ? rawWs.replace(/^ws/, "http") // ws → http, wss → https
+  : rawWs;
 
-// 채팅 메시지 타입은 백엔드와 맞춰서 수정해도 됨
+// 백엔드 ChatMessageResponse 형태에 맞춰서 사용
 export type ChatMessage = {
   id?: number;
   roomId: number;
   senderId: number;
-  senderName: string;
+  senderName?: string;
   content: string;
-  createdAt?: string;
+  sentAt?: string;      // 백엔드에서 사용하는 시간 필드명
+  createdAt?: string;   // 혹시 다른 이름일 수도 있어 둘 다 둠
 };
 
 type UseStompOptions = {
@@ -27,14 +32,11 @@ type UseStompOptions = {
 export function useStomp({ roomId, me, onMessage }: UseStompOptions) {
   const clientRef = useRef<Client | null>(null);
   const [connected, setConnected] = useState(false);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
 
   useEffect(() => {
-    // 방 ID 없으면 아무 것도 안 함
     if (!roomId) return;
 
-    // SockJS 팩토리
-    const socketFactory = () => new SockJS(WS_BASE);
+    const socketFactory = () => new SockJS(WS_ENDPOINT);
 
     const client = new Client({
       webSocketFactory: socketFactory,
@@ -42,11 +44,10 @@ export function useStomp({ roomId, me, onMessage }: UseStompOptions) {
       onConnect: () => {
         setConnected(true);
 
-        // 구독
-        client.subscribe(`/topic/chat/${roomId}`, (msg: IMessage) => {
+        // ✅ 백엔드와 동일: /topic/room/{roomId}
+        client.subscribe(`/topic/room/${roomId}`, (msg: IMessage) => {
           try {
             const body = JSON.parse(msg.body) as ChatMessage;
-            setMessages((prev) => [...prev, body]);
             onMessage?.(body);
           } catch (e) {
             console.error("메시지 파싱 실패:", e);
@@ -69,8 +70,9 @@ export function useStomp({ roomId, me, onMessage }: UseStompOptions) {
       clientRef.current = null;
       setConnected(false);
     };
-  }, [roomId, onMessage]);
+  }, [roomId, onMessage, me.id, me.name]);
 
+  // ✅ 여기서는 publish 만, 실제 메시지 추가는 ChatRoom 쪽에서만 처리
   const sendMessage = (content: string) => {
     const client = clientRef.current;
     if (!client || !connected) return;
@@ -83,20 +85,13 @@ export function useStomp({ roomId, me, onMessage }: UseStompOptions) {
     };
 
     client.publish({
-      destination: `/app/chat/${roomId}`,
+      destination: `/app/signal/${roomId}`,
       body: JSON.stringify(payload),
     });
-
-    // 낙관적 업데이트(원하면 빼도 됨)
-    setMessages((prev) => [
-      ...prev,
-      { ...payload, createdAt: new Date().toISOString() },
-    ]);
   };
 
   return {
     connected,
-    messages,
     sendMessage,
   };
 }

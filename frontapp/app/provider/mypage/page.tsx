@@ -646,11 +646,11 @@ const reopenOnDataRef = useRef(false);
     return `${month}.${day}`;
   }, []);
 
-  const WeeklyDayCard = ({
-    day,
-    className = "",
-  }: {
-    day: MedicationWeeklyDayStatus;
+const WeeklyDayCard = ({
+  day,
+  className = "",
+}: {
+  day: MedicationWeeklyDayStatus;
     className?: string;
   }) => {
     const config = weeklyStatusConfig[day.status];
@@ -697,6 +697,32 @@ const reopenOnDataRef = useRef(false);
             수동 기록 {day.manualLogCount}건 포함
           </p>
         )}
+      </div>
+    );
+  };
+
+  const WeeklyDayCompact = ({ day }: { day: MedicationWeeklyDayStatus }) => {
+    const config = weeklyStatusConfig[day.status];
+    const effectiveTaken = Math.min(
+      day.scheduledCount,
+      day.takenCount + day.manualLogCount,
+    );
+    return (
+      <div className="flex flex-col items-center rounded-lg border border-slate-200 bg-white/80 px-1 py-2 text-[10px]">
+        <div
+          className={`flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-semibold ${config.circle}`}
+        >
+          {config.icon}
+        </div>
+        <p className="mt-1 font-semibold text-slate-700">{formatWeekdayLabel(day.date)}</p>
+        <p className={`font-semibold ${config.text}`}>{config.label}</p>
+        <p className="text-slate-500">
+          {day.scheduledCount > 0
+            ? `${effectiveTaken}/${day.scheduledCount}`
+            : day.manualLogCount > 0
+              ? `기록 ${day.manualLogCount}`
+              : "-"}
+        </p>
       </div>
     );
   };
@@ -1780,15 +1806,14 @@ const reopenOnDataRef = useRef(false);
                         </div>
                       ) : summary && summary.days.length > 0 ? (
                         <div className="mt-3">
-                          <div className="-mx-1 flex gap-3 overflow-x-auto pb-3 sm:hidden">
-                            {summary.days.map((day) => (
-                              <WeeklyDayCard
-                                key={`mobile-weekly-${client.clientId}-${day.date}`}
-                                day={day}
-                                className="min-w-[200px] flex-shrink-0"
-                              />
-                            ))}
-                          </div>
+                      <div className="grid grid-cols-7 gap-1 sm:hidden">
+                        {summary.days.map((day) => (
+                          <WeeklyDayCompact
+                            key={`mobile-weekly-${client.clientId}-${day.date}`}
+                            day={day}
+                          />
+                        ))}
+                      </div>
                           <div className="hidden gap-3 sm:grid sm:grid-cols-3 lg:grid-cols-7">
                             {summary.days.map((day) => (
                               <WeeklyDayCard

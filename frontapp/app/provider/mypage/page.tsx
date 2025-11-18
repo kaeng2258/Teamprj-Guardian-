@@ -9,6 +9,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
@@ -320,15 +321,19 @@ export default function ProviderMyPage() {
     Record<number, PlanActionMessage | undefined>
   >({});
   const [chatRoomsRefreshToken, setChatRoomsRefreshToken] = useState(0);
-  const [weeklySummaries, setWeeklySummaries] = useState<
-    Record<number, MedicationWeeklySummary | null>
-  >({});
-  const [weeklySummaryLoading, setWeeklySummaryLoading] = useState<
-    Record<number, boolean>
-  >({});
-  const [weeklySummaryErrors, setWeeklySummaryErrors] = useState<
-    Record<number, string>
-  >({});
+const [weeklySummaries, setWeeklySummaries] = useState<
+  Record<number, MedicationWeeklySummary | null>
+>({});
+const [weeklySummaryLoading, setWeeklySummaryLoading] = useState<
+  Record<number, boolean>
+>({});
+const [weeklySummaryErrors, setWeeklySummaryErrors] = useState<
+  Record<number, string>
+>({});
+const [expandedClientId, setExpandedClientId] = useState<number | null>(null);
+const [clientFilter, setClientFilter] = useState("");
+const accordionInitializedRef = useRef(false);
+const reopenOnDataRef = useRef(false);
   const [activePanel, setActivePanel] =
     useState<ProviderPanel>("client");
   const [selectedDrugDetailSeq, setSelectedDrugDetailSeq] = useState<
@@ -556,6 +561,40 @@ export default function ProviderMyPage() {
       },
     ];
   }, [provider, dashboard, dashboardLoading]);
+
+  const filteredClients = useMemo(() => {
+    if (!dashboard?.clients) {
+      return [];
+    }
+    const keyword = clientFilter.trim().toLowerCase();
+    if (!keyword) {
+      return dashboard.clients;
+    }
+    return dashboard.clients.filter((client) =>
+      client.clientName?.toLowerCase().includes(keyword),
+    );
+  }, [dashboard, clientFilter]);
+
+  useEffect(() => {
+    if (filteredClients.length === 0) {
+      setExpandedClientId(null);
+      reopenOnDataRef.current = true;
+      return;
+    }
+
+    const exists = filteredClients.some((client) => client.clientId === expandedClientId);
+
+    if (!accordionInitializedRef.current || reopenOnDataRef.current) {
+      accordionInitializedRef.current = true;
+      reopenOnDataRef.current = false;
+      setExpandedClientId(filteredClients[0]?.clientId ?? null);
+      return;
+    }
+
+    if (!exists && expandedClientId !== null) {
+      setExpandedClientId(filteredClients[0]?.clientId ?? null);
+    }
+  }, [filteredClients, expandedClientId]);
 
   const mapDayToLabel = useCallback((value: string) => {
     const normalized = value.trim().toUpperCase();
@@ -1660,6 +1699,18 @@ export default function ProviderMyPage() {
             </button>
           </div>
 
+          <div className="mt-3">
+            <label className="flex flex-col gap-1 text-sm text-slate-600 sm:max-w-sm">
+              <span>클라이언트 이름 검색</span>
+              <input
+                className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+                placeholder="이름을 입력하세요"
+                value={clientFilter}
+                onChange={(event) => setClientFilter(event.target.value)}
+              />
+            </label>
+          </div>
+
           {dashboardLoading && !dashboard ? (
             <div className="mt-4 rounded-xl bg-white px-3 py-2 text-sm text-slate-600">
               복약 정보를 불러오는 중입니다...
@@ -1672,32 +1723,53 @@ export default function ProviderMyPage() {
             <div className="mt-4 rounded-xl bg-white px-3 py-2 text-sm text-slate-600">
               현재 배정된 클라이언트가 없습니다. 관리자에게 문의해주세요.
             </div>
+          ) : filteredClients.length === 0 ? (
+            <div className="mt-4 rounded-xl bg-white px-3 py-2 text-sm text-slate-600">
+              검색 조건에 맞는 클라이언트가 없습니다.
+            </div>
           ) : (
             <div className="mt-4 space-y-6">
-              {dashboard.clients.map((client) => {
+              {filteredClients.map((client) => {
                 const form = planForms[client.clientId] ?? createInitialFormState();
                 const summary = weeklySummaries[client.clientId] ?? null;
                 const summaryLoadingState =
                   weeklySummaryLoading[client.clientId] ?? false;
                 const summaryError = weeklySummaryErrors[client.clientId] ?? "";
+                const expanded = expandedClientId === client.clientId;
                 return (
                   <article
                     key={client.clientId}
                     className="rounded-2xl border border-white bg-white p-4 shadow-sm sm:p-5"
                   >
-                    <div className="flex flex-col gap-2 border-b border-slate-200 pb-4 sm:flex-row sm:items-center sm:justify-between">
+                    <button
+                      type="button"
+                      aria-expanded={expanded}
+                      onClick={() =>
+                        setExpandedClientId(expanded ? null : client.clientId)
+                      }
+                      className="flex w-full items-center justify-between gap-3 border-b border-slate-200 pb-4 text-left"
+                    >
                       <div>
-                        <h3 className="text-lg font-semibold text-slate-900 sm:text-xl">
+                        <h3 className="text-base font-semibold text-slate-900 sm:text-lg">
                           {client.clientName} 님
                         </h3>
-                        <p className="text-sm text-slate-500">
+                        <p className="text-xs text-slate-500 sm:text-sm">
                           복약 일정 {client.medicationPlans.length}건 · 최근 확인{" "}
                           {client.latestMedicationLogs.length}건
                         </p>
                       </div>
-                    </div>
+                      <span className="text-sm font-semibold text-indigo-600">
+                        {expanded ? "접기" : "자세히"}
+                      </span>
+                    </button>
 
-                    <div className="mt-4 rounded-2xl border border-amber-100 bg-amber-50 p-4 sm:p-5">
+                    <div
+                      className={
+                        expanded
+                          ? "mt-4 rounded-2xl border border-amber-100 bg-amber-50 p-4 sm:p-5"
+                          : "hidden"
+                      }
+                    >
                       <div className="flex flex-col gap-2 border-b border-amber-200 pb-3 sm:flex-row sm:items-center sm:justify-between">
                         <div>
                           <h4 className="text-base font-semibold text-amber-900">
@@ -1755,7 +1827,13 @@ export default function ProviderMyPage() {
                       )}
                     </div>
 
-                    <div className="mt-4 grid gap-4 lg:grid-cols-[2fr,1fr]">
+                    <div
+                      className={
+                        expanded
+                          ? "mt-4 grid gap-4 lg:grid-cols-[2fr,1fr]"
+                          : "hidden"
+                      }
+                    >
                       <div className="space-y-4">
                         {client.medicationPlans.length === 0 ? (
                           <div className="rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-600">

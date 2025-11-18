@@ -931,23 +931,22 @@ export default function ClientMyPage() {
                 const [hour, minute] = plan.alarmTime.split(":").map(Number);
                 planTime.setHours(hour ?? 0, minute ?? 0, 0, 0);
                 const diffMs = now.getTime() - planTime.getTime();
-                const isSameDay = (() => {
-                  const todayWeekday = mapDayToLabel(
-                    ["SUNDAY","MONDAY","TUESDAY","WEDNESDAY","THURSDAY","FRIDAY","SATURDAY"][now.getDay()]
-                  );
-                  return plan.daysOfWeek.includes(
-                    ["SUNDAY","MONDAY","TUESDAY","WEDNESDAY","THURSDAY","FRIDAY","SATURDAY"][now.getDay()]
-                  );
-                })();
-                const withinWindow = isSameDay && diffMs >= 0 && diffMs <= 60 * 60 * 1000 && daySummary.includes(mapDayToLabel(["SUNDAY","MONDAY","TUESDAY","WEDNESDAY","THURSDAY","FRIDAY","SATURDAY"][now.getDay()]));
-                const message = confirmationMessage[plan.id];
-                const statusLabel = alreadyConfirmed
-                  ? `${formatLogTime(log?.logTimestamp)} 확인`
-                  : "미확인";
+                const currentDayToken = ["SUNDAY","MONDAY","TUESDAY","WEDNESDAY","THURSDAY","FRIDAY","SATURDAY"][now.getDay()];
+                const currentDayLabel = mapDayToLabel(currentDayToken);
+                const isSameDay = plan.daysOfWeek.includes(currentDayToken);
                 const daySummary =
                   plan.daysOfWeek.length > 0
                     ? plan.daysOfWeek.map(mapDayToLabel).join(", ")
                     : "요일 정보 없음";
+                const withinWindow =
+                  isSameDay
+                  && diffMs >= 0
+                  && diffMs <= 60 * 60 * 1000
+                  && daySummary.includes(currentDayLabel);
+                const message = confirmationMessage[plan.id];
+                const statusLabel = alreadyConfirmed
+                  ? `${formatLogTime(log?.logTimestamp)} 확인`
+                  : "미확인";
                 const providerRaw = plan.providerName?.trim();
                 const providerName =
                   providerRaw && providerRaw.length > 0

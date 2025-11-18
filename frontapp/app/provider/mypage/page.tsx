@@ -715,7 +715,9 @@ const WeeklyDayCard = ({
           {config.icon}
         </div>
         <p className="mt-1 font-semibold text-slate-700">{formatWeekdayLabel(day.date)}</p>
-        <p className={`font-semibold ${config.text}`}>{config.label}</p>
+        <p className={`text-[9px] font-semibold leading-tight ${config.text}`}>
+          {config.label}
+        </p>
         <p className="text-slate-500">
           {day.scheduledCount > 0
             ? `${effectiveTaken}/${day.scheduledCount}`

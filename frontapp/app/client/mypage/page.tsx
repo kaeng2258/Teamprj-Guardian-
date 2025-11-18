@@ -795,7 +795,7 @@ export default function ClientMyPage() {
               로그아웃
             </button>
           </div>
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="flex gap-3 pb-2 sm:grid sm:grid-cols-3 sm:gap-3 sm:pb-0">
             {clientQuickActions.map((action) => {
               const isActive = activePanel === action.value;
               return (
@@ -803,7 +803,7 @@ export default function ClientMyPage() {
                   key={action.value}
                   type="button"
                   onClick={() => setActivePanel(action.value)}
-                  className={`group flex flex-col gap-1 rounded-2xl border px-3 py-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow sm:px-4 ${
+                  className={`group flex flex-1 min-w-0 flex-col gap-1 rounded-2xl border px-3 py-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow sm:px-4 ${
                     isActive
                       ? "border-indigo-500 bg-indigo-50"
                       : "border-slate-200 bg-white hover:border-indigo-300"

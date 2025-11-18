@@ -1,0 +1,121 @@
+{
+  "formatVersion": "1.1",
+  "component": {
+    "group": "nl.martijndwars",
+    "module": "web-push",
+    "version": "5.1.1",
+    "attributes": {
+      "org.gradle.status": "release"
+    }
+  },
+  "createdBy": {
+    "gradle": {
+      "version": "6.0.1",
+      "buildId": "bflyaadvxffnhbg33hiyey7ox4"
+    }
+  },
+  "variants": [
+    {
+      "name": "apiElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.version": 8,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-api"
+      },
+      "dependencies": [
+        {
+          "group": "com.beust",
+          "module": "jcommander",
+          "version": {
+            "requires": "1.78"
+          }
+        },
+        {
+          "group": "org.apache.httpcomponents",
+          "module": "httpasyncclient",
+          "version": {
+            "requires": "4.1.4"
+          }
+        },
+        {
+          "group": "org.asynchttpclient",
+          "module": "async-http-client",
+          "version": {
+            "requires": "2.10.4"
+          }
+        },
+        {
+          "group": "org.bitbucket.b_c",
+          "module": "jose4j",
+          "version": {
+            "requires": "0.7.0"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "web-push-5.1.1.jar",
+          "url": "web-push-5.1.1.jar",
+          "size": 35009,
+          "sha512": "ba077103b93a7cf72de35e1d95320e6a8f16a0ea376033b9ebd740142ff51d40fab92c5d54e527743587527cecac9f1360ad7a63f5ee982b1372dad229815e86",
+          "sha256": "7c475a14211e0a91a24c11cb4f04e842cbfc2c60d0d40734a1c739beee933f31",
+          "sha1": "8c10645635a3fd45d4ef6ca6cd9fb32205e3195b",
+          "md5": "266cbd2b8fe6138cc994ab60caacad76"
+        }
+      ]
+    },
+    {
+      "name": "runtimeElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.version": 8,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-runtime"
+      },
+      "dependencies": [
+        {
+          "group": "com.beust",
+          "module": "jcommander",
+          "version": {
+            "requires": "1.78"
+          }
+        },
+        {
+          "group": "org.apache.httpcomponents",
+          "module": "httpasyncclient",
+          "version": {
+            "requires": "4.1.4"
+          }
+        },
+        {
+          "group": "org.asynchttpclient",
+          "module": "async-http-client",
+          "version": {
+            "requires": "2.10.4"
+          }
+        },
+        {
+          "group": "org.bitbucket.b_c",
+          "module": "jose4j",
+          "version": {
+            "requires": "0.7.0"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "web-push-5.1.1.jar",
+          "url": "web-push-5.1.1.jar",
+          "size": 35009,
+          "sha512": "ba077103b93a7cf72de35e1d95320e6a8f16a0ea376033b9ebd740142ff51d40fab92c5d54e527743587527cecac9f1360ad7a63f5ee982b1372dad229815e86",
+          "sha256": "7c475a14211e0a91a24c11cb4f04e842cbfc2c60d0d40734a1c739beee933f31",
+          "sha1": "8c10645635a3fd45d4ef6ca6cd9fb32205e3195b",
+          "md5": "266cbd2b8fe6138cc994ab60caacad76"
+        }
+      ]
+    }
+  ]
+}

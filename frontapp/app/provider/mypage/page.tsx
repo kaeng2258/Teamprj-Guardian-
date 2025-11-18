@@ -721,7 +721,7 @@ const WeeklyDayCard = ({
             ? `${effectiveTaken}/${day.scheduledCount}`
             : day.manualLogCount > 0
               ? `기록 ${day.manualLogCount}`
-              : "-"}
+              : "0"}
         </p>
       </div>
     );

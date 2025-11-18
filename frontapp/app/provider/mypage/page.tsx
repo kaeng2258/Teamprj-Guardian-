@@ -320,7 +320,6 @@ export default function ProviderMyPage() {
   const [assignmentMessages, setAssignmentMessages] = useState<
     Record<number, PlanActionMessage | undefined>
   >({});
-  const [chatRoomsRefreshToken, setChatRoomsRefreshToken] = useState(0);
 const [weeklySummaries, setWeeklySummaries] = useState<
   Record<number, MedicationWeeklySummary | null>
 >({});
@@ -796,7 +795,6 @@ const reopenOnDataRef = useRef(false);
         }
 
         await response.json();
-        setChatRoomsRefreshToken((prev) => prev + 1);
         return { success: true };
       } catch (error) {
         const message =
@@ -1507,19 +1505,6 @@ const reopenOnDataRef = useRef(false);
                 </section>
               ))}
             </div>
-
-            <section className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6">
-              <MyChatRooms
-                refreshToken={chatRoomsRefreshToken}
-                role="PROVIDER"
-                providerProfileId={providerProfileId}
-                userId={provider.userId}
-              />
-            </section>
-
-            <section className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6">
-              <InlineDrugSearch />
-            </section>
 
             <section className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6">
               <div className="flex flex-col gap-2 border-b border-slate-200 pb-4 sm:flex-row sm:items-center sm:justify-between">

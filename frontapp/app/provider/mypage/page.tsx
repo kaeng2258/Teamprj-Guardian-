@@ -3,6 +3,7 @@ import MyChatRooms from "@/components/MyChatRooms";
 import { InlineDrugSearch } from "@/components/InlineDrugSearch";
 import { DrugDetailModal } from "@/components/DrugDetailModal";
 import { useRouter } from "next/navigation";
+
 import {
   ChangeEvent,
   FormEvent,
@@ -1492,62 +1493,67 @@ const WeeklyDayCard = ({
     const { form, summary, summaryLoadingState, summaryError } = options;
     return (
       <>
-        <div className="mt-4 rounded-2xl border border-amber-100 bg-amber-50 p-4 sm:p-5">
-          <div className="flex flex-col gap-2 border-b border-amber-200 pb-3 sm:flex-row sm:items-center sm:justify-between">
+        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+          <div className="flex flex-col gap-1 border-b border-slate-100 pb-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h4 className="text-base font-semibold text-amber-900">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                 주간 복약 현황
+              </p>
+              <h4 className="text-lg font-semibold text-slate-900 sm:text-xl">
+                최근 7일 복약 확인
               </h4>
-              <p className="text-xs text-amber-700">
-                최근 7일간 복약 확인 추이를 한눈에 확인하세요.
+              <p className="text-xs text-slate-500">
+                복약 일정이 있는 경우 주간 현황을 확인할 수 있습니다.
               </p>
             </div>
             <button
-              className="self-start rounded-md border border-amber-300 px-3 py-1 text-xs font-medium text-amber-800 transition hover:border-amber-400 hover:text-amber-900 disabled:cursor-not-allowed disabled:opacity-60"
+              className="self-start rounded-full border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-700 transition hover:border-indigo-400 hover:text-indigo-800 disabled:cursor-not-allowed disabled:opacity-60"
               disabled={summaryLoadingState}
               onClick={() => loadWeeklySummaryForClient(client.clientId)}
               type="button"
             >
-              {summaryLoadingState ? "갱신 중..." : "새로고침"}
+              {summaryLoadingState ? "갱신 중..." : "주간 현황 새로고침"}
             </button>
           </div>
-          {client.medicationPlans.length === 0 ? (
-            <div className="mt-3 rounded-xl bg-white px-3 py-2 text-xs text-amber-800">
-              아직 복약 일정이 없습니다. 아래 양식에서 일정을 먼저 등록해주세요.
-            </div>
-          ) : summaryLoadingState && !summary ? (
-            <div className="mt-3 rounded-xl bg-white/70 px-3 py-2 text-xs text-amber-800">
-              주간 현황을 불러오는 중입니다...
-            </div>
-          ) : summaryError ? (
-            <div className="mt-3 rounded-xl bg-white px-3 py-2 text-xs text-red-600">
-              {summaryError}
-            </div>
-          ) : summary && summary.days.length > 0 ? (
-            <div className="mt-3">
-              <div className="grid grid-cols-7 gap-1 sm:hidden">
-                {summary.days.map((day) => (
-                  <WeeklyDayCompact
-                    key={`mobile-weekly-${client.clientId}-${day.date}`}
-                    day={day}
-                  />
-                ))}
+          <div className="mt-4">
+            {client.medicationPlans.length === 0 ? (
+              <div className="rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                복약 일정이 없습니다. 일정을 먼저 등록해주세요.
               </div>
-              <div className="hidden gap-3 sm:grid sm:grid-cols-3 lg:grid-cols-7">
-                {summary.days.map((day) => (
-                  <WeeklyDayCard
-                    key={`desktop-weekly-${client.clientId}-${day.date}`}
-                    day={day}
-                  />
-                ))}
+            ) : summaryLoadingState && !summary ? (
+              <div className="rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                주간 현황을 불러오는 중입니다...
               </div>
-            </div>
-          ) : (
-            <div className="mt-3 rounded-xl bg-white px-3 py-2 text-xs text-amber-800">
-              아직 주간 복약 기록이 없습니다.
-            </div>
-          )}
-        </div>
+            ) : summaryError ? (
+              <div className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-600">
+                {summaryError}
+              </div>
+            ) : summary && summary.days.length > 0 ? (
+              <>
+                <div className="grid grid-cols-7 gap-1 sm:hidden">
+                  {summary.days.map((day) => (
+                    <WeeklyDayCompact
+                      key={`mobile-weekly-${client.clientId}-${day.date}`}
+                      day={day}
+                    />
+                  ))}
+                </div>
+                <div className="hidden gap-3 sm:grid sm:grid-cols-3 lg:grid-cols-7">
+                  {summary.days.map((day) => (
+                    <WeeklyDayCard
+                      key={`desktop-weekly-${client.clientId}-${day.date}`}
+                      day={day}
+                    />
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div className="rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                아직 주간 복약 기록이 없습니다.
+              </div>
+            )}
+          </div>
+        </section>
 
         <div className="mt-4 grid gap-4 lg:grid-cols-[2fr,1fr]">
           <div className="space-y-4">
@@ -2332,12 +2338,20 @@ const WeeklyDayCard = ({
               </p>
             </div>
             <button
-              className="self-start rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-700 transition hover:border-indigo-400 hover:text-indigo-900 disabled:cursor-not-allowed disabled:opacity-60"
+              className="flex items-center gap-2 self-start rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-700 transition hover:border-indigo-400 hover:text-indigo-900 disabled:cursor-not-allowed disabled:opacity-60"
               disabled={dashboardLoading}
               onClick={loadDashboard}
               type="button"
             >
-              {dashboardLoading ? "새로고침 중..." : "데이터 새로고침"}
+              <span
+                className={`inline-flex h-5 w-5 items-center justify-center rounded-full ${
+                  dashboardLoading ? "animate-spin bg-indigo-100 text-indigo-700" : "bg-slate-100 text-slate-600"
+                }`}
+                aria-hidden="true"
+              >
+                ↻
+              </span>
+              {dashboardLoading ? "새로고침 중..." : "새로고침"}
             </button>
           </div>
 
@@ -2463,11 +2477,11 @@ const WeeklyDayCard = ({
             className="fixed inset-0 z-40 bg-slate-900/70"
             onClick={closeClientModal}
           />
-          <div className="fixed inset-0 z-50 overflow-y-auto px-3 py-6 sm:flex sm:items-start sm:justify-center">
+          <div className="fixed inset-0 z-50 px-3 py-6 sm:flex sm:items-start sm:justify-center">
             <div
               aria-label={`${selectedClient.clientName}님의 복약 관리`}
               aria-modal="true"
-              className="relative mx-auto max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-3xl bg-white p-4 shadow-2xl sm:p-6"
+              className="modal-scroll relative mx-auto max-h-[90vh] w-full max-w-6xl overflow-y-auto rounded-3xl bg-white p-4 shadow-2xl sm:p-6"
               role="dialog"
             >
               <button
@@ -2515,6 +2529,28 @@ const WeeklyDayCard = ({
           onClose={() => setSelectedDrugDetailSeq(null)}
         />
       )}
+      <style jsx global>{`
+        .modal-scroll::-webkit-scrollbar {
+          width: 12px;
+        }
+        .modal-scroll::-webkit-scrollbar-track {
+          background: #f8fafc;
+          border-radius: 10px;
+          border: 2px solid #e2e8f0;
+        }
+        .modal-scroll::-webkit-scrollbar-thumb {
+          background: linear-gradient(180deg, #a5b4fc, #4f46e5);
+          border-radius: 10px;
+          border: 2px solid #e2e8f0;
+        }
+        .modal-scroll::-webkit-scrollbar-thumb:hover {
+          background: linear-gradient(180deg, #818cf8, #4338ca);
+        }
+        .modal-scroll {
+          scrollbar-width: thin;
+          scrollbar-color: #818cf8 #f8fafc;
+        }
+      `}</style>
     </div>
   );
 }

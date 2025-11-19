@@ -87,7 +87,7 @@ export default function MyChatRooms({
   }, [role, userId, providerProfileId, refreshToken]);
 
   return (
-    <section className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-6">
+    <section className="flex flex-col gap-4 rounded-xl border border-sky-200 bg-sky-50/70 p-6">
       <div>
         <h2 className="text-xl font-semibold text-slate-900">내 채팅방</h2>
         <p className="mt-1 text-sm text-emerald-800">
@@ -128,12 +128,12 @@ export default function MyChatRooms({
           return (
             <li
               key={roomId}
-              className="rounded-lg border border-emerald-100 bg-white p-3 shadow-sm transition hover:border-emerald-300 hover:shadow-md"
+              className="rounded-lg border border-sky-100 bg-white p-3 shadow-sm transition hover:border-sky-300 hover:shadow-md"
             >
               <Link href={`/chat/${roomId}`} className="flex flex-col gap-1">
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
-                    <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100 text-sm font-semibold text-emerald-700">
+                    <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-sky-100 text-sm font-semibold text-sky-700">
                       {displayName.charAt(0)}
                     </span>
                     <div>
@@ -156,7 +156,7 @@ export default function MyChatRooms({
                     {lastSnippet || "최근 메시지가 없습니다."}
                   </p>
                   {unread && (
-                    <span className="inline-flex min-w-[18px] items-center justify-center rounded-full bg-emerald-500 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                    <span className="inline-flex min-w-[18px] items-center justify-center rounded-full bg-sky-500 px-1.5 py-0.5 text-[10px] font-semibold text-white">
                       NEW
                     </span>
                   )}

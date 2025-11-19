@@ -9,7 +9,6 @@ import {
   useCallback,
   useEffect,
   useMemo,
-  useRef,
   useState,
 } from "react";
 
@@ -320,19 +319,17 @@ export default function ProviderMyPage() {
   const [assignmentMessages, setAssignmentMessages] = useState<
     Record<number, PlanActionMessage | undefined>
   >({});
-const [weeklySummaries, setWeeklySummaries] = useState<
-  Record<number, MedicationWeeklySummary | null>
->({});
-const [weeklySummaryLoading, setWeeklySummaryLoading] = useState<
-  Record<number, boolean>
->({});
-const [weeklySummaryErrors, setWeeklySummaryErrors] = useState<
-  Record<number, string>
->({});
-const [expandedClientId, setExpandedClientId] = useState<number | null>(null);
-const [clientFilter, setClientFilter] = useState("");
-const accordionInitializedRef = useRef(false);
-const reopenOnDataRef = useRef(false);
+  const [weeklySummaries, setWeeklySummaries] = useState<
+    Record<number, MedicationWeeklySummary | null>
+  >({});
+  const [weeklySummaryLoading, setWeeklySummaryLoading] = useState<
+    Record<number, boolean>
+  >({});
+  const [weeklySummaryErrors, setWeeklySummaryErrors] = useState<
+    Record<number, string>
+  >({});
+  const [clientModalClientId, setClientModalClientId] = useState<number | null>(null);
+  const [clientFilter, setClientFilter] = useState("");
   const [activePanel, setActivePanel] =
     useState<ProviderPanel>("client");
   const [selectedDrugDetailSeq, setSelectedDrugDetailSeq] = useState<
@@ -574,19 +571,65 @@ const reopenOnDataRef = useRef(false);
     );
   }, [dashboard, clientFilter]);
 
+  const selectedClient =
+    clientModalClientId && dashboard?.clients
+      ? dashboard.clients.find((client) => client.clientId === clientModalClientId) ?? null
+      : null;
+  const selectedClientForm = selectedClient
+    ? planForms[selectedClient.clientId] ?? createInitialFormState()
+    : null;
+  const selectedSummary = selectedClient
+    ? weeklySummaries[selectedClient.clientId] ?? null
+    : null;
+  const selectedSummaryLoading = selectedClient
+    ? weeklySummaryLoading[selectedClient.clientId] ?? false
+    : false;
+  const selectedSummaryError = selectedClient
+    ? weeklySummaryErrors[selectedClient.clientId] ?? ""
+    : "";
+  const closeClientModal = () => setClientModalClientId(null);
+
   useEffect(() => {
-    if (filteredClients.length === 0) {
-      setExpandedClientId(null);
-      reopenOnDataRef.current = true;
+    if (clientModalClientId === null) {
       return;
     }
-
-    const exists = filteredClients.some((client) => client.clientId === expandedClientId);
-
-    if (!exists && expandedClientId !== null) {
-      setExpandedClientId(filteredClients[0]?.clientId ?? null);
+    const exists = dashboard?.clients?.some(
+      (client) => client.clientId === clientModalClientId,
+    );
+    if (!exists) {
+      setClientModalClientId(null);
     }
-  }, [filteredClients, expandedClientId]);
+  }, [clientModalClientId, dashboard]);
+
+  useEffect(() => {
+    if (clientModalClientId === null) {
+      return undefined;
+    }
+    if (typeof document === "undefined") {
+      return undefined;
+    }
+    const { body } = document;
+    const previousOverflow = body.style.overflow;
+    body.style.overflow = "hidden";
+    return () => {
+      body.style.overflow = previousOverflow;
+    };
+  }, [clientModalClientId]);
+
+  useEffect(() => {
+    if (clientModalClientId === null) {
+      return undefined;
+    }
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setClientModalClientId(null);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [clientModalClientId]);
 
   const mapDayToLabel = useCallback((value: string) => {
     const normalized = value.trim().toUpperCase();
@@ -1437,6 +1480,599 @@ const WeeklyDayCard = ({
     router.replace("/");
   };
 
+  const renderClientDetailSections = (
+    client: ProviderClientSummary,
+    options: {
+      form: PlanFormState;
+      summary: MedicationWeeklySummary | null;
+      summaryLoadingState: boolean;
+      summaryError: string;
+    },
+  ): JSX.Element => {
+    const { form, summary, summaryLoadingState, summaryError } = options;
+    return (
+      <>
+        <div className="mt-4 rounded-2xl border border-amber-100 bg-amber-50 p-4 sm:p-5">
+          <div className="flex flex-col gap-2 border-b border-amber-200 pb-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h4 className="text-base font-semibold text-amber-900">
+                주간 복약 현황
+              </h4>
+              <p className="text-xs text-amber-700">
+                최근 7일간 복약 확인 추이를 한눈에 확인하세요.
+              </p>
+            </div>
+            <button
+              className="self-start rounded-md border border-amber-300 px-3 py-1 text-xs font-medium text-amber-800 transition hover:border-amber-400 hover:text-amber-900 disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={summaryLoadingState}
+              onClick={() => loadWeeklySummaryForClient(client.clientId)}
+              type="button"
+            >
+              {summaryLoadingState ? "갱신 중..." : "새로고침"}
+            </button>
+          </div>
+          {client.medicationPlans.length === 0 ? (
+            <div className="mt-3 rounded-xl bg-white px-3 py-2 text-xs text-amber-800">
+              아직 복약 일정이 없습니다. 아래 양식에서 일정을 먼저 등록해주세요.
+            </div>
+          ) : summaryLoadingState && !summary ? (
+            <div className="mt-3 rounded-xl bg-white/70 px-3 py-2 text-xs text-amber-800">
+              주간 현황을 불러오는 중입니다...
+            </div>
+          ) : summaryError ? (
+            <div className="mt-3 rounded-xl bg-white px-3 py-2 text-xs text-red-600">
+              {summaryError}
+            </div>
+          ) : summary && summary.days.length > 0 ? (
+            <div className="mt-3">
+              <div className="grid grid-cols-7 gap-1 sm:hidden">
+                {summary.days.map((day) => (
+                  <WeeklyDayCompact
+                    key={`mobile-weekly-${client.clientId}-${day.date}`}
+                    day={day}
+                  />
+                ))}
+              </div>
+              <div className="hidden gap-3 sm:grid sm:grid-cols-3 lg:grid-cols-7">
+                {summary.days.map((day) => (
+                  <WeeklyDayCard
+                    key={`desktop-weekly-${client.clientId}-${day.date}`}
+                    day={day}
+                  />
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="mt-3 rounded-xl bg-white px-3 py-2 text-xs text-amber-800">
+              아직 주간 복약 기록이 없습니다.
+            </div>
+          )}
+        </div>
+
+        <div className="mt-4 grid gap-4 lg:grid-cols-[2fr,1fr]">
+          <div className="space-y-4">
+            {client.medicationPlans.length === 0 ? (
+              <div className="rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                등록된 복약 일정이 없습니다. 아래 양식을 통해 일정을 추가해주세요.
+              </div>
+            ) : (
+              client.medicationPlans.map((plan) => {
+                const message = planMessages[plan.id];
+                const logMessage = logMessages[plan.id];
+                const latestLog =
+                  client.latestMedicationLogs.find(
+                    (log) => log.planId === plan.id,
+                  ) ??
+                  client.latestMedicationLogs.find(
+                    (log) => !log.planId && log.medicineId === plan.medicineId,
+                  );
+                return (
+                  <div
+                    key={plan.id}
+                    className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
+                  >
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <h4 className="text-base font-semibold text-slate-900 sm:text-lg">
+                          {plan.medicineName}
+                        </h4>
+                        <p className="text-sm text-slate-600">
+                          {`${plan.dosageAmount}${plan.dosageUnit} · ${formatAlarmTime(
+                            plan.alarmTime,
+                          )} · ${plan.daysOfWeek.map(mapDayToLabel).join(", ")}`}
+                        </p>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:border-slate-400 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
+                          disabled={deleteProcessing[plan.id] === "loading"}
+                          onClick={() => handleDeletePlan(client.clientId, plan.id)}
+                          type="button"
+                        >
+                          {deleteProcessing[plan.id] === "loading"
+                            ? "삭제 중..."
+                            : "삭제"}
+                        </button>
+                      </div>
+                    </div>
+                    <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <p className="text-sm text-slate-600">
+                        최근 확인:{" "}
+                        {latestLog ? `${formatDateTime(latestLog.logTimestamp)}` : "기록 없음"}
+                      </p>
+                      <button
+                        className="w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-indigo-300 sm:w-auto"
+                        disabled={logProcessing[plan.id] === "loading"}
+                        onClick={() => handleRecordMedication(client.clientId, plan)}
+                        type="button"
+                      >
+                        {logProcessing[plan.id] === "loading" ? "기록 중..." : "복약 확정"}
+                      </button>
+                    </div>
+                    {logMessage && (
+                      <p
+                        className={`mt-2 text-sm ${
+                          logMessage.type === "success" ? "text-indigo-600" : "text-red-600"
+                        }`}
+                      >
+                        {logMessage.text}
+                      </p>
+                    )}
+                    {message && (
+                      <p
+                        className={`mt-1 text-xs ${
+                          message.type === "success" ? "text-indigo-600" : "text-red-600"
+                        }`}
+                      >
+                        {message.text}
+                      </p>
+                    )}
+                  </div>
+                );
+              })
+            )}
+
+            <form
+              className="space-y-3 rounded-md border border-slate-200 bg-white p-4"
+              onSubmit={(event) => handlePlanSubmit(client.clientId, event)}
+            >
+              <h4 className="text-sm font-semibold text-slate-900">복약 일정 추가</h4>
+              <div className="flex flex-col gap-4">
+                {form.items.map((item, index) => (
+                  <div
+                    key={`plan-item-${index}`}
+                    className="space-y-3 rounded-md border border-slate-200 bg-slate-50 p-3"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-xs font-semibold text-slate-500">
+                          복약 항목 {index + 1}
+                        </p>
+                        {item.mode === "search" && item.selectedMedicineId && (
+                          <p className="text-sm font-medium text-slate-700">
+                            {item.medicineKeyword}
+                          </p>
+                        )}
+                        {item.mode === "manual" &&
+                          item.manualMedicine.name.trim().length > 0 && (
+                            <p className="text-sm font-medium text-slate-700">
+                              {item.manualMedicine.name}
+                            </p>
+                          )}
+                      </div>
+                      {form.items.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemovePlanItem(client.clientId, index)}
+                          className="rounded-md border border-slate-300 px-3 py-1 text-xs font-medium text-slate-600 transition hover:border-red-300 hover:text-red-600"
+                        >
+                          항목 삭제
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handlePlanModeChange(client.clientId, index, "search")}
+                        className={`rounded-md border px-4 py-2 text-xs font-semibold transition ${
+                          item.mode === "search"
+                            ? "border-indigo-500 bg-indigo-50 text-indigo-700"
+                            : "border-slate-300 bg-white text-slate-600 hover:border-indigo-300"
+                        }`}
+                      >
+                        약 검색
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handlePlanModeChange(client.clientId, index, "manual")}
+                        className={`rounded-md border px-4 py-2 text-xs font-semibold transition ${
+                          item.mode === "manual"
+                            ? "border-indigo-500 bg-indigo-50 text-indigo-700"
+                            : "border-slate-300 bg-white text-slate-600 hover:border-indigo-300"
+                        }`}
+                      >
+                        직접 입력
+                      </button>
+                    </div>
+
+                    {item.mode === "search" ? (
+                      <>
+                        <div className="flex flex-col gap-2 sm:flex-row">
+                          <input
+                            className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+                            placeholder="약품명으로 검색"
+                            value={item.medicineKeyword}
+                            onChange={(event) =>
+                              updatePlanFormItem(
+                                client.clientId,
+                                index,
+                                (current) => ({
+                                  ...current,
+                                  medicineKeyword: event.target.value,
+                                  selectedMedicineId: null,
+                                }),
+                                { resetStatus: true },
+                              )
+                            }
+                          />
+                          <button
+                            className="rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-700 transition hover:border-indigo-400 hover:text-indigo-900 disabled:cursor-not-allowed disabled:opacity-50"
+                            disabled={item.searching}
+                            onClick={(event) => {
+                              event.preventDefault();
+                              handleMedicineSearch(client.clientId, index);
+                            }}
+                          >
+                            {item.searching ? "검색 중..." : "검색"}
+                          </button>
+                        </div>
+                    {item.medicineResults.length > 0 && (
+                      <div className="mt-3 space-y-2">
+                        <p className="text-xs text-slate-500">
+                          e약은요 검색 결과입니다. 일정을 등록할 약품을 선택하세요.
+                        </p>
+                        <div className="space-y-2">
+                              {item.medicineResults.map((medicine) => (
+                                <div
+                                  key={medicine.itemSeq}
+                                  className="rounded-md border border-slate-200 bg-slate-50 p-3"
+                                >
+                                  <div className="flex gap-3">
+                                    {medicine.itemImage ? (
+                                      <img
+                                        src={medicine.itemImage}
+                                        alt={medicine.itemName}
+                                        className="h-16 w-16 rounded border border-slate-200 object-contain"
+                                      />
+                                    ) : (
+                                      <div className="h-16 w-16 rounded border border-dashed border-slate-300" />
+                                    )}
+                                    <div className="flex-1 text-left">
+                                      <p className="text-sm font-semibold text-slate-900">
+                                        {medicine.itemName}
+                                      </p>
+                                      <p className="text-xs text-slate-600">
+                                        {medicine.entpName ?? "제조사 정보 없음"}
+                                      </p>
+                                      <div className="mt-1 flex flex-wrap gap-1 text-[11px] text-slate-500">
+                                        {medicine.etcOtcName && (
+                                          <span className="rounded bg-white px-2 py-0.5">
+                                            {medicine.etcOtcName}
+                                          </span>
+                                        )}
+                                        {medicine.className && (
+                                          <span className="rounded bg-white px-2 py-0.5">
+                                            {medicine.className}
+                                          </span>
+                                        )}
+                                        {medicine.chart && (
+                                          <span className="rounded bg-white px-2 py-0.5">
+                                            {medicine.chart}
+                                          </span>
+                                        )}
+                                      </div>
+                                      <p className="mt-1 text-[11px] text-slate-500">
+                                        품목 기준 코드: {medicine.itemSeq}
+                                      </p>
+                                    </div>
+                                  </div>
+                                  <div className="mt-3 flex flex-wrap gap-2">
+                                    <button
+                                      type="button"
+                                      className="rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-indigo-300"
+                                      disabled={item.searching}
+                                      onClick={(event) => {
+                                        event.preventDefault();
+                                        handleSelectMedicine(client.clientId, index, medicine);
+                                      }}
+                                    >
+                                      {item.searching ? "불러오는 중..." : "이 약 일정에 추가"}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-slate-400 hover:text-slate-800"
+                                      onClick={(event) => {
+                                        event.preventDefault();
+                                        setSelectedDrugDetailSeq(medicine.itemSeq);
+                                      }}
+                                    >
+                                      상세 보기
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <div className="space-y-3 rounded-md border border-slate-200 bg-white p-3">
+                        <p className="text-xs text-slate-500">
+                          검색 결과가 없을 때 직접 약품 정보를 입력하고 등록할 수 있습니다.
+                        </p>
+                        <div className="flex flex-col gap-1">
+                          <label className="text-xs font-medium text-slate-600">
+                            약품 이름<span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+                            placeholder="직접 입력할 약품 이름"
+                            value={item.manualMedicine.name}
+                            onChange={(event: ChangeEvent<HTMLInputElement>) =>
+                              handleManualFieldChange(
+                                client.clientId,
+                                index,
+                                "name",
+                                event.target.value,
+                              )
+                            }
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <label className="text-xs font-medium text-slate-600">
+                            제품 코드 (선택)
+                          </label>
+                          <input
+                            className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+                            placeholder="예) 국문 제품 코드"
+                            value={item.manualMedicine.productCode}
+                            onChange={(event: ChangeEvent<HTMLInputElement>) =>
+                              handleManualFieldChange(
+                                client.clientId,
+                                index,
+                                "productCode",
+                                event.target.value,
+                              )
+                            }
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <label className="text-xs font-medium text-slate-600">
+                            효능 / 효과 (선택)
+                          </label>
+                          <textarea
+                            className="min-h-[60px] rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+                            placeholder="약품의 주요 효능을 입력하세요."
+                            value={item.manualMedicine.efficacy}
+                            onChange={(event: ChangeEvent<HTMLTextAreaElement>) =>
+                              handleManualFieldChange(
+                                client.clientId,
+                                index,
+                                "efficacy",
+                                event.target.value,
+                              )
+                            }
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <label className="text-xs font-medium text-slate-600">
+                            복용 방법 (선택)
+                          </label>
+                          <textarea
+                            className="min-h-[60px] rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+                            placeholder="예) 1일 3회, 1회 1정 등"
+                            value={item.manualMedicine.usageDosage}
+                            onChange={(event: ChangeEvent<HTMLTextAreaElement>) =>
+                              handleManualFieldChange(
+                                client.clientId,
+                                index,
+                                "usageDosage",
+                                event.target.value,
+                              )
+                            }
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <label className="text-xs font-medium text-slate-600">
+                            주의 사항 (선택)
+                          </label>
+                          <textarea
+                            className="min-h-[60px] rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+                            placeholder="주의사항이나 알레르기 정보를 입력하세요."
+                            value={item.manualMedicine.caution}
+                            onChange={(event: ChangeEvent<HTMLTextAreaElement>) =>
+                              handleManualFieldChange(
+                                client.clientId,
+                                index,
+                                "caution",
+                                event.target.value,
+                              )
+                            }
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <label className="text-xs font-medium text-slate-600">
+                            부작용 (선택)
+                          </label>
+                          <textarea
+                            className="min-h-[60px] rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+                            placeholder="예상되는 부작용을 입력하세요."
+                            value={item.manualMedicine.sideEffects}
+                            onChange={(event: ChangeEvent<HTMLTextAreaElement>) =>
+                              handleManualFieldChange(
+                                client.clientId,
+                                index,
+                                "sideEffects",
+                                event.target.value,
+                              )
+                            }
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <label className="text-xs font-medium text-slate-600">
+                            비고 (선택)
+                          </label>
+                          <textarea
+                            className="min-h-[60px] rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+                            placeholder="추가 메모를 입력하세요."
+                            value={item.manualMedicine.description}
+                            onChange={(event: ChangeEvent<HTMLTextAreaElement>) =>
+                              handleManualFieldChange(
+                                client.clientId,
+                                index,
+                                "description",
+                                event.target.value,
+                              )
+                            }
+                          />
+                        </div>
+                      </div>
+                    )}
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="flex flex-col gap-1">
+                        <label className="text-xs font-medium text-slate-600">복용량</label>
+                        <input
+                          className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+                          min={1}
+                          type="number"
+                          value={item.dosageAmount}
+                          onChange={(event) =>
+                            updatePlanFormItem(
+                              client.clientId,
+                              index,
+                              (current) => ({
+                                ...current,
+                                dosageAmount: event.target.value,
+                              }),
+                              { resetStatus: true },
+                            )
+                          }
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <label className="text-xs font-medium text-slate-600">복용 단위</label>
+                        <input
+                          className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+                          placeholder="ex) 정, 캡슐"
+                          value={item.dosageUnit}
+                          onChange={(event) =>
+                            updatePlanFormItem(
+                              client.clientId,
+                              index,
+                              (current) => ({
+                                ...current,
+                                dosageUnit: event.target.value,
+                              }),
+                              { resetStatus: true },
+                            )
+                          }
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => handleAddPlanItem(client.clientId)}
+                  className="rounded-md border border-dashed border-indigo-300 px-3 py-2 text-sm font-medium text-indigo-700 transition hover:border-indigo-400 hover:text-indigo-900"
+                >
+                  + 약품 항목 추가
+                </button>
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-medium text-slate-600">알람 시간</label>
+                <input
+                  className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+                  onChange={(event) =>
+                    updatePlanForm(client.clientId, (current) => ({
+                      ...current,
+                      alarmTime: event.target.value,
+                    }))
+                  }
+                  type="time"
+                  value={form.alarmTime}
+                />
+              </div>
+              <fieldset className="flex flex-col gap-2">
+                <legend className="text-xs font-medium text-slate-600">복용 요일</legend>
+                <div className="grid grid-cols-7 gap-1 sm:gap-2">
+                  {allDays.map((day) => {
+                    const isSelected = form.daysOfWeek.includes(day.value);
+                    return (
+                      <label key={day.value} className="block">
+                        <input
+                          type="checkbox"
+                          className="peer sr-only"
+                          checked={isSelected}
+                          onChange={() => handleToggleDay(client.clientId, day.value)}
+                        />
+                        <span
+                          className={`flex h-10 items-center justify-center rounded-lg border text-xs font-semibold transition ${
+                            isSelected
+                              ? "border-indigo-500 bg-indigo-100 text-indigo-700 shadow-sm"
+                              : "border-slate-300 bg-white text-slate-600 hover:border-indigo-400 hover:text-indigo-700"
+                          } peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-indigo-500`}
+                        >
+                          {day.label}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </fieldset>
+              {form.error && <p className="text-sm text-red-600">{form.error}</p>}
+              {form.message && <p className="text-sm text-indigo-600">{form.message}</p>}
+              <button
+                className="w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-indigo-300"
+                disabled={form.submitting}
+                type="submit"
+              >
+                {form.submitting ? "등록 중..." : "복약 일정 등록"}
+              </button>
+            </form>
+          </div>
+          <div className="space-y-3 rounded-md border border-slate-200 bg-white p-4">
+            <h4 className="text-sm font-semibold text-slate-900">최근 복약 확인 기록</h4>
+            {client.latestMedicationLogs.length === 0 ? (
+              <p className="text-sm text-slate-600">기록이 없습니다.</p>
+            ) : (
+              <ul className="space-y-2">
+                {[...client.latestMedicationLogs]
+                  .sort(
+                    (a, b) =>
+                      new Date(b.logTimestamp).getTime() - new Date(a.logTimestamp).getTime(),
+                  )
+                  .slice(0, 8)
+                  .map((log) => (
+                    <li
+                      key={log.id}
+                      className="rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-700"
+                    >
+                      <p className="font-medium">{log.medicineName}</p>
+                      <p className="text-xs text-slate-500">
+                        {formatDateTime(log.logTimestamp)}
+                      </p>
+                      {log.notes && <p className="text-xs text-slate-500">{log.notes}</p>}
+                    </li>
+                  ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      </>
+    );
+  };
+
   if (!isReady) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-slate-50">
@@ -1736,25 +2372,26 @@ const WeeklyDayCard = ({
           ) : (
             <div className="mt-4 space-y-6">
               {filteredClients.map((client) => {
-                const form = planForms[client.clientId] ?? createInitialFormState();
-                const summary = weeklySummaries[client.clientId] ?? null;
-                const summaryLoadingState =
-                  weeklySummaryLoading[client.clientId] ?? false;
-                const summaryError = weeklySummaryErrors[client.clientId] ?? "";
-                const expanded = expandedClientId === client.clientId;
+                const latestLog = client.latestMedicationLogs[0] ?? null;
+                const recentLogLabel = latestLog
+                  ? formatDateTime(latestLog.logTimestamp)
+                  : "기록 없음";
                 return (
                   <article
                     key={client.clientId}
-                    className="rounded-2xl border border-white bg-white p-4 shadow-sm sm:p-5"
-                  >
-                    <button
-                      type="button"
-                      aria-expanded={expanded}
-                      onClick={() =>
-                        setExpandedClientId(expanded ? null : client.clientId)
+                    className="cursor-pointer rounded-2xl border border-white bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500 sm:p-5"
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setClientModalClientId(client.clientId)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        setClientModalClientId(client.clientId);
                       }
-                      className="flex w-full items-center justify-between gap-3 border-b border-slate-200 pb-4 text-left"
-                    >
+                    }}
+                    aria-label={`${client.clientName}님의 복약 관리 열기`}
+                  >
+                    <div className="flex flex-col gap-2 border-b border-slate-200 pb-4 sm:flex-row sm:items-center sm:justify-between">
                       <div>
                         <h3 className="text-base font-semibold text-slate-900 sm:text-lg">
                           {client.clientName} 님
@@ -1764,653 +2401,40 @@ const WeeklyDayCard = ({
                           {client.latestMedicationLogs.length}건
                         </p>
                       </div>
-                      <span className="text-sm font-semibold text-indigo-600">
-                        {expanded ? "접기" : "자세히"}
-                      </span>
-                    </button>
-
-                    <div
-                      className={
-                        expanded
-                          ? "mt-4 rounded-2xl border border-amber-100 bg-amber-50 p-4 sm:p-5"
-                          : "hidden"
-                      }
-                    >
-                      <div className="flex flex-col gap-2 border-b border-amber-200 pb-3 sm:flex-row sm:items-center sm:justify-between">
-                        <div>
-                          <h4 className="text-base font-semibold text-amber-900">
-                            주간 복약 현황
-                          </h4>
-                          <p className="text-xs text-amber-700">
-                            최근 7일간 복약 확인 추이를 한눈에 확인하세요.
-                          </p>
-                        </div>
-                        <button
-                          className="self-start rounded-md border border-amber-300 px-3 py-1 text-xs font-medium text-amber-800 transition hover:border-amber-400 hover:text-amber-900 disabled:cursor-not-allowed disabled:opacity-60"
-                          disabled={summaryLoadingState}
-                          onClick={() => loadWeeklySummaryForClient(client.clientId)}
-                          type="button"
-                        >
-                          {summaryLoadingState ? "갱신 중..." : "새로고침"}
-                        </button>
+                      <div className="text-xs font-semibold text-amber-700">
+                        비상 알림 {client.emergencyAlerts.length}건
                       </div>
-                      {client.medicationPlans.length === 0 ? (
-                        <div className="mt-3 rounded-xl bg-white px-3 py-2 text-xs text-amber-800">
-                          아직 복약 일정이 없습니다. 아래 양식에서 일정을 먼저 등록해주세요.
-                        </div>
-                      ) : summaryLoadingState && !summary ? (
-                        <div className="mt-3 rounded-xl bg-white/70 px-3 py-2 text-xs text-amber-800">
-                          주간 현황을 불러오는 중입니다...
-                        </div>
-                      ) : summaryError ? (
-                        <div className="mt-3 rounded-xl bg-white px-3 py-2 text-xs text-red-600">
-                          {summaryError}
-                        </div>
-                      ) : summary && summary.days.length > 0 ? (
-                        <div className="mt-3">
-                      <div className="grid grid-cols-7 gap-1 sm:hidden">
-                        {summary.days.map((day) => (
-                          <WeeklyDayCompact
-                            key={`mobile-weekly-${client.clientId}-${day.date}`}
-                            day={day}
-                          />
-                        ))}
-                      </div>
-                          <div className="hidden gap-3 sm:grid sm:grid-cols-3 lg:grid-cols-7">
-                            {summary.days.map((day) => (
-                              <WeeklyDayCard
-                                key={`desktop-weekly-${client.clientId}-${day.date}`}
-                                day={day}
-                              />
-                            ))}
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="mt-3 rounded-xl bg-white px-3 py-2 text-xs text-amber-800">
-                          아직 주간 복약 기록이 없습니다.
-                        </div>
-                      )}
                     </div>
-
-                    <div
-                      className={
-                        expanded
-                          ? "mt-4 grid gap-4 lg:grid-cols-[2fr,1fr]"
-                          : "hidden"
-                      }
-                    >
-                      <div className="space-y-4">
-                        {client.medicationPlans.length === 0 ? (
-                          <div className="rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-600">
-                            등록된 복약 일정이 없습니다. 아래 양식을 통해 일정을 추가해주세요.
-                          </div>
-                        ) : (
-                          client.medicationPlans.map((plan) => {
-                            const message = planMessages[plan.id];
-                            const logMessage = logMessages[plan.id];
-                            const latestLog =
-                              client.latestMedicationLogs.find(
-                                (log) => log.planId === plan.id
-                              ) ??
-                              client.latestMedicationLogs.find(
-                                (log) =>
-                                  !log.planId &&
-                                  log.medicineId === plan.medicineId
-                              );
-                            return (
-                              <div
-                                key={plan.id}
-                                className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
-                              >
-                                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                                  <div>
-                                    <h4 className="text-base font-semibold text-slate-900 sm:text-lg">
-                                      {plan.medicineName}
-                                    </h4>
-                                    <p className="text-sm text-slate-600">
-                                      {`${plan.dosageAmount}${plan.dosageUnit} · ${formatAlarmTime(
-                                        plan.alarmTime
-                                      )} · ${plan.daysOfWeek
-                                        .map(mapDayToLabel)
-                                        .join(", ")}`}
-                                    </p>
-                                  </div>
-                                  <div className="flex gap-2">
-                                    <button
-                                      className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:border-slate-400 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
-                                      disabled={deleteProcessing[plan.id] === "loading"}
-                                      onClick={() =>
-                                        handleDeletePlan(client.clientId, plan.id)
-                                      }
-                                      type="button"
-                                    >
-                                      {deleteProcessing[plan.id] === "loading"
-                                        ? "삭제 중..."
-                                        : "삭제"}
-                                    </button>
-                                  </div>
-                                </div>
-                                <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                                  <p className="text-sm text-slate-600">
-                                    최근 확인:{" "}
-                                    {latestLog
-                                      ? `${formatDateTime(latestLog.logTimestamp)}`
-                                      : "기록 없음"}
-                                  </p>
-                                  <button
-                                    className="w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-indigo-300 sm:w-auto"
-                                    disabled={logProcessing[plan.id] === "loading"}
-                                    onClick={() =>
-                                      handleRecordMedication(client.clientId, plan)
-                                    }
-                                    type="button"
-                                  >
-                                    {logProcessing[plan.id] === "loading"
-                                      ? "기록 중..."
-                                      : "복약 확정"}
-                                  </button>
-                                </div>
-                                {logMessage && (
-                                  <p
-                                    className={`mt-2 text-sm ${
-                                      logMessage.type === "success"
-                                        ? "text-indigo-600"
-                                        : "text-red-600"
-                                    }`}
-                                  >
-                                    {logMessage.text}
-                                  </p>
-                                )}
-                                {message && (
-                                  <p
-                                    className={`mt-1 text-xs ${
-                                      message.type === "success"
-                                        ? "text-indigo-600"
-                                        : "text-red-600"
-                                    }`}
-                                  >
-                                    {message.text}
-                                  </p>
-                                )}
-                              </div>
-                            );
-                          })
-                        )}
-
-                        <form
-                          className="space-y-3 rounded-md border border-slate-200 bg-white p-4"
-                          onSubmit={(event) => handlePlanSubmit(client.clientId, event)}
+                    <div className="flex flex-col gap-3 pt-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex flex-col gap-2">
+                        <div className="flex flex-wrap gap-2 text-xs text-slate-600">
+                          <span className="rounded-full bg-slate-100 px-3 py-1">
+                            복약 일정 {client.medicationPlans.length}건
+                          </span>
+                          <span className="rounded-full bg-slate-100 px-3 py-1">
+                            최근 확인 {client.latestMedicationLogs.length}건
+                          </span>
+                          <span className="rounded-full bg-slate-100 px-3 py-1">
+                            비상 알림 {client.emergencyAlerts.length}건
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-500">
+                          최근 복약 확인: {recentLogLabel}
+                        </p>
+                      </div>
+                      <span className="inline-flex items-center gap-2 text-sm font-semibold text-indigo-600">
+                        상세 관리 열기
+                        <svg
+                          aria-hidden="true"
+                          className="h-4 w-4"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth={2}
+                          viewBox="0 0 24 24"
                         >
-                          <h4 className="text-sm font-semibold text-slate-900">
-                            복약 일정 추가
-                          </h4>
-                          <div className="flex flex-col gap-4">
-                            {form.items.map((item, index) => (
-                              <div
-                                key={`plan-item-${index}`}
-                                className="space-y-3 rounded-md border border-slate-200 bg-slate-50 p-3"
-                              >
-                                <div className="flex items-center justify-between">
-                                  <div>
-                                    <p className="text-xs font-semibold text-slate-500">
-                                      복약 항목 {index + 1}
-                                    </p>
-                                    {item.mode === "search" && item.selectedMedicineId && (
-                                      <p className="text-sm font-medium text-slate-700">
-                                        {item.medicineKeyword}
-                                      </p>
-                                    )}
-                                    {item.mode === "manual" &&
-                                      item.manualMedicine.name.trim().length > 0 && (
-                                        <p className="text-sm font-medium text-slate-700">
-                                          {item.manualMedicine.name}
-                                        </p>
-                                      )}
-                                  </div>
-                                  {form.items.length > 1 && (
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        handleRemovePlanItem(client.clientId, index)
-                                      }
-                                      className="rounded-md border border-slate-300 px-3 py-1 text-xs font-medium text-slate-600 transition hover:border-red-300 hover:text-red-600"
-                                    >
-                                      항목 삭제
-                                    </button>
-                                  )}
-                                </div>
-                                <div className="flex flex-wrap gap-2">
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      handlePlanModeChange(client.clientId, index, "search")
-                                    }
-                                    className={`rounded-md border px-4 py-2 text-xs font-semibold transition ${
-                                      item.mode === "search"
-                                        ? "border-indigo-500 bg-indigo-50 text-indigo-700"
-                                        : "border-slate-300 bg-white text-slate-600 hover:border-indigo-300"
-                                    }`}
-                                  >
-                                    약 검색
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      handlePlanModeChange(client.clientId, index, "manual")
-                                    }
-                                    className={`rounded-md border px-4 py-2 text-xs font-semibold transition ${
-                                      item.mode === "manual"
-                                        ? "border-indigo-500 bg-indigo-50 text-indigo-700"
-                                        : "border-slate-300 bg-white text-slate-600 hover:border-indigo-300"
-                                    }`}
-                                  >
-                                    직접 입력
-                                  </button>
-                                </div>
-
-                                {item.mode === "search" ? (
-                                  <>
-                                    <div className="flex flex-col gap-2 sm:flex-row">
-                                      <input
-                                        className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-                                        placeholder="약품명으로 검색"
-                                        value={item.medicineKeyword}
-                                        onChange={(event) =>
-                                          updatePlanFormItem(
-                                            client.clientId,
-                                            index,
-                                            (current) => ({
-                                              ...current,
-                                              medicineKeyword: event.target.value,
-                                              selectedMedicineId: null,
-                                            }),
-                                            { resetStatus: true }
-                                          )
-                                        }
-                                      />
-                                      <button
-                                        className="rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-700 transition hover:border-indigo-400 hover:text-indigo-900 disabled:cursor-not-allowed disabled:opacity-50"
-                                        disabled={item.searching}
-                                        onClick={(event) => {
-                                          event.preventDefault();
-                                          handleMedicineSearch(client.clientId, index);
-                                        }}
-                                      >
-                                        {item.searching ? "검색 중..." : "검색"}
-                                      </button>
-                                    </div>
-                                    {item.medicineResults.length > 0 && (
-                                      <div className="rounded-md border border-slate-200 bg-white p-3">
-                                        <p className="text-xs text-slate-500">
-                                          e약은요 검색 결과입니다. 일정을
-                                          등록할 약품을 선택하세요.
-                                        </p>
-                                        <div className="mt-3 space-y-2">
-                                          {item.medicineResults.map((medicine) => (
-                                            <div
-                                              key={medicine.itemSeq}
-                                              className="rounded-md border border-slate-200 bg-slate-50 p-3"
-                                            >
-                                              <div className="flex gap-3">
-                                                {medicine.itemImage ? (
-                                                  <img
-                                                    src={medicine.itemImage}
-                                                    alt={medicine.itemName}
-                                                    className="h-16 w-16 rounded border border-slate-200 object-contain"
-                                                  />
-                                                ) : (
-                                                  <div className="h-16 w-16 rounded border border-dashed border-slate-300" />
-                                                )}
-                                                <div className="flex-1 text-left">
-                                                  <p className="text-sm font-semibold text-slate-900">
-                                                    {medicine.itemName}
-                                                  </p>
-                                                  <p className="text-xs text-slate-600">
-                                                    {medicine.entpName ??
-                                                      "제조사 정보 없음"}
-                                                  </p>
-                                                  <div className="mt-1 flex flex-wrap gap-1 text-[11px] text-slate-500">
-                                                    {medicine.etcOtcName && (
-                                                      <span className="rounded bg-white px-2 py-0.5">
-                                                        {medicine.etcOtcName}
-                                                      </span>
-                                                    )}
-                                                    {medicine.className && (
-                                                      <span className="rounded bg-white px-2 py-0.5">
-                                                        {medicine.className}
-                                                      </span>
-                                                    )}
-                                                    {medicine.chart && (
-                                                      <span className="rounded bg-white px-2 py-0.5">
-                                                        {medicine.chart}
-                                                      </span>
-                                                    )}
-                                                  </div>
-                                                  <p className="mt-1 text-[11px] text-slate-500">
-                                                    품목 기준 코드:{" "}
-                                                    {medicine.itemSeq}
-                                                  </p>
-                                                </div>
-                                              </div>
-                                              <div className="mt-3 flex flex-wrap gap-2">
-                                                <button
-                                                  type="button"
-                                                className="rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-indigo-300"
-                                                  disabled={item.searching}
-                                                  onClick={(event) => {
-                                                    event.preventDefault();
-                                                    handleSelectMedicine(
-                                                      client.clientId,
-                                                      index,
-                                                      medicine
-                                                    );
-                                                  }}
-                                                >
-                                                  {item.searching
-                                                    ? "불러오는 중..."
-                                                    : "이 약 일정에 추가"}
-                                                </button>
-                                                <button
-                                                  type="button"
-                                                  className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-slate-400 hover:text-slate-800"
-                                                  onClick={(event) => {
-                                                    event.preventDefault();
-                                                    setSelectedDrugDetailSeq(
-                                                      medicine.itemSeq
-                                                    );
-                                                  }}
-                                                >
-                                                  상세 보기
-                                                </button>
-                                              </div>
-                                            </div>
-                                          ))}
-                                        </div>
-                                      </div>
-                                    )}
-                                  </>
-                                ) : (
-                                  <div className="space-y-3 rounded-md border border-slate-200 bg-white p-3">
-                                    <p className="text-xs text-slate-500">
-                                      검색 결과가 없을 때 직접 약품 정보를 입력하고 등록할 수 있습니다.
-                                    </p>
-                                    <div className="flex flex-col gap-1">
-                                      <label className="text-xs font-medium text-slate-600">
-                                        약품 이름<span className="text-red-500">*</span>
-                                      </label>
-                                      <input
-                                        className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-                                        placeholder="직접 입력할 약품 이름"
-                                        value={item.manualMedicine.name}
-                                        onChange={(event: ChangeEvent<HTMLInputElement>) =>
-                                          handleManualFieldChange(
-                                            client.clientId,
-                                            index,
-                                            "name",
-                                            event.target.value
-                                          )
-                                        }
-                                      />
-                                    </div>
-                                    <div className="flex flex-col gap-1">
-                                      <label className="text-xs font-medium text-slate-600">
-                                        제품 코드 (선택)
-                                      </label>
-                                      <input
-                                        className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-                                        placeholder="예) 국문 제품 코드"
-                                        value={item.manualMedicine.productCode}
-                                        onChange={(event: ChangeEvent<HTMLInputElement>) =>
-                                          handleManualFieldChange(
-                                            client.clientId,
-                                            index,
-                                            "productCode",
-                                            event.target.value
-                                          )
-                                        }
-                                      />
-                                    </div>
-                                    <div className="flex flex-col gap-1">
-                                      <label className="text-xs font-medium text-slate-600">
-                                        효능 / 효과 (선택)
-                                      </label>
-                                      <textarea
-                                        className="min-h-[60px] rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-                                        placeholder="약품의 주요 효능을 입력하세요."
-                                        value={item.manualMedicine.efficacy}
-                                        onChange={(event: ChangeEvent<HTMLTextAreaElement>) =>
-                                          handleManualFieldChange(
-                                            client.clientId,
-                                            index,
-                                            "efficacy",
-                                            event.target.value
-                                          )
-                                        }
-                                      />
-                                    </div>
-                                    <div className="flex flex-col gap-1">
-                                      <label className="text-xs font-medium text-slate-600">
-                                        복용 방법 (선택)
-                                      </label>
-                                      <textarea
-                                        className="min-h-[60px] rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-                                        placeholder="예) 1일 3회, 1회 1정 등"
-                                        value={item.manualMedicine.usageDosage}
-                                        onChange={(event: ChangeEvent<HTMLTextAreaElement>) =>
-                                          handleManualFieldChange(
-                                            client.clientId,
-                                            index,
-                                            "usageDosage",
-                                            event.target.value
-                                          )
-                                        }
-                                      />
-                                    </div>
-                                    <div className="flex flex-col gap-1">
-                                      <label className="text-xs font-medium text-slate-600">
-                                        주의 사항 (선택)
-                                      </label>
-                                      <textarea
-                                        className="min-h-[60px] rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-                                        placeholder="주의사항이나 알레르기 정보를 입력하세요."
-                                        value={item.manualMedicine.caution}
-                                        onChange={(event: ChangeEvent<HTMLTextAreaElement>) =>
-                                          handleManualFieldChange(
-                                            client.clientId,
-                                            index,
-                                            "caution",
-                                            event.target.value
-                                          )
-                                        }
-                                      />
-                                    </div>
-                                    <div className="flex flex-col gap-1">
-                                      <label className="text-xs font-medium text-slate-600">
-                                        부작용 (선택)
-                                      </label>
-                                      <textarea
-                                        className="min-h-[60px] rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-                                        placeholder="예상되는 부작용을 입력하세요."
-                                        value={item.manualMedicine.sideEffects}
-                                        onChange={(event: ChangeEvent<HTMLTextAreaElement>) =>
-                                          handleManualFieldChange(
-                                            client.clientId,
-                                            index,
-                                            "sideEffects",
-                                            event.target.value
-                                          )
-                                        }
-                                      />
-                                    </div>
-                                    <div className="flex flex-col gap-1">
-                                      <label className="text-xs font-medium text-slate-600">
-                                        비고 (선택)
-                                      </label>
-                                      <textarea
-                                        className="min-h-[60px] rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-                                        placeholder="추가 메모를 입력하세요."
-                                        value={item.manualMedicine.description}
-                                        onChange={(event: ChangeEvent<HTMLTextAreaElement>) =>
-                                          handleManualFieldChange(
-                                            client.clientId,
-                                            index,
-                                            "description",
-                                            event.target.value
-                                          )
-                                        }
-                                      />
-                                    </div>
-                                  </div>
-                                )}
-                                <div className="grid gap-3 sm:grid-cols-2">
-                                  <div className="flex flex-col gap-1">
-                                    <label className="text-xs font-medium text-slate-600">
-                                      복용량
-                                    </label>
-                                    <input
-                                      className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-                                      min={1}
-                                      type="number"
-                                      value={item.dosageAmount}
-                                      onChange={(event) =>
-                                        updatePlanFormItem(
-                                          client.clientId,
-                                          index,
-                                          (current) => ({
-                                            ...current,
-                                            dosageAmount: event.target.value,
-                                          }),
-                                          { resetStatus: true }
-                                        )
-                                      }
-                                    />
-                                  </div>
-                                  <div className="flex flex-col gap-1">
-                                    <label className="text-xs font-medium text-slate-600">
-                                      복용 단위
-                                    </label>
-                                    <input
-                                      className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-                                      placeholder="ex) 정, 캡슐"
-                                      value={item.dosageUnit}
-                                      onChange={(event) =>
-                                        updatePlanFormItem(
-                                          client.clientId,
-                                          index,
-                                          (current) => ({
-                                            ...current,
-                                            dosageUnit: event.target.value,
-                                          }),
-                                          { resetStatus: true }
-                                        )
-                                      }
-                                    />
-                                  </div>
-                                </div>
-                              </div>
-                            ))}
-                            <button
-                              type="button"
-                              onClick={() => handleAddPlanItem(client.clientId)}
-                              className="rounded-md border border-dashed border-indigo-300 px-3 py-2 text-sm font-medium text-indigo-700 transition hover:border-indigo-400 hover:text-indigo-900"
-                            >
-                              + 약품 항목 추가
-                            </button>
-                          </div>
-                          <div className="flex flex-col gap-1">
-                            <label className="text-xs font-medium text-slate-600">
-                              알람 시간
-                            </label>
-                            <input
-                              className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-                              onChange={(event) =>
-                                updatePlanForm(client.clientId, (current) => ({
-                                  ...current,
-                                  alarmTime: event.target.value,
-                                }))
-                              }
-                              type="time"
-                              value={form.alarmTime}
-                            />
-                          </div>
-                          <fieldset className="flex flex-col gap-2">
-                            <legend className="text-xs font-medium text-slate-600">
-                              복용 요일
-                            </legend>
-                            <div className="grid grid-cols-7 gap-1 sm:gap-2">
-                              {allDays.map((day) => {
-                                const isSelected = form.daysOfWeek.includes(day.value);
-                                return (
-                                  <label key={day.value} className="block">
-                                    <input
-                                      type="checkbox"
-                                      className="peer sr-only"
-                                      checked={isSelected}
-                                      onChange={() =>
-                                        handleToggleDay(client.clientId, day.value)
-                                      }
-                                    />
-                                    <span
-                                      className={`flex h-10 items-center justify-center rounded-lg border text-xs font-semibold transition ${
-                                        isSelected
-                                          ? "border-indigo-500 bg-indigo-100 text-indigo-700 shadow-sm"
-                                          : "border-slate-300 bg-white text-slate-600 hover:border-indigo-400 hover:text-indigo-700"
-                                      } peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-indigo-500`}
-                                    >
-                                      {day.label}
-                                    </span>
-                                  </label>
-                                );
-                              })}
-                            </div>
-                          </fieldset>
-                          {form.error && (
-                            <p className="text-sm text-red-600">{form.error}</p>
-                          )}
-                          {form.message && (
-                            <p className="text-sm text-indigo-600">{form.message}</p>
-                          )}
-                          <button
-                            className="w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-indigo-300"
-                            disabled={form.submitting}
-                            type="submit"
-                          >
-                            {form.submitting ? "등록 중..." : "복약 일정 등록"}
-                          </button>
-                        </form>
-                      </div>
-                      <div className="space-y-3 rounded-md border border-slate-200 bg-white p-4">
-                        <h4 className="text-sm font-semibold text-slate-900">
-                          최근 복약 확인 기록
-                        </h4>
-                        {client.latestMedicationLogs.length === 0 ? (
-                          <p className="text-sm text-slate-600">기록이 없습니다.</p>
-                        ) : (
-                          <ul className="space-y-2">
-                            {[...client.latestMedicationLogs]
-                              .sort(
-                                (a, b) =>
-                                  new Date(b.logTimestamp).getTime() -
-                                  new Date(a.logTimestamp).getTime()
-                              )
-                              .slice(0, 8)
-                              .map((log) => (
-                              <li
-                                key={log.id}
-                                className="rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-700"
-                              >
-                                <p className="font-medium">{log.medicineName}</p>
-                                <p className="text-xs text-slate-500">
-                                  {formatDateTime(log.logTimestamp)}
-                                </p>
-                                {log.notes && (
-                                  <p className="text-xs text-slate-500">{log.notes}</p>
-                                )}
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                      </div>
+                          <path d="M5 12h14M13 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      </span>
                     </div>
                   </article>
                 );
@@ -2422,17 +2446,69 @@ const WeeklyDayCard = ({
       )}
 
       {activePanel === "drug" && (
-        <section className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6">
+        <section>
           <InlineDrugSearch />
         </section>
       )}
 
       {activePanel === "chat" && (
-        <section className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6">
+        <section>
           <MyChatRooms role="PROVIDER" userId={provider.userId} />
         </section>
       )}
       </main>
+      {selectedClient && selectedClientForm && (
+        <>
+          <div
+            className="fixed inset-0 z-40 bg-slate-900/70"
+            onClick={closeClientModal}
+          />
+          <div className="fixed inset-0 z-50 overflow-y-auto px-3 py-6 sm:flex sm:items-start sm:justify-center">
+            <div
+              aria-label={`${selectedClient.clientName}님의 복약 관리`}
+              aria-modal="true"
+              className="relative mx-auto max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-3xl bg-white p-4 shadow-2xl sm:p-6"
+              role="dialog"
+            >
+              <button
+                type="button"
+                onClick={closeClientModal}
+                className="absolute right-4 top-4 rounded-full border border-slate-200 p-2 text-slate-500 transition hover:border-slate-300 hover:text-slate-700"
+              >
+                <span className="sr-only">창 닫기</span>
+                <svg
+                  aria-hidden="true"
+                  className="h-4 w-4"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                  viewBox="0 0 24 24"
+                >
+                  <path d="M6 6l12 12M18 6l-12 12" strokeLinecap="round" />
+                </svg>
+              </button>
+              <div className="pr-8">
+                <p className="text-xs font-semibold uppercase tracking-wide text-indigo-600">
+                  클라이언트 복약 관리
+                </p>
+                <h3 className="mt-1 text-xl font-bold text-slate-900">
+                  {selectedClient.clientName} 님
+                </h3>
+                <p className="text-sm text-slate-500">
+                  복약 일정 {selectedClient.medicationPlans.length}건 · 최근 확인{" "}
+                  {selectedClient.latestMedicationLogs.length}건
+                </p>
+              </div>
+              {renderClientDetailSections(selectedClient, {
+                form: selectedClientForm,
+                summary: selectedSummary,
+                summaryLoadingState: selectedSummaryLoading,
+                summaryError: selectedSummaryError,
+              })}
+            </div>
+          </div>
+        </>
+      )}
       {selectedDrugDetailSeq && (
         <DrugDetailModal
           itemSeq={selectedDrugDetailSeq}

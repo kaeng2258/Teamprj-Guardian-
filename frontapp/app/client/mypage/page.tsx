@@ -1125,13 +1125,13 @@ export default function ClientMyPage() {
       )}
 
       {activePanel === "drug" && (
-        <section className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6">
+        <section>
           <InlineDrugSearch />
         </section>
       )}
 
       {activePanel === "chat" && (
-        <section className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6">
+        <section>
           <MyChatRooms role="CLIENT" userId={client.userId} />
         </section>
       )}

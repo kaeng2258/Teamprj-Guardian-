@@ -46,6 +46,7 @@ public class SecurityConfig {
                                 "/chat.html",
                                 "/chat",
                                 "/search.html",
+                                "/ws-stomp/**",
                                 "/search"
                         ).permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()

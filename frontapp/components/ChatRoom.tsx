@@ -341,47 +341,53 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
     };
   }, []);
 
-const rtcLabel = connected ? "WS 연결됨" : "WS 연결 대기";
-const rtcDotClass = connected ? "bg-emerald-500" : "bg-slate-400";
-const rtcTextClass = connected ? "text-emerald-700" : "text-slate-500";
+  const rtcLabel =
+    rtcStatus === "connected"
+      ? "WS 연결됨"
+      : rtcStatus === "connecting"
+      ? "WS 연결 중..."
+      : "WS 연결 안 됨";
 
   // --------- 렌더 ---------
   return (
     <section className="flex flex-col gap-4">
       {/* 상단 헤더 */}
-<header className="flex flex-col gap-2 border-b border-slate-200 pb-4 md:flex-row md:items-center md:justify-between">
-  <div>
-    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-600">
-      GUARDIAN CHAT
-    </p>
-    <h1 className="text-2xl font-bold text-slate-900">
-      실시간 채팅방 #{roomId}
-    </h1>
-    <p className="text-xs text-slate-500">
-      담당자와 클라이언트가 실시간으로 소통합니다.
-    </p>
-  </div>
-
-  {/* 🔽 여기 상태 뱃지 영역 */}
-  <div className="mt-2 flex items-center gap-3 text-xs md:mt-0">
-    <span className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1">
-      <span className={`h-2 w-2 rounded-full ${rtcDotClass}`} />
-      <span className={`font-medium ${rtcTextClass}`}>
-        {connected ? "실시간 채팅 연결됨" : "채팅 연결 대기중"}
-      </span>
-    </span>
-
-    <span className="text-slate-500">WS 상태: {rtcLabel}</span>
-  </div>
-</header>
+      <header className="flex items-center justify-between rounded-2xl border border-emerald-100 bg-emerald-50 px-6 py-4">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">
+            GUARDIAN CHAT
+          </p>
+          <h1 className="mt-1 text-lg font-semibold text-slate-900">
+            {title}
+          </h1>
+          <p className="text-xs text-emerald-700">
+            담당자와 클라이언트가 실시간으로 소통합니다.
+          </p>
+        </div>
+        <div className="flex flex-col items-end gap-1 text-xs">
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-3 py-1 font-medium text-emerald-700">
+              <span className="h-2 w-2 rounded-full bg-emerald-500" />
+              {connected ? "채팅 연결됨" : "채팅 연결 중..."}
+            </span>
+            <span className="ml-1 text-[11px] text-emerald-800">
+              {rtcLabel}
+            </span>
+          </div>
+          <span className="text-slate-500">
+            나:{" "}
+            <span className="font-semibold text-slate-800">
+              {displayMeName}
+            </span>{" "}
+            (ID: {me.id || "?"})
+          </span>
+        </div>
+      </header>
 
       {/* 가운데: 좌측 영상 / 우측 채팅 */}
       <div className="grid gap-4 lg:grid-cols-[3fr_2fr]">
         {/* ===== 왼쪽: WebRTC 영상 영역 ===== */}
-        {/* ===== 왼쪽: WebRTC 영상 영역 (밝은 UI) ===== */}
-{/* ===== 왼쪽: WebRTC 영상 영역 (세로 배치, 큰 화면) ===== */}
-{/* ===== 왼쪽: WebRTC 영상 영역 (적당 크기 + 한 화면에 들어오는 레이아웃) ===== */}
-{/* ===== 왼쪽: WebRTC 영상 영역 (FaceTime 스타일) ===== */}
+        {/* ===== 왼쪽: WebRTC 영상 영역 (FaceTime 스타일) ===== */}
 <section className="flex h-full flex-col gap-3 rounded-2xl border border-emerald-200 bg-white p-4">
   {/* 상단 컨트롤 바 */}
   <div className="flex flex-wrap items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2">
@@ -442,8 +448,6 @@ const rtcTextClass = connected ? "text-emerald-700" : "text-slate-500";
     </div>
   </div>
 </section>
-
-
 
 
         {/* ===== 오른쪽: 채팅 영역 ===== */}

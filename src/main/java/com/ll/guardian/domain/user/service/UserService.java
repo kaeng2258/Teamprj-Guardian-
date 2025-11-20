@@ -10,10 +10,19 @@ import com.ll.guardian.domain.user.dto.UserUpdateRequest;
 import com.ll.guardian.domain.user.entity.User;
 import com.ll.guardian.domain.user.repository.UserRepository;
 import com.ll.guardian.global.exception.GuardianException;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.List;
+import java.util.Objects;
+import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
+import org.springframework.web.multipart.MultipartFile;
 
 @Service
 @Transactional
@@ -22,6 +31,7 @@ public class UserService {
     private final UserRepository userRepository;
     private final ClientProfileRepository clientProfileRepository;
     private final PasswordEncoder passwordEncoder;
+    private final Path profileImageDir = Paths.get("uploads", "profile-images");
 
     public UserService(
             UserRepository userRepository,
@@ -72,7 +82,8 @@ public class UserService {
                 saved.getName(),
                 saved.getBirthDate(),
                 saved.getRole(),
-                saved.getStatus());
+                saved.getStatus(),
+                saved.getProfileImageUrl());
     }
 
     public UserResponse updateUser(Long userId, UserUpdateRequest request) {
@@ -84,7 +95,8 @@ public class UserService {
                 user.getName(),
                 user.getBirthDate(),
                 user.getRole(),
-                user.getStatus());
+                user.getStatus(),
+                user.getProfileImageUrl());
     }
 
     public void deleteUser(Long userId) {
@@ -106,12 +118,50 @@ public class UserService {
                 user.getName(),
                 user.getBirthDate(),
                 user.getRole(),
-                user.getStatus());
+                user.getStatus(),
+                user.getProfileImageUrl());
     }
 
     @Transactional(readOnly = true)
     public boolean isEmailAvailable(String email) {
         return userRepository.findByEmail(email).isEmpty();
+    }
+
+    public UserResponse updateProfileImage(Long userId, MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new GuardianException(HttpStatus.BAD_REQUEST, "업로드할 프로필 이미지를 선택해주세요.");
+        }
+
+        String contentType = file.getContentType();
+        if (contentType == null || !contentType.startsWith("image/")) {
+            throw new GuardianException(HttpStatus.BAD_REQUEST, "이미지 파일만 업로드할 수 있습니다.");
+        }
+        if (file.getSize() > 5 * 1024 * 1024) {
+            throw new GuardianException(HttpStatus.BAD_REQUEST, "이미지는 5MB 이하만 업로드할 수 있습니다.");
+        }
+
+        try {
+            Files.createDirectories(profileImageDir);
+            String extension = resolveExtension(Objects.requireNonNullElse(file.getOriginalFilename(), ""));
+            String filename = UUID.randomUUID() + extension;
+            Path target = profileImageDir.resolve(filename);
+            file.transferTo(target.toFile());
+
+            String url = "/files/profile-images/" + filename;
+            User user = getUser(userId);
+            user.updateProfile(user.getName(), url, null);
+
+            return new UserResponse(
+                    user.getId(),
+                    user.getEmail(),
+                    user.getName(),
+                    user.getBirthDate(),
+                    user.getRole(),
+                    user.getStatus(),
+                    user.getProfileImageUrl());
+        } catch (IOException e) {
+            throw new GuardianException(HttpStatus.INTERNAL_SERVER_ERROR, "프로필 이미지를 저장하지 못했습니다.");
+        }
     }
 
     private User getUser(Long userId) {
@@ -139,5 +189,17 @@ public class UserService {
             builder.append(" ").append(request.detailAddress().trim());
         }
         return builder.toString().trim();
+    }
+
+    private String resolveExtension(String original) {
+        String ext = "";
+        if (StringUtils.hasText(original) && original.contains(".")) {
+            ext = original.substring(original.lastIndexOf("."));
+        }
+        String normalized = ext.toLowerCase();
+        if (!List.of(".jpg", ".jpeg", ".png", ".gif", ".webp").contains(normalized)) {
+            return ".png";
+        }
+        return normalized;
     }
 }

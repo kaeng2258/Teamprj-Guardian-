@@ -16,20 +16,20 @@ import {
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8081";
 
-type ProviderOverview = {
+type ManagerOverview = {
   userId: number | null;
   email: string;
   name: string;
 };
 
-type ProviderDashboardResponse = {
-  providerId: number;
-  clients: ProviderClientSummary[];
+type ManagerDashboardResponse = {
+  managerId: number;
+  clients: ManagerClientSummary[];
   activeAlertCount: number;
   pendingMedicationCount: number;
 };
 
-type ProviderClientSummary = {
+type ManagerClientSummary = {
   clientId: number;
   clientName: string;
   medicationPlans: MedicationPlan[];
@@ -80,7 +80,7 @@ type EasyDrugSearchResult = {
   itemImage?: string;
 };
 
-type ProviderClientSearchResult = {
+type ManagerClientSearchResult = {
   clientId: number;
   name: string;
   email: string;
@@ -89,9 +89,9 @@ type ProviderClientSearchResult = {
   age?: number | null;
   medicationCycle?: string | null;
   currentlyAssigned: boolean;
-  assignedProviderId?: number | null;
-  assignedProviderName?: string | null;
-  assignedProviderEmail?: string | null;
+  assignedManagerId?: number | null;
+  assignedManagerName?: string | null;
+  assignedManagerEmail?: string | null;
   assignable: boolean;
 };
 
@@ -157,7 +157,7 @@ type MedicationWeeklySummary = {
   days: MedicationWeeklyDayStatus[];
 };
 
-type ProviderPanel = "client" | "drug" | "chat";
+type ManagerPanel = "client" | "drug" | "chat";
 
 const weeklyStatusConfig: Record<
   MedicationWeeklyDayStatus["status"],
@@ -189,8 +189,8 @@ const weeklyStatusConfig: Record<
   },
 };
 
-const providerQuickActions: Array<{
-  value: ProviderPanel;
+const managerQuickActions: Array<{
+  value: ManagerPanel;
   label: string;
   description: string;
   accent: string;
@@ -280,18 +280,18 @@ const createInitialFormState = (): PlanFormState => ({
   message: "",
 });
 
-export default function ProviderMyPage() {
+export default function ManagerMyPage() {
   const router = useRouter();
   const [isReady, setIsReady] = useState(false);
-  const [provider, setProvider] = useState<ProviderOverview>({
+  const [manager, setManager] = useState<ManagerOverview>({
     userId: null,
     email: "",
     name: "",
   });
-  const [dashboard, setDashboard] = useState<ProviderDashboardResponse | null>(
+  const [dashboard, setDashboard] = useState<ManagerDashboardResponse | null>(
     null
   );
-  const [providerProfileId, setProviderProfileId] = useState<number | null>(
+  const [managerProfileId, setManagerProfileId] = useState<number | null>(
     null
   );
   const [dashboardLoading, setDashboardLoading] = useState(false);
@@ -310,7 +310,7 @@ export default function ProviderMyPage() {
     Record<number, "idle" | "loading">
   >({});
   const [searchKeyword, setSearchKeyword] = useState("");
-  const [searchResults, setSearchResults] = useState<ProviderClientSearchResult[]>([]);
+  const [searchResults, setSearchResults] = useState<ManagerClientSearchResult[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState("");
   const [searchMessage, setSearchMessage] = useState("");
@@ -332,7 +332,7 @@ export default function ProviderMyPage() {
   const [clientModalClientId, setClientModalClientId] = useState<number | null>(null);
   const [clientFilter, setClientFilter] = useState("");
   const [activePanel, setActivePanel] =
-    useState<ProviderPanel>("client");
+    useState<ManagerPanel>("client");
   const [selectedDrugDetailSeq, setSelectedDrugDetailSeq] = useState<
     string | null
   >(null);
@@ -407,7 +407,7 @@ export default function ProviderMyPage() {
     const accessToken = window.localStorage.getItem("accessToken");
     const role = window.localStorage.getItem("userRole");
 
-    if (!accessToken || role !== "PROVIDER") {
+    if (!accessToken || role !== "MANAGER") {
       router.replace("/");
       return;
     }
@@ -415,7 +415,7 @@ export default function ProviderMyPage() {
     const storedEmail = window.localStorage.getItem("userEmail") ?? "";
     const storedUserId = window.localStorage.getItem("userId");
     const userId = storedUserId ? Number(storedUserId) : null;
-    setProvider({
+    setManager({
       email: storedEmail,
       userId,
       name: "",
@@ -428,7 +428,7 @@ export default function ProviderMyPage() {
             return;
           }
           const data: UserSummary = await response.json();
-          setProvider((prev) => ({
+          setManager((prev) => ({
             ...prev,
             name: data.name ?? "",
           }));
@@ -441,7 +441,7 @@ export default function ProviderMyPage() {
   }, [router]);
 
   const loadDashboard = useCallback(async () => {
-    if (!provider.userId) {
+    if (!manager.userId) {
       return;
     }
 
@@ -450,18 +450,18 @@ export default function ProviderMyPage() {
 
     try {
       const response = await fetch(
-        `${API_BASE_URL}/api/providers/${provider.userId}/dashboard`
+        `${API_BASE_URL}/api/managers/${manager.userId}/dashboard`
       );
       if (!response.ok) {
         const message = await extractApiError(
           response,
-          "제공자 대시보드를 불러오지 못했습니다."
+          "매니저 대시보드를 불러오지 못했습니다."
         );
         throw new Error(message);
       }
 
-      const data: ProviderDashboardResponse = await response.json();
-      const normalized: ProviderDashboardResponse = {
+      const data: ManagerDashboardResponse = await response.json();
+      const normalized: ManagerDashboardResponse = {
         ...data,
         clients: data.clients.map((client) => ({
           ...client,
@@ -473,7 +473,7 @@ export default function ProviderMyPage() {
         })),
       };
       setDashboard(normalized);
-      setProviderProfileId(data.providerId ?? null);
+      setManagerProfileId(data.managerId ?? null);
       const clients = normalized.clients;
       setPlanForms((prev) => {
         const next = { ...prev };
@@ -491,34 +491,34 @@ export default function ProviderMyPage() {
       const message =
         error instanceof Error
           ? error.message
-          : "제공자 대시보드를 불러오지 못했습니다.";
+          : "매니저 대시보드를 불러오지 못했습니다.";
       setDashboardError(message);
       setDashboard(null);
     } finally {
       setDashboardLoading(false);
     }
-  }, [provider.userId, loadWeeklySummaryForClient]);
+  }, [manager.userId, loadWeeklySummaryForClient]);
 
   useEffect(() => {
-    if (!isReady || !provider.userId) {
+    if (!isReady || !manager.userId) {
       return;
     }
     loadDashboard();
-  }, [isReady, provider.userId, loadDashboard]);
+  }, [isReady, manager.userId, loadDashboard]);
 
   const summarySections = useMemo(() => {
     return [
       {
         title: "담당자 정보",
-        description: "현재 로그인한 요양보호사/제공자의 기본 정보입니다.",
+        description: "현재 로그인한 요양보호사/매니저의 기본 정보입니다.",
         rows: [
           {
             label: "이름",
-            value: provider.name || "확인 중",
+            value: manager.name || "확인 중",
           },
           {
             label: "이메일",
-            value: provider.email || "확인 중",
+            value: manager.email || "확인 중",
           },
         ],
       },
@@ -557,7 +557,7 @@ export default function ProviderMyPage() {
         ],
       },
     ];
-  }, [provider, dashboard, dashboardLoading]);
+  }, [manager, dashboard, dashboardLoading]);
 
   const filteredClients = useMemo(() => {
     if (!dashboard?.clients) {
@@ -788,7 +788,7 @@ const WeeklyDayCard = ({
       event.preventDefault();
     }
 
-    if (!provider.userId) {
+    if (!manager.userId) {
       return;
     }
 
@@ -808,7 +808,7 @@ const WeeklyDayCard = ({
 
     try {
       const response = await fetch(
-        `${API_BASE_URL}/api/providers/${provider.userId}/clients/search?keyword=${encodeURIComponent(
+        `${API_BASE_URL}/api/managers/${manager.userId}/clients/search?keyword=${encodeURIComponent(
           keyword
         )}&size=20`
       );
@@ -821,7 +821,7 @@ const WeeklyDayCard = ({
         throw new Error(message);
       }
 
-      const data: ProviderClientSearchResult[] = await response.json();
+      const data: ManagerClientSearchResult[] = await response.json();
       setSearchResults(data);
       setSearchMessage(data.length === 0 ? "검색 결과가 없습니다." : "");
     } catch (error) {
@@ -839,7 +839,7 @@ const WeeklyDayCard = ({
 
   const openChatRoomForClient = useCallback(
     async (clientId: number): Promise<ChatRoomEnsureResult> => {
-      if (!providerProfileId) {
+      if (!managerProfileId) {
         return {
           success: false,
           message: "??? ?? ID? ??? ? ?? ???? ??? ?????.",
@@ -854,7 +854,7 @@ const WeeklyDayCard = ({
           },
           body: JSON.stringify({
             clientId,
-            providerId: providerProfileId,
+            managerId: managerProfileId,
           }),
         });
 
@@ -876,11 +876,11 @@ const WeeklyDayCard = ({
         return { success: false, message };
       }
     },
-    [providerProfileId]
+    [managerProfileId]
   );
 
   const handleAssignClient = async (clientId: number) => {
-    if (!provider.userId) {
+    if (!manager.userId) {
       return;
     }
 
@@ -889,7 +889,7 @@ const WeeklyDayCard = ({
 
     try {
       const response = await fetch(
-        `${API_BASE_URL}/api/providers/${provider.userId}/clients/assignments`,
+        `${API_BASE_URL}/api/managers/${manager.userId}/clients/assignments`,
         {
           method: "POST",
           headers: {
@@ -1406,7 +1406,7 @@ const WeeklyDayCard = ({
             planId: plan.id,
             medicineId: plan.medicineId,
             logTimestamp: new Date().toISOString(),
-            notes: "제공자가 복약을 확인했습니다.",
+            notes: "매니저가 복약을 확인했습니다.",
           }),
         }
       );
@@ -1482,7 +1482,7 @@ const WeeklyDayCard = ({
   };
 
   const renderClientDetailSections = (
-    client: ProviderClientSummary,
+    client: ManagerClientSummary,
     options: {
       form: PlanFormState;
       summary: MedicationWeeklySummary | null;
@@ -2083,7 +2083,7 @@ const WeeklyDayCard = ({
     return (
       <main className="flex min-h-screen items-center justify-center bg-slate-50">
         <div className="rounded-lg bg-white px-6 py-8 shadow-sm">
-          <p className="text-gray-600">제공자 정보를 불러오는 중입니다...</p>
+          <p className="text-gray-600">매니저 정보를 불러오는 중입니다...</p>
         </div>
       </main>
     );
@@ -2096,7 +2096,7 @@ const WeeklyDayCard = ({
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
               <p className="text-2xl font-semibold uppercase tracking-wide text-indigo-600 sm:text-3xl">
-                Guardian Provider
+                Guardian Manager
               </p>
               <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">
                 프로바이더 마이페이지
@@ -2112,7 +2112,7 @@ const WeeklyDayCard = ({
           </div>
           <div className="flex flex-col gap-3">
             <div className="flex gap-3 pb-2 sm:grid sm:grid-cols-3 sm:gap-3 sm:pb-0">
-              {providerQuickActions.map((action) => {
+              {managerQuickActions.map((action) => {
                 const isActive = activePanel === action.value;
                 return (
                   <button
@@ -2227,10 +2227,10 @@ const WeeklyDayCard = ({
               {searchResults.map((result) => {
                 const assignedToCurrent =
                   result.currentlyAssigned &&
-                  result.assignedProviderId === provider.userId;
+                  result.assignedManagerId === manager.userId;
                 const assignedToOther =
                   result.currentlyAssigned &&
-                  result.assignedProviderId !== provider.userId;
+                  result.assignedManagerId !== manager.userId;
                 const assignState = assignmentStates[result.clientId];
                 const buttonDisabled =
                   assignState === "loading" || assignedToCurrent || !result.assignable;
@@ -2279,7 +2279,7 @@ const WeeklyDayCard = ({
                         현재 배정:
                         {" "}
                         {assignedToOther
-                          ? `${result.assignedProviderName ?? "다른 제공자"} (${result.assignedProviderEmail ?? "정보 없음"})`
+                          ? `${result.assignedManagerName ?? "다른 매니저"} (${result.assignedManagerEmail ?? "정보 없음"})`
                           : assignedToCurrent
                           ? "현재 담당 중"
                           : "없음"}
@@ -2312,7 +2312,7 @@ const WeeklyDayCard = ({
                       )}
                       {!result.assignable && !assignedToCurrent && (
                         <p className="text-sm text-red-600">
-                          다른 제공자에게 배정된 클라이언트입니다.
+                          다른 매니저에게 배정된 클라이언트입니다.
                         </p>
                       )}
                     </div>
@@ -2467,7 +2467,11 @@ const WeeklyDayCard = ({
 
       {activePanel === "chat" && (
         <section>
-          <MyChatRooms role="PROVIDER" userId={provider.userId} />
+          <MyChatRooms
+            role="MANAGER"
+            userId={manager.userId}
+            managerProfileId={managerProfileId}
+          />
         </section>
       )}
       </main>
@@ -2481,13 +2485,13 @@ const WeeklyDayCard = ({
             <div
               aria-label={`${selectedClient.clientName}님의 복약 관리`}
               aria-modal="true"
-              className="modal-scroll relative mx-auto max-h-[90vh] w-full max-w-6xl overflow-y-auto rounded-3xl bg-white p-4 shadow-2xl sm:p-6"
+              className="relative mx-auto w-full max-w-[calc(72rem+2px)] overflow-hidden rounded-3xl bg-white shadow-2xl"
               role="dialog"
             >
               <button
                 type="button"
                 onClick={closeClientModal}
-                className="absolute right-4 top-4 rounded-full border border-slate-200 p-2 text-slate-500 transition hover:border-slate-300 hover:text-slate-700"
+                className="absolute right-4 top-4 z-10 rounded-full border border-slate-200 bg-white/90 p-2 text-slate-500 transition hover:border-slate-300 hover:text-slate-700"
               >
                 <span className="sr-only">창 닫기</span>
                 <svg
@@ -2501,24 +2505,28 @@ const WeeklyDayCard = ({
                   <path d="M6 6l12 12M18 6l-12 12" strokeLinecap="round" />
                 </svg>
               </button>
-              <div className="pr-8">
-                <p className="text-xs font-semibold uppercase tracking-wide text-indigo-600">
-                  클라이언트 복약 관리
-                </p>
-                <h3 className="mt-1 text-xl font-bold text-slate-900">
-                  {selectedClient.clientName} 님
-                </h3>
-                <p className="text-sm text-slate-500">
-                  복약 일정 {selectedClient.medicationPlans.length}건 · 최근 확인{" "}
-                  {selectedClient.latestMedicationLogs.length}건
-                </p>
+              <div className="modal-scroll max-h-[90vh] overflow-y-auto p-4 sm:p-6">
+                <div className="pr-2 sm:pr-4">
+                  <div className="pr-8">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-indigo-600">
+                      클라이언트 복약 관리
+                    </p>
+                    <h3 className="mt-1 text-xl font-bold text-slate-900">
+                      {selectedClient.clientName} 님
+                    </h3>
+                    <p className="text-sm text-slate-500">
+                      복약 일정 {selectedClient.medicationPlans.length}건 · 최근 확인{" "}
+                      {selectedClient.latestMedicationLogs.length}건
+                    </p>
+                  </div>
+                  {renderClientDetailSections(selectedClient, {
+                    form: selectedClientForm,
+                    summary: selectedSummary,
+                    summaryLoadingState: selectedSummaryLoading,
+                    summaryError: selectedSummaryError,
+                  })}
+                </div>
               </div>
-              {renderClientDetailSections(selectedClient, {
-                form: selectedClientForm,
-                summary: selectedSummary,
-                summaryLoadingState: selectedSummaryLoading,
-                summaryError: selectedSummaryError,
-              })}
             </div>
           </div>
         </>
@@ -2530,8 +2538,14 @@ const WeeklyDayCard = ({
         />
       )}
       <style jsx global>{`
+        .modal-scroll {
+          scrollbar-width: thin;
+          scrollbar-color: #818cf8 #f8fafc;
+          padding-right: 1rem;
+          scrollbar-gutter: stable both-edges;
+        }
         .modal-scroll::-webkit-scrollbar {
-          width: 12px;
+          width: 10px;
         }
         .modal-scroll::-webkit-scrollbar-track {
           background: #f8fafc;
@@ -2545,10 +2559,6 @@ const WeeklyDayCard = ({
         }
         .modal-scroll::-webkit-scrollbar-thumb:hover {
           background: linear-gradient(180deg, #818cf8, #4338ca);
-        }
-        .modal-scroll {
-          scrollbar-width: thin;
-          scrollbar-color: #818cf8 #f8fafc;
         }
       `}</style>
     </div>

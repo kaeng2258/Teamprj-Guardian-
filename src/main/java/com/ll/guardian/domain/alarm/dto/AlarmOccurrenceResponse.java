@@ -10,8 +10,8 @@ public record AlarmOccurrenceResponse(
         LocalDateTime scheduledTime,
         LocalDateTime actualResponseTime,
         AlarmOccurrenceStatus status,
-        boolean notifiedProvider,
-        String providerNotes) {
+        boolean notifiedManager,
+        String managerNotes) {
 
     public static AlarmOccurrenceResponse from(AlarmOccurrence occurrence) {
         return new AlarmOccurrenceResponse(
@@ -20,7 +20,7 @@ public record AlarmOccurrenceResponse(
                 occurrence.getScheduledTime(),
                 occurrence.getActualResponseTime(),
                 occurrence.getStatus(),
-                occurrence.isNotifiedProvider(),
-                occurrence.getProviderNotes());
+                occurrence.isNotifiedManager(),
+                occurrence.getManagerNotes());
     }
 }

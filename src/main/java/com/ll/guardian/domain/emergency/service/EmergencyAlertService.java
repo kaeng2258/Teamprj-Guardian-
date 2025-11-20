@@ -43,13 +43,13 @@ public class EmergencyAlertService {
         return EmergencyAlertResponse.from(saved);
     }
 
-    public EmergencyAlertResponse acknowledge(EmergencyAlertAcknowledgeRequest request, Long providerId) {
+    public EmergencyAlertResponse acknowledge(EmergencyAlertAcknowledgeRequest request, Long managerId) {
         EmergencyAlert alert = emergencyAlertRepository
                 .findById(request.alertId())
                 .orElseThrow(() -> new GuardianException(HttpStatus.NOT_FOUND, "긴급 호출 내역을 찾을 수 없습니다."));
-        User provider = getUser(providerId);
+        User manager = getUser(managerId);
         alert.markResolved(
-                provider,
+                manager,
                 request.resolvedAt() != null ? request.resolvedAt() : LocalDateTime.now(),
                 request.status(),
                 request.memo());

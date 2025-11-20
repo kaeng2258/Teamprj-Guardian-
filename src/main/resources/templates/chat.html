@@ -116,7 +116,7 @@
       <div class="toolbar">
         <input id="meId" type="number" placeholder="내 ID" />
         <input id="clientId" type="number" placeholder="clientId" />
-        <input id="providerId" type="number" placeholder="providerId" />
+        <input id="managerId" type="number" placeholder="managerId" />
         <button class="btn" id="btnOpen">방 생성/획득</button>
         <button class="btn secondary" id="btnDelete">방 삭제</button>
       </div>
@@ -161,7 +161,7 @@
     // 우측
     meId: document.getElementById('meId'),
     clientId: document.getElementById('clientId'),
-    providerId: document.getElementById('providerId'),
+    managerId: document.getElementById('managerId'),
     btnOpen: document.getElementById('btnOpen'),
     btnDelete: document.getElementById('btnDelete'),
     roomTitle: document.getElementById('roomTitle'),
@@ -228,7 +228,7 @@
       const n = document.createElement('div');
       n.className = 'th';
       n.dataset.roomId = t.roomId;
-      n.innerHTML = `<div><div class="name">Room #${t.roomId} (${t.clientId}↔${t.providerId})</div>
+      n.innerHTML = `<div><div class="name">Room #${t.roomId} (${t.clientId}↔${t.managerId})</div>
         <div class="snippet">${escapeHtml(t.lastMessageSnippet||'')}</div></div>
         <div class="time">${fmt(t.lastMessageAt)}</div>`;
       n.onclick = ()=>selectRoom(t.roomId);
@@ -260,7 +260,7 @@
           threadsCache.push({
             roomId: t.roomId,
             clientId: t.clientId,
-            providerId: t.providerId,
+            managerId: t.managerId,
             lastMessageAt: m.sentAt,
             lastMessageSnippet: m.content ?? ''
           });
@@ -412,11 +412,11 @@
 
   // ===== 방 생성/삭제 =====
   async function openRoom(){
-    const c = Number(els.clientId.value||0), p = Number(els.providerId.value||0);
-    if(!c || !p){ alert('clientId/providerId'); return; }
+    const c = Number(els.clientId.value||0), p = Number(els.managerId.value||0);
+    if(!c || !p){ alert('clientId/managerId'); return; }
     const r = await fetch(ENDPOINTS.openRoom(), {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({clientId:c, providerId:p})
+      body: JSON.stringify({clientId:c, managerId:p})
     });
     if(!r.ok){ alert('방 생성 실패'); return; }
     const room = await r.json();
@@ -611,7 +611,7 @@
     return {
       me: Number(p.get('me')||0) || null,
       client: Number(p.get('client')||0) || null,
-      provider: Number(p.get('provider')||0) || null
+      manager: Number(p.get('manager')||0) || null
     };
   }
 
@@ -629,12 +629,12 @@
     if (me) {
       await loadThreads(); // 현재 방 없으면 최신 방 자동 선택
 
-      // URL이 client/provider를 주면 즉시 방 생성/획득 후 구독
-      if (params.client && params.provider) {
+      // URL이 client/manager를 주면 즉시 방 생성/획득 후 구독
+      if (params.client && params.manager) {
         try{
           const r = await fetch(ENDPOINTS.openRoom(), {
             method:'POST', headers:{'Content-Type':'application/json'},
-            body: JSON.stringify({clientId: params.client, providerId: params.provider})
+            body: JSON.stringify({clientId: params.client, managerId: params.manager})
           });
           if (r.ok) {
             const room = await r.json();

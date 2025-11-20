@@ -4,10 +4,10 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? "https://localhost:8081";
+  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8081";
 
 type AuthMode = "login" | "register";
-type UserRoleOption = "CLIENT" | "PROVIDER";
+type UserRoleOption = "CLIENT" | "MANAGER";
 type RegisterRoleValue = "" | UserRoleOption;
 
 type ApiErrorPayload = {
@@ -40,7 +40,7 @@ type DaumPostcodeData = {
 
 const roleLabels: Record<UserRoleOption, string> = {
   CLIENT: "환자",
-  PROVIDER: "환자관리인",
+  MANAGER: "매니저",
 };
 
 declare global {

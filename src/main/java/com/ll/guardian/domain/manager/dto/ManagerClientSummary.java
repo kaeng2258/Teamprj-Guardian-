@@ -1,11 +1,11 @@
-package com.ll.guardian.domain.provider.dto;
+package com.ll.guardian.domain.manager.dto;
 
 import com.ll.guardian.domain.alarm.dto.MedicationPlanResponse;
 import com.ll.guardian.domain.alarm.dto.MedicationLogResponse;
 import com.ll.guardian.domain.emergency.entity.EmergencyAlert;
 import java.util.List;
 
-public record ProviderClientSummary(
+public record ManagerClientSummary(
         Long clientId,
         String clientName,
         List<MedicationPlanResponse> medicationPlans,

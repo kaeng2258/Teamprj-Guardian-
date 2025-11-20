@@ -4,31 +4,31 @@ import React, { useEffect, useState } from "react";
 import Link from "next/link";
 
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? "https://localhost:8081";
+  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8081";
 
 type ChatThread = {
   roomId: number;
   clientId: number;
-  providerId: number;
+  managerId: number;
   clientName?: string | null;
-  providerName?: string | null;
+  managerName?: string | null;
   lastMessageSnippet?: string | null;
   lastMessageAt?: string | null;
   readByClient?: boolean;
-  readByProvider?: boolean;
+  readByManager?: boolean;
 };
 
 type MyChatRoomsProps = {
-  role: "CLIENT" | "PROVIDER";
+  role: "CLIENT" | "MANAGER";
   userId?: number | null;
-  providerProfileId?: number | null;
+  managerProfileId?: number | null;
   refreshToken?: number;
 };
 
 export default function MyChatRooms({
   role,
   userId,
-  providerProfileId,
+  managerProfileId,
   refreshToken,
 }: MyChatRoomsProps) {
   const [threads, setThreads] = useState<ChatThread[]>([]);
@@ -37,7 +37,7 @@ export default function MyChatRooms({
 
   useEffect(() => {
     const effectiveUserId =
-      role === "PROVIDER" ? providerProfileId ?? userId ?? null : userId ?? null;
+      role === "MANAGER" ? managerProfileId ?? userId ?? null : userId ?? null;
 
     if (!effectiveUserId) return;
 
@@ -61,8 +61,8 @@ export default function MyChatRooms({
 
         // 내 역할에 맞는 방만 필터링
         const filtered =
-          role === "PROVIDER"
-            ? data.filter((t) => t.providerId === effectiveUserId)
+          role === "MANAGER"
+            ? data.filter((t) => t.managerId === effectiveUserId)
             : data.filter((t) => t.clientId === effectiveUserId);
 
         setThreads(filtered);
@@ -84,7 +84,7 @@ export default function MyChatRooms({
     return () => {
       active = false;
     };
-  }, [role, userId, providerProfileId, refreshToken]);
+  }, [role, userId, managerProfileId, refreshToken]);
 
   return (
     <section className="flex flex-col gap-4 rounded-xl border border-sky-200 bg-sky-50/70 p-6">
@@ -111,9 +111,9 @@ export default function MyChatRooms({
       <ul className="mt-4 grid gap-3">
         {threads.map((t) => {
           const roomId = t.roomId;
-          // PROVIDER → 상대는 clientName, CLIENT → providerName
+          // MANAGER → 상대는 clientName, CLIENT → managerName
           const otherName =
-            role === "PROVIDER" ? t.clientName : t.providerName;
+            role === "MANAGER" ? t.clientName : t.managerName;
           const displayName = otherName && otherName.trim().length > 0
             ? otherName
             : "이름 미등록";
@@ -121,8 +121,8 @@ export default function MyChatRooms({
           const lastTime = t.lastMessageAt ?? undefined;
           const lastSnippet = t.lastMessageSnippet ?? "";
           const unread =
-            role === "PROVIDER"
-              ? t.readByProvider === false
+            role === "MANAGER"
+              ? t.readByManager === false
               : t.readByClient === false;
 
           return (

@@ -42,7 +42,7 @@ public class AdminDashboardService {
     public Map<String, Object> getOverview() {
         Map<String, Object> result = new HashMap<>();
         result.put("clientCount", userRepository.countByRole(UserRole.CLIENT));
-        result.put("providerCount", userRepository.countByRole(UserRole.PROVIDER));
+        result.put("managerCount", userRepository.countByRole(UserRole.MANAGER));
         result.put("activeMatches", careMatchRepository.findAll().stream().filter(CareMatch::isCurrent).count());
         result.put("recentAlerts", emergencyAlertRepository.findByStatus(
                 com.ll.guardian.domain.emergency.EmergencyAlertStatus.PENDING));

@@ -43,7 +43,7 @@ public class AlarmOccurrenceService {
         AlarmOccurrence occurrence = alarmOccurrenceRepository
                 .findById(occurrenceId)
                 .orElseThrow(() -> new GuardianException(HttpStatus.NOT_FOUND, "알람 발생 이력을 찾을 수 없습니다."));
-        occurrence.updateStatus(request.status(), request.actualResponseTime(), request.providerNotes());
+        occurrence.updateStatus(request.status(), request.actualResponseTime(), request.managerNotes());
         return AlarmOccurrenceResponse.from(occurrence);
     }
 }

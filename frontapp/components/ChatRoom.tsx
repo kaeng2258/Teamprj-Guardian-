@@ -6,13 +6,13 @@ import { Client } from "@stomp/stompjs";
 import SockJS from "sockjs-client";
 
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? "https://localhost:8081";
+  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8081";
 
 // RTC용 STOMP 엔드포인트 (SockJS는 http/https 스킴만 허용)
-const rawWs = process.env.NEXT_PUBLIC_WS_URL ?? "https://localhost:8081/ws";
-const WS_ENDPOINT = rawWs.startsWith("ws")
-  ? rawWs.replace(/^ws/, "http") // ws → http, wss → https
-  : rawWs;
+const rawWs = process.env.NEXT_PUBLIC_WS_URL ?? "ws://localhost:8081/ws";
+const WS_ENDPOINT = rawWs.startsWith("http")
+  ? rawWs
+  : rawWs.replace(/^ws/, "http"); // ws → http, wss → https
 
 type Props = {
   roomId: number;
@@ -23,9 +23,9 @@ type Props = {
 type ThreadInfo = {
   roomId: number;
   clientId: number;
-  providerId: number;
+  managerId: number;
   clientName?: string | null;
-  providerName?: string | null;
+  managerName?: string | null;
   lastMessageSnippet?: string | null;
   lastMessageAt?: string | null;
 };
@@ -53,7 +53,7 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
     seen.current = s;
   }, [initialMessages]);
 
-  // 채팅방 정보 로딩 (클라이언트/제공자 이름 포함)
+  // 채팅방 정보 로딩 (클라이언트/매니저 이름 포함)
   useEffect(() => {
     if (!roomId) return;
     (async () => {
@@ -124,8 +124,8 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
       if (senderId === thread.clientId) {
         return thread.clientName || fallback || `클라이언트#${senderId}`;
       }
-      if (senderId === thread.providerId) {
-        return thread.providerName || fallback || `제공자#${senderId}`;
+      if (senderId === thread.managerId) {
+        return thread.managerName || fallback || `매니저#${senderId}`;
       }
     }
     return fallback || `사용자#${senderId}`;

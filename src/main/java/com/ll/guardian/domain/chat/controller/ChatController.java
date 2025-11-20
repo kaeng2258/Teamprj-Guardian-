@@ -86,7 +86,7 @@ public class ChatController {
 
     @PostMapping(value = "/rooms", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ChatThreadResponse openOrGetRoom(@RequestBody @Valid OpenRoomRequest req) {
-        return ChatThreadResponse.from(chatService.openOrGetRoom(req.clientId(), req.providerId()));
+        return ChatThreadResponse.from(chatService.openOrGetRoom(req.clientId(), req.managerId()));
     }
 
     @GetMapping("/rooms/{roomId}")
@@ -114,7 +114,7 @@ public class ChatController {
 
     public record OpenRoomRequest(
             @NotNull Long clientId,
-            @NotNull Long providerId
+            @NotNull Long managerId
     ) {}
 
     @MessageMapping("/rtc/{roomId}")

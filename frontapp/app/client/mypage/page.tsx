@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "";
+  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "http://localhost:8081";
 
 type ClientOverview = {
   userId: number | null;
@@ -24,10 +24,10 @@ type MedicationPlan = {
   alarmTime: string;
   daysOfWeek: string[];
   active: boolean;
-  providerName?: string | null;
-  providerEmail?: string | null;
-  providerPhone?: string | null;
-  providerOrganization?: string | null;
+  managerName?: string | null;
+  managerEmail?: string | null;
+  managerPhone?: string | null;
+  managerOrganization?: string | null;
 };
 
 type MedicationLog = {
@@ -119,7 +119,7 @@ const clientQuickActions: Array<{
   {
     value: "chat",
     label: "채팅방",
-    description: "제공자와 실시간 대화",
+    description: "매니저와 실시간 대화",
     accent: "bg-sky-500",
   },
 ];
@@ -973,15 +973,15 @@ export default function ClientMyPage() {
                 const statusLabel = alreadyConfirmed
                   ? `${formatLogTime(log?.logTimestamp)} 확인`
                   : "미확인";
-                const providerRaw = plan.providerName?.trim();
-                const providerName =
-                  providerRaw && providerRaw.length > 0
-                    ? providerRaw
-                    : "담당 제공자 정보 없음";
-                const providerMeta = [
-                  plan.providerOrganization?.trim(),
-                  plan.providerEmail?.trim(),
-                  plan.providerPhone?.trim(),
+                const managerRaw = plan.managerName?.trim();
+                const managerName =
+                  managerRaw && managerRaw.length > 0
+                    ? managerRaw
+                    : "담당 매니저 정보 없음";
+                const managerMeta = [
+                  plan.managerOrganization?.trim(),
+                  plan.managerEmail?.trim(),
+                  plan.managerPhone?.trim(),
                 ]
                   .filter((value) => value && value.length > 0)
                   .join(" · ");
@@ -1014,13 +1014,13 @@ export default function ClientMyPage() {
                     </div>
                     <div className="mt-3 rounded-xl border border-slate-200 bg-white px-3 py-2">
                       <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                        담당 제공자
+                        담당 매니저
                       </p>
                       <p className="text-sm font-semibold text-slate-900">
-                        {providerName}
+                        {managerName}
                       </p>
                       <p className="text-xs text-slate-500">
-                        {providerMeta || "연락처 정보 없음"}
+                        {managerMeta || "연락처 정보 없음"}
                       </p>
                     </div>
                     <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -1117,7 +1117,7 @@ export default function ClientMyPage() {
             다음 단계 미리 보기
           </h2>
           <p className="mt-1.5 text-sm text-indigo-700">
-            복약 일정, 알림 이력, 담당 제공자와의 커뮤니케이션 도구가 곧 연결될 예정입니다.
+            복약 일정, 알림 이력, 담당 매니저와의 커뮤니케이션 도구가 곧 연결될 예정입니다.
             필요한 기능이 있다면 관리자에게 알려주세요.
           </p>
         </section>

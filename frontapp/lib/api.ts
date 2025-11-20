@@ -1,7 +1,7 @@
 // frontapp/lib/api.ts
 
 export const API_BASE =
-  process.env.NEXT_PUBLIC_API_URL ?? "https://localhost:8081";
+  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8081";
 
 // 공통 fetch 래퍼
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
@@ -54,10 +54,10 @@ export type DrugSummaryItem = {
  * -> List<ChatThreadResponse>
  * 를 이용해서 프론트에서 쓰기 좋은 RoomSummary 형태로 변환
  */
-async function listRooms(params: { providerId?: number; clientId?: number }) {
-  const userId = params.providerId ?? params.clientId;
+async function listRooms(params: { managerId?: number; clientId?: number }) {
+  const userId = params.managerId ?? params.clientId;
   if (!userId) {
-    throw new Error("listRooms 호출 시 providerId 또는 clientId 중 하나는 필요합니다.");
+    throw new Error("listRooms 호출 시 managerId 또는 clientId 중 하나는 필요합니다.");
   }
 
   // 서버에서 내려주는 ThreadResponse 가 이런 모양이라고 가정
@@ -98,9 +98,9 @@ function listMyRoomsForClient(clientId: number) {
   return listRooms({ clientId });
 }
 
-// 프로바이더 본인 방 목록
-function listMyRoomsForProvider(providerId: number) {
-  return listRooms({ providerId });
+// 매니저 본인 방 목록
+function listMyRoomsForManager(managerId: number) {
+  return listRooms({ managerId });
 }
 
 /* ---------- e약은요 REST ---------- */
@@ -150,7 +150,7 @@ export const api = {
   listRooms,
   getRoomHistory,
   listMyRoomsForClient,
-  listMyRoomsForProvider,
+  listMyRoomsForManager,
 
   // e약은요
   drugSearch,

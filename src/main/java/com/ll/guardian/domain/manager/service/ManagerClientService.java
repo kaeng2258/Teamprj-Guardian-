@@ -1,8 +1,8 @@
-package com.ll.guardian.domain.provider.service;
+package com.ll.guardian.domain.manager.service;
 
 import com.ll.guardian.domain.matching.entity.CareMatch;
 import com.ll.guardian.domain.matching.repository.CareMatchRepository;
-import com.ll.guardian.domain.provider.dto.ProviderClientSearchResponse;
+import com.ll.guardian.domain.manager.dto.ManagerClientSearchResponse;
 import com.ll.guardian.domain.user.UserRole;
 import com.ll.guardian.domain.user.entity.User;
 import com.ll.guardian.domain.user.repository.UserRepository;
@@ -19,20 +19,20 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @Transactional(readOnly = true)
-public class ProviderClientService {
+public class ManagerClientService {
 
     private static final int DEFAULT_LIMIT = 20;
 
     private final UserRepository userRepository;
     private final CareMatchRepository careMatchRepository;
 
-    public ProviderClientService(UserRepository userRepository, CareMatchRepository careMatchRepository) {
+    public ManagerClientService(UserRepository userRepository, CareMatchRepository careMatchRepository) {
         this.userRepository = userRepository;
         this.careMatchRepository = careMatchRepository;
     }
 
-    public List<ProviderClientSearchResponse> searchClients(Long providerId, String keyword, Integer limit) {
-        User provider = getProvider(providerId);
+    public List<ManagerClientSearchResponse> searchClients(Long managerId, String keyword, Integer limit) {
+        User manager = getManager(managerId);
 
         if (keyword == null || keyword.trim().isEmpty()) {
             return Collections.emptyList();
@@ -54,32 +54,32 @@ public class ProviderClientService {
                 .collect(Collectors.toMap(match -> match.getClient().getId(), match -> match));
 
         return clients.stream()
-                .map(client -> toResponse(provider, client, currentMatches.get(client.getId())))
+                .map(client -> toResponse(manager, client, currentMatches.get(client.getId())))
                 .toList();
     }
 
-    public ProviderClientSearchResponse getClientDetail(Long providerId, Long clientId) {
-        User provider = getProvider(providerId);
+    public ManagerClientSearchResponse getClientDetail(Long managerId, Long clientId) {
+        User manager = getManager(managerId);
         User client = userRepository
                 .findByIdAndRole(clientId, UserRole.CLIENT)
                 .orElseThrow(() -> new GuardianException(HttpStatus.NOT_FOUND, "클라이언트를 찾을 수 없습니다."));
 
         CareMatch match = careMatchRepository.findFirstByClientIdAndCurrentTrue(client.getId()).orElse(null);
-        return toResponse(provider, client, match);
+        return toResponse(manager, client, match);
     }
 
-    private ProviderClientSearchResponse toResponse(User provider, User client, CareMatch match) {
+    private ManagerClientSearchResponse toResponse(User manager, User client, CareMatch match) {
         String address = client.getClientProfile() != null ? client.getClientProfile().getAddress() : null;
         Integer age = client.getClientProfile() != null ? client.getClientProfile().getAge() : null;
         String medicationCycle = client.getClientProfile() != null ? client.getClientProfile().getMedicationCycle() : null;
 
         boolean currentlyAssigned = match != null && match.isCurrent();
-        Long assignedProviderId = currentlyAssigned ? match.getProvider().getId() : null;
-        String assignedProviderName = currentlyAssigned ? match.getProvider().getName() : null;
-        String assignedProviderEmail = currentlyAssigned ? match.getProvider().getEmail() : null;
-        boolean assignable = !currentlyAssigned || Objects.equals(assignedProviderId, provider.getId());
+        Long assignedManagerId = currentlyAssigned ? match.getManager().getId() : null;
+        String assignedManagerName = currentlyAssigned ? match.getManager().getName() : null;
+        String assignedManagerEmail = currentlyAssigned ? match.getManager().getEmail() : null;
+        boolean assignable = !currentlyAssigned || Objects.equals(assignedManagerId, manager.getId());
 
-        return new ProviderClientSearchResponse(
+        return new ManagerClientSearchResponse(
                 client.getId(),
                 client.getName(),
                 client.getEmail(),
@@ -88,19 +88,19 @@ public class ProviderClientService {
                 age,
                 medicationCycle,
                 currentlyAssigned,
-                assignedProviderId,
-                assignedProviderName,
-                assignedProviderEmail,
+                assignedManagerId,
+                assignedManagerName,
+                assignedManagerEmail,
                 assignable);
     }
 
-    private User getProvider(Long providerId) {
-        User provider = userRepository
-                .findById(providerId)
-                .orElseThrow(() -> new GuardianException(HttpStatus.NOT_FOUND, "제공자를 찾을 수 없습니다."));
-        if (provider.getRole() != UserRole.PROVIDER) {
-            throw new GuardianException(HttpStatus.BAD_REQUEST, "제공자 계정이 아닙니다.");
+    private User getManager(Long managerId) {
+        User manager = userRepository
+                .findById(managerId)
+                .orElseThrow(() -> new GuardianException(HttpStatus.NOT_FOUND, "매니저를 찾을 수 없습니다."));
+        if (manager.getRole() != UserRole.MANAGER) {
+            throw new GuardianException(HttpStatus.BAD_REQUEST, "매니저 계정이 아닙니다.");
         }
-        return provider;
+        return manager;
     }
 }

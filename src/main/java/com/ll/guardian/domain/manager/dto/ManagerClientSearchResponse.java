@@ -1,6 +1,6 @@
-package com.ll.guardian.domain.provider.dto;
+package com.ll.guardian.domain.manager.dto;
 
-public record ProviderClientSearchResponse(
+public record ManagerClientSearchResponse(
         Long clientId,
         String name,
         String email,
@@ -9,7 +9,7 @@ public record ProviderClientSearchResponse(
         Integer age,
         String medicationCycle,
         boolean currentlyAssigned,
-        Long assignedProviderId,
-        String assignedProviderName,
-        String assignedProviderEmail,
+        Long assignedManagerId,
+        String assignedManagerName,
+        String assignedManagerEmail,
         boolean assignable) {}

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChatMessage, useStomp } from "@/hooks/useStomp";
 import { Client } from "@stomp/stompjs";
 import SockJS from "sockjs-client";
@@ -69,15 +69,17 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
   }, [roomId]);
 
   // STOMP 채팅 연결
+  const onMessageHandler = useCallback((msg: ChatMessage) => {
+    const key = buildKey(msg);
+    if (seen.current.has(key)) return;
+    seen.current.add(key);
+    setMessages((prev) => [...prev, msg]);
+  }, []);
+
   const { connected, sendMessage } = useStomp({
     roomId,
     me,
-    onMessage: (msg) => {
-      const key = buildKey(msg);
-      if (seen.current.has(key)) return;
-      seen.current.add(key);
-      setMessages((prev) => [...prev, msg]);
-    },
+    onMessage: onMessageHandler,
   });
 
   // 2초 폴링 (백업용)
@@ -166,6 +168,67 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
     [thread, roomId]
   );
 
+  const sendRtc = useCallback((type: string, payload: any = {}) => {
+    const client = rtcClientRef.current;
+    if (!client || !client.connected || !roomId || !me.id) return;
+    const body = { type, from: me.id, ...payload };
+    client.publish({
+      destination: `/app/rtc/${roomId}`,
+      body: JSON.stringify(body),
+    });
+  }, [roomId, me.id]);
+
+  const ensurePc = useCallback(() => {
+    if (pcRef.current) return pcRef.current;
+
+    const pc = new RTCPeerConnection({
+      iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+    });
+
+    pc.onicecandidate = (e) => {
+      if (e.candidate) {
+        sendRtc("candidate", { candidate: e.candidate });
+      }
+    };
+
+    pc.ontrack = (e) => {
+      const stream = e.streams[0];
+      if (remoteVideoRef.current) {
+        remoteVideoRef.current.srcObject = stream;
+      }
+    };
+
+    pc.onconnectionstatechange = () => {
+      // console.log("pc state", pc.connectionState);
+    };
+
+    pcRef.current = pc;
+    return pc;
+  }, [sendRtc]);
+
+  const handleRtcSignal = useCallback(async (msg: any) => {
+    const pc = ensurePc();
+
+    if (msg.type === "offer" && msg.sdp) {
+      await pc.setRemoteDescription({ type: "offer", sdp: msg.sdp });
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      sendRtc("answer", { sdp: answer.sdp });
+    } else if (msg.type === "answer" && msg.sdp) {
+      await pc.setRemoteDescription({ type: "answer", sdp: msg.sdp });
+    } else if (msg.type === "candidate" && msg.candidate) {
+      try {
+        await pc.addIceCandidate(new RTCIceCandidate(msg.candidate));
+      } catch (e) {
+        console.error("ICE 추가 실패", e);
+      }
+    } else if (msg.type === "video-off") {
+      if (remoteVideoRef.current) {
+        remoteVideoRef.current.srcObject = null;
+      }
+    }
+  }, [ensurePc, sendRtc]);
+
   // ===== WebRTC + RTC STOMP =====
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
@@ -219,68 +282,7 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
       rtcClientRef.current = null;
       setRtcStatus("disconnected");
     };
-  }, [roomId, me.id]);
-
-  const sendRtc = (type: string, payload: any = {}) => {
-    const client = rtcClientRef.current;
-    if (!client || !client.connected || !roomId || !me.id) return;
-    const body = { type, from: me.id, ...payload };
-    client.publish({
-      destination: `/app/rtc/${roomId}`,
-      body: JSON.stringify(body),
-    });
-  };
-
-  const ensurePc = () => {
-    if (pcRef.current) return pcRef.current;
-
-    const pc = new RTCPeerConnection({
-      iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
-    });
-
-    pc.onicecandidate = (e) => {
-      if (e.candidate) {
-        sendRtc("candidate", { candidate: e.candidate });
-      }
-    };
-
-    pc.ontrack = (e) => {
-      const stream = e.streams[0];
-      if (remoteVideoRef.current) {
-        remoteVideoRef.current.srcObject = stream;
-      }
-    };
-
-    pc.onconnectionstatechange = () => {
-      // console.log("pc state", pc.connectionState);
-    };
-
-    pcRef.current = pc;
-    return pc;
-  };
-
-  const handleRtcSignal = async (msg: any) => {
-    const pc = ensurePc();
-
-    if (msg.type === "offer" && msg.sdp) {
-      await pc.setRemoteDescription({ type: "offer", sdp: msg.sdp });
-      const answer = await pc.createAnswer();
-      await pc.setLocalDescription(answer);
-      sendRtc("answer", { sdp: answer.sdp });
-    } else if (msg.type === "answer" && msg.sdp) {
-      await pc.setRemoteDescription({ type: "answer", sdp: msg.sdp });
-    } else if (msg.type === "candidate" && msg.candidate) {
-      try {
-        await pc.addIceCandidate(new RTCIceCandidate(msg.candidate));
-      } catch (e) {
-        console.error("ICE 추가 실패", e);
-      }
-    } else if (msg.type === "video-off") {
-      if (remoteVideoRef.current) {
-        remoteVideoRef.current.srcObject = null;
-      }
-    }
-  };
+  }, [roomId, me.id, handleRtcSignal]);
 
   const startCamera = async () => {
     if (camOn) return;

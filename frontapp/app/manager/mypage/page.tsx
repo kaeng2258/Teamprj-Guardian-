@@ -2099,7 +2099,7 @@ const WeeklyDayCard = ({
                 Manager
               </p>
               <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">
-                매니저
+                {manager.name} 매니저
               </h1>
             </div>
             <button
@@ -2356,7 +2356,7 @@ const WeeklyDayCard = ({
           </div>
 
           <div className="mt-3">
-            <label className="flex flex-col gap-1 text-sm text-slate-600 sm:max-w-sm">
+            <label className="flex flex-col gap-1 text-sm text-slate-600">
               <span>이름 검색</span>
               <input
                 className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"

@@ -127,6 +127,9 @@ public class MedicationPlanService {
     }
 
     private Medicine findOrCreateByName(ManualMedicineRequest manual) {
+        if (manual == null || !StringUtils.hasText(manual.name())) {
+            throw new GuardianException(HttpStatus.BAD_REQUEST, "약품 이름을 입력해주세요.");
+        }
         String normalizedName = manual.name().trim();
         return medicineRepository
                 .findByNameIgnoreCase(normalizedName)

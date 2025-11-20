@@ -197,8 +197,8 @@ const managerQuickActions: Array<{
 }> = [
   {
     value: "client",
-    label: "클라이언트 관리",
-    description: "담당자 배정 및 복약 일정",
+    label: "복약 관리",
+    description: "이용자 배정 및 복약 일정",
     accent: "bg-indigo-600",
   },
   {
@@ -509,7 +509,7 @@ export default function ManagerMyPage() {
   const summarySections = useMemo(() => {
     return [
       {
-        title: "담당자 정보",
+        title: "이용자 정보",
         description: "현재 로그인한 요양보호사/매니저의 기본 정보입니다.",
         rows: [
           {
@@ -525,10 +525,10 @@ export default function ManagerMyPage() {
       {
         title: "관리 현황",
         description:
-          "복약 스케줄, 알림, 클라이언트 매칭 정보를 한눈에 확인하세요.",
+          "복약 스케줄, 알림, 매칭 정보를 한눈에 확인하세요.",
         rows: [
           {
-            label: "담당 클라이언트",
+            label: "복약관리 인원",
             value:
               dashboardLoading && !dashboard
                 ? "확인 중"
@@ -816,7 +816,7 @@ const WeeklyDayCard = ({
       if (!response.ok) {
         const message = await extractApiError(
           response,
-          "클라이언트를 검색하지 못했습니다."
+          "이용자를 검색하지 못했습니다."
         );
         throw new Error(message);
       }
@@ -828,7 +828,7 @@ const WeeklyDayCard = ({
       const message =
         error instanceof Error
           ? error.message
-          : "클라이언트를 검색하지 못했습니다.";
+          : "이용자를 검색하지 못했습니다.";
       setSearchError(message);
       setSearchResults([]);
       setSearchMessage("");
@@ -902,7 +902,7 @@ const WeeklyDayCard = ({
       if (!response.ok) {
         const message = await extractApiError(
           response,
-          "클라이언트를 배정하지 못했습니다."
+          "배정하지 못했습니다."
         );
         throw new Error(message);
       }
@@ -913,8 +913,8 @@ const WeeklyDayCard = ({
       }
       const chatResult = await openChatRoomForClient(clientId);
       const successText = chatResult.success
-        ? "클라이언트를 배정하고 채팅방을 자동으로 개설했습니다."
-        : `클라이언트 배정은 완료되었지만 채팅방 개설 중 문제가 발생했습니다.${
+        ? "배정하고 채팅방을 자동으로 개설했습니다."
+        : `채팅방 개설 중 문제가 발생했습니다.${
             chatResult.message ? ` ${chatResult.message}` : ""
           }`;
       setAssignmentMessages((prev) => ({
@@ -928,7 +928,7 @@ const WeeklyDayCard = ({
       const message =
         error instanceof Error
           ? error.message
-          : "클라이언트를 배정하지 못했습니다.";
+          : "배정하지 못했습니다.";
       setAssignmentMessages((prev) => ({
         ...prev,
         [clientId]: { type: "error", text: message },
@@ -2096,10 +2096,10 @@ const WeeklyDayCard = ({
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
               <p className="text-2xl font-semibold uppercase tracking-wide text-indigo-600 sm:text-3xl">
-                Guardian Manager
+                Manager
               </p>
               <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">
-                프로바이더 마이페이지
+                매니저
               </h1>
             </div>
             <button
@@ -2180,10 +2180,10 @@ const WeeklyDayCard = ({
               <div className="flex flex-col gap-2 border-b border-slate-200 pb-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-lg font-semibold text-slate-900">
-                클라이언트 검색 및 배정
+                검색 및 배정
               </h2>
               <p className="text-sm text-slate-600">
-                이름 또는 이메일로 클라이언트를 찾아 배정 여부를 확인하고 배정을 진행하세요.
+                이름 또는 이메일로 이용자를 찾아 배정 여부를 확인하고 배정을 진행하세요.
               </p>
             </div>
           </div>
@@ -2202,7 +2202,7 @@ const WeeklyDayCard = ({
                   setSearchError("");
                 }
               }}
-              placeholder="클라이언트 이름 또는 이메일"
+              placeholder="이름 또는 이메일"
               value={searchKeyword}
             />
             <button
@@ -2312,7 +2312,7 @@ const WeeklyDayCard = ({
                       )}
                       {!result.assignable && !assignedToCurrent && (
                         <p className="text-sm text-red-600">
-                          다른 매니저에게 배정된 클라이언트입니다.
+                          다른 매니저에게 배정된 이용자입니다.
                         </p>
                       )}
                     </div>
@@ -2331,7 +2331,7 @@ const WeeklyDayCard = ({
           <div className="flex flex-col gap-2 border-b border-slate-200 pb-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-lg font-semibold text-slate-900">
-                담당 클라이언트 복약 관리
+                복약 관리
               </h2>
               <p className="text-sm text-slate-600">
                 복약 스케줄을 등록하거나 복약 여부를 대신 기록할 수 있습니다.
@@ -2357,7 +2357,7 @@ const WeeklyDayCard = ({
 
           <div className="mt-3">
             <label className="flex flex-col gap-1 text-sm text-slate-600 sm:max-w-sm">
-              <span>클라이언트 이름 검색</span>
+              <span>이름 검색</span>
               <input
                 className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
                 placeholder="이름을 입력하세요"
@@ -2377,11 +2377,11 @@ const WeeklyDayCard = ({
             </div>
           ) : !dashboard || dashboard.clients.length === 0 ? (
             <div className="mt-4 rounded-xl bg-white px-3 py-2 text-sm text-slate-600">
-              현재 배정된 클라이언트가 없습니다. 관리자에게 문의해주세요.
+              현재 배정된 이용자가 없습니다. 관리자에게 문의해주세요.
             </div>
           ) : filteredClients.length === 0 ? (
             <div className="mt-4 rounded-xl bg-white px-3 py-2 text-sm text-slate-600">
-              검색 조건에 맞는 클라이언트가 없습니다.
+              검색 조건에 맞는 이용자가 없습니다.
             </div>
           ) : (
             <div className="mt-4 space-y-6">
@@ -2509,7 +2509,7 @@ const WeeklyDayCard = ({
                 <div className="pr-2 sm:pr-4">
                   <div className="pr-8">
                     <p className="text-xs font-semibold uppercase tracking-wide text-indigo-600">
-                      클라이언트 복약 관리
+                      복약 관리
                     </p>
                     <h3 className="mt-1 text-xl font-bold text-slate-900">
                       {selectedClient.clientName} 님

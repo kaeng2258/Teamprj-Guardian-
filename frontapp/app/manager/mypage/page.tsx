@@ -642,6 +642,9 @@ export default function ManagerMyPage() {
       FRIDAY: "금",
       SATURDAY: "토",
       SUNDAY: "일",
+      WEEKDAY: "평일",
+      WEEKEND: "주말",
+      ALL: "매일",
     };
     return labels[normalized] ?? value;
   }, []);
@@ -1304,7 +1307,8 @@ const WeeklyDayCard = ({
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            alarmTime: form.alarmTime,
+            // 백엔드 LocalTime 디시리얼라이저는 초 단위를 요구하므로 HH:mm → HH:mm:ss 로 보낸다.
+            alarmTime: form.alarmTime ? `${form.alarmTime}:00` : "",
             daysOfWeek: form.daysOfWeek,
             items: itemsPayload,
           }),

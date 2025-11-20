@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { ChatMessage, useStomp } from "@/hooks/useStomp";
 import { Client } from "@stomp/stompjs";
 import SockJS from "sockjs-client";
+import { useRouter } from "next/navigation";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8081";
@@ -38,10 +39,16 @@ const buildKey = (m: ChatMessage) =>
 
 // --------- 컴포넌트 ---------
 export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
+  const router = useRouter();
   // ===== 채팅 관련 =====
   const [thread, setThread] = useState<ThreadInfo | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
   const [input, setInput] = useState("");
+  const [camOn, setCamOn] = useState(false);
+  const [micOn, setMicOn] = useState(false);
+  const [rtcStatus, setRtcStatus] = useState<
+    "disconnected" | "connecting" | "connected"
+  >("disconnected");
   const logRef = useRef<HTMLDivElement | null>(null);
   const seen = useRef<Set<string>>(new Set());
 
@@ -168,6 +175,12 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
     [thread, roomId]
   );
 
+  const localVideoRef = useRef<HTMLVideoElement | null>(null);
+  const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
+  const pcRef = useRef<RTCPeerConnection | null>(null);
+  const localStreamRef = useRef<MediaStream | null>(null);
+  const rtcClientRef = useRef<Client | null>(null);
+
   const sendRtc = useCallback((type: string, payload: any = {}) => {
     const client = rtcClientRef.current;
     if (!client || !client.connected || !roomId || !me.id) return;
@@ -229,18 +242,10 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
     }
   }, [ensurePc, sendRtc]);
 
-  // ===== WebRTC + RTC STOMP =====
-  const localVideoRef = useRef<HTMLVideoElement | null>(null);
-  const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
-  const pcRef = useRef<RTCPeerConnection | null>(null);
-  const localStreamRef = useRef<MediaStream | null>(null);
-  const [camOn, setCamOn] = useState(false);
-  const [micOn, setMicOn] = useState(false);
-  const [rtcStatus, setRtcStatus] = useState<"disconnected" | "connecting" | "connected">(
-    "disconnected"
-  );
-
-  const rtcClientRef = useRef<Client | null>(null);
+  const handleRtcSignalRef = useRef(handleRtcSignal);
+  useEffect(() => {
+    handleRtcSignalRef.current = handleRtcSignal;
+  }, [handleRtcSignal]);
 
   // STOMP 연결 + 시그널 구독
   useEffect(() => {
@@ -257,7 +262,7 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
           try {
             const msg = JSON.parse(frame.body) as any;
             if (!msg || msg.from === me.id) return;
-            await handleRtcSignal(msg);
+            await handleRtcSignalRef.current(msg);
           } catch (e) {
             console.error("RTC 메시지 파싱 실패", e);
           }
@@ -282,7 +287,7 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
       rtcClientRef.current = null;
       setRtcStatus("disconnected");
     };
-  }, [roomId, me.id, handleRtcSignal]);
+  }, [roomId, me.id]);
 
   const startCamera = async () => {
     if (camOn) return;
@@ -352,18 +357,29 @@ const rtcTextClass = connected ? "text-emerald-700" : "text-slate-500";
     <section className="flex flex-col gap-4">
       {/* 상단 헤더 */}
 <header className="flex flex-col gap-2 border-b border-slate-200 pb-4 md:flex-row md:items-center md:justify-between">
-  <div>
-    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-600">
-      GUARDIAN CHAT
-    </p>
-    <h1 className="text-2xl font-bold text-slate-900">
-      실시간 채팅방 #{roomId}
-    </h1>
-    <p className="text-xs text-slate-500">
-      담당자와 클라이언트가 실시간으로 소통합니다.
-    </p>
-  </div>
-
+          <div className="flex items-center gap-3"> {/* Added a flex container for button and title */}
+            <button
+              type="button"
+              onClick={() => router.back()}
+              className="rounded-full bg-slate-100 p-2 text-slate-600 hover:bg-slate-200 transition-colors"
+              aria-label="뒤로가기"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+              </svg>
+            </button>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-600">
+                GUARDIAN CHAT
+              </p>
+              <h1 className="text-2xl font-bold text-slate-900">
+                실시간 채팅방 #{roomId}
+              </h1>
+              <p className="text-xs text-slate-500">
+                담당자와 클라이언트가 실시간으로 소통합니다.
+              </p>
+            </div>
+          </div>
   {/* 🔽 여기 상태 뱃지 영역 */}
   <div className="mt-2 flex items-center gap-3 text-xs md:mt-0">
     <span className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1">

@@ -11,6 +11,7 @@ type ClientOverview = {
   userId: number | null;
   email: string;
   name: string;
+  profileImageUrl?: string | null;
 };
 
 type PushStatus = "idle" | "requesting" | "enabled" | "error";
@@ -89,6 +90,7 @@ type UserSummary = {
   name: string;
   role: string;
   status: string;
+  profileImageUrl?: string | null;
 };
 
 type WebPushConfigResponse = {
@@ -156,6 +158,7 @@ export default function ClientMyPage() {
     userId: null,
     email: "",
     name: "",
+    profileImageUrl: "",
   });
   const [plans, setPlans] = useState<MedicationPlan[]>([]);
   const [planLoading, setPlanLoading] = useState(false);
@@ -175,6 +178,9 @@ export default function ClientMyPage() {
   const [pushStatus, setPushStatus] = useState<PushStatus>("idle");
   const [pushMessage, setPushMessage] = useState("");
   const [activePanel, setActivePanel] = useState<ClientPanel>("schedule");
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [avatarError, setAvatarError] = useState("");
+  const [avatarMessage, setAvatarMessage] = useState("");
 
   const pushCapable = useMemo(
     () => supportsPushApi && pushServiceEnabled && Boolean(vapidPublicKey),
@@ -201,6 +207,7 @@ export default function ClientMyPage() {
       email: storedEmail,
       userId,
       name: "",
+      profileImageUrl: "",
     });
 
     if (userId) {
@@ -214,6 +221,7 @@ export default function ClientMyPage() {
           setClient((prev) => ({
             ...prev,
             name: data.name ?? "",
+            profileImageUrl: data.profileImageUrl ?? prev.profileImageUrl ?? "",
           }));
         } catch (error) {
           // ignore profile fetch errors
@@ -543,6 +551,16 @@ export default function ClientMyPage() {
     return "VAPID 공개키를 불러오지 못했습니다. 새로고침 후 다시 시도해주세요.";
   }, [pushCapable, pushMessage, pushServiceEnabled, supportsPushApi]);
 
+  const avatarInitial = useMemo(() => {
+    if (client.name && client.name.trim().length > 0) {
+      return client.name.trim().charAt(0).toUpperCase();
+    }
+    if (client.email) {
+      return client.email.trim().charAt(0).toUpperCase();
+    }
+    return "?";
+  }, [client.name, client.email]);
+
   const sections = useMemo(
     () => [
       {
@@ -773,6 +791,53 @@ export default function ClientMyPage() {
     }
   };
 
+  const handleAvatarChange = async (file: File | null) => {
+    if (!file || !client.userId) {
+      return;
+    }
+    if (!file.type.startsWith("image/")) {
+      setAvatarError("이미지 파일만 업로드할 수 있습니다.");
+      return;
+    }
+
+    setAvatarUploading(true);
+    setAvatarError("");
+    setAvatarMessage("");
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const response = await fetch(
+        `${API_BASE_URL}/api/users/${client.userId}/profile-image`,
+        {
+          method: "POST",
+          body: formData,
+        }
+      );
+      if (!response.ok) {
+        const message = await extractApiError(
+          response,
+          "프로필 이미지를 업로드하지 못했습니다."
+        );
+        throw new Error(message);
+      }
+      const data: UserSummary = await response.json();
+      setClient((prev) => ({
+        ...prev,
+        profileImageUrl: data.profileImageUrl ?? prev.profileImageUrl ?? "",
+      }));
+      setAvatarMessage("프로필 이미지가 업데이트되었습니다.");
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "프로필 이미지를 업로드하지 못했습니다.";
+      setAvatarError(message);
+    } finally {
+      setAvatarUploading(false);
+    }
+  };
+
 
   const handleLogout = () => {
     if (typeof window === "undefined") {
@@ -801,26 +866,60 @@ export default function ClientMyPage() {
     <div className="min-h-screen bg-slate-50 px-3 py-6 sm:px-6 sm:py-10">
       <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 rounded-3xl bg-white p-4 shadow-lg sm:p-8">
         <header className="flex flex-col gap-4 border-b border-slate-200 pb-5">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-wide text-indigo-600">
-                Guardian
-              </p>
-              <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">
-                클라이언트 마이페이지
-              </h1>
-              <p className="text-sm text-slate-600">
-                복약 서비스 이용 현황과 알림 설정을 한곳에서 관리하세요.
-              </p>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3 sm:gap-4">
+              <div className="relative">
+                <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full border-2 border-indigo-200 bg-indigo-50 text-lg font-semibold text-indigo-700">
+                  {client.profileImageUrl ? (
+                    <img
+                      src={client.profileImageUrl}
+                      alt="프로필 이미지"
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <span>{avatarInitial}</span>
+                  )}
+                </div>
+                <label className="absolute -right-1 -bottom-1 inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-full bg-indigo-600 text-xs font-semibold text-white shadow-sm ring-4 ring-white transition hover:bg-indigo-700">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="sr-only"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0] ?? null;
+                      void handleAvatarChange(file);
+                      event.target.value = "";
+                    }}
+                  />
+                  {avatarUploading ? "..." : "Edit"}
+                </label>
+              </div>
+              <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
+                <p className="text-2xl font-semibold uppercase tracking-wide text-indigo-600 sm:text-3xl">
+                  Client
+                </p>
+                <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">
+                  {client.name ? `${client.name}님` : "클라이언트 마이페이지"}
+                </h1>
+              </div>
             </div>
             <button
-              className="h-11 rounded-md border border-slate-300 px-5 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:text-slate-900"
+              className="h-10 rounded-md border border-red-400 px-4 text-sm font-semibold text-red-500 transition hover:border-red-500 hover:bg-red-50 hover:text-red-600"
               onClick={handleLogout}
               type="button"
             >
               로그아웃
             </button>
           </div>
+          {(avatarError || avatarMessage) && (
+            <p
+              className={`text-sm ${
+                avatarError ? "text-red-600" : "text-emerald-600"
+              }`}
+            >
+              {avatarError || avatarMessage}
+            </p>
+          )}
           <div className="flex gap-3 pb-2 sm:grid sm:grid-cols-3 sm:gap-3 sm:pb-0">
             {clientQuickActions.map((action) => {
               const isActive = activePanel === action.value;

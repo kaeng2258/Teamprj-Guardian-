@@ -5,6 +5,7 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
+import java.time.LocalDate;
 
 public record UserRegistrationRequest(
         @NotNull(message = "가입 유형을 선택해주세요.") UserRole role,
@@ -14,6 +15,7 @@ public record UserRegistrationRequest(
                         message = "비밀번호는 8자 이상이며 영문과 숫자를 포함해야 합니다.")
                 String password,
         @NotBlank(message = "이름을 입력해주세요.") String name,
+        @NotNull(message = "생년월일을 입력해주세요.") LocalDate birthDate,
         @NotBlank(message = "우편번호를 입력해주세요.") String zipCode,
         @NotBlank(message = "주소를 입력해주세요.") String address,
         String detailAddress,

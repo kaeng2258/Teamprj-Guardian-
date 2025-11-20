@@ -1,6 +1,6 @@
 package com.ll.guardian.domain.profile.service;
 
-import com.ll.guardian.domain.matching.dto.AssignedProviderResponse;
+import com.ll.guardian.domain.matching.dto.AssignedManagerResponse;
 import com.ll.guardian.domain.matching.entity.CareMatch;
 import com.ll.guardian.domain.matching.repository.CareMatchRepository;
 import com.ll.guardian.domain.profile.dto.ClientProfileResponse;
@@ -49,13 +49,13 @@ public class ClientProfileService {
     }
 
     @Transactional(readOnly = true)
-    public AssignedProviderResponse getAssignedProvider(Long clientId) {
+    public AssignedManagerResponse getAssignedManager(Long clientId) {
         CareMatch match = careMatchRepository
                 .findFirstByClientIdAndCurrentTrue(clientId)
                 .orElseThrow(() -> new GuardianException(HttpStatus.NOT_FOUND, "배정된 담당자를 찾을 수 없습니다."));
-        User provider = match.getProvider();
-        return new AssignedProviderResponse(
-                match.getId(), provider.getId(), provider.getName(), provider.getEmail(), match.isCurrent());
+        User manager = match.getManager();
+        return new AssignedManagerResponse(
+                match.getId(), manager.getId(), manager.getName(), manager.getEmail(), match.isCurrent());
     }
 
     private ClientProfile getClientProfile(Long clientId) {

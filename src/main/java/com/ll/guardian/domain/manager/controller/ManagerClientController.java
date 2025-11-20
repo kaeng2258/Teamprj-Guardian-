@@ -1,11 +1,11 @@
-package com.ll.guardian.domain.provider.controller;
+package com.ll.guardian.domain.manager.controller;
 
 import com.ll.guardian.domain.matching.dto.CareAssignmentRequest;
 import com.ll.guardian.domain.matching.dto.CareAssignmentResponse;
 import com.ll.guardian.domain.matching.service.CareAssignmentService;
-import com.ll.guardian.domain.provider.dto.ProviderAssignRequest;
-import com.ll.guardian.domain.provider.dto.ProviderClientSearchResponse;
-import com.ll.guardian.domain.provider.service.ProviderClientService;
+import com.ll.guardian.domain.manager.dto.ManagerAssignRequest;
+import com.ll.guardian.domain.manager.dto.ManagerClientSearchResponse;
+import com.ll.guardian.domain.manager.service.ManagerClientService;
 import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.http.HttpStatus;
@@ -19,39 +19,39 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/providers/{providerId}/clients")
-public class ProviderClientController {
+@RequestMapping("/api/managers/{managerId}/clients")
+public class ManagerClientController {
 
-    private final ProviderClientService providerClientService;
+    private final ManagerClientService managerClientService;
     private final CareAssignmentService careAssignmentService;
 
-    public ProviderClientController(
-            ProviderClientService providerClientService, CareAssignmentService careAssignmentService) {
-        this.providerClientService = providerClientService;
+    public ManagerClientController(
+            ManagerClientService managerClientService, CareAssignmentService careAssignmentService) {
+        this.managerClientService = managerClientService;
         this.careAssignmentService = careAssignmentService;
     }
 
     @GetMapping("/search")
-    public ResponseEntity<List<ProviderClientSearchResponse>> searchClients(
-            @PathVariable Long providerId,
+    public ResponseEntity<List<ManagerClientSearchResponse>> searchClients(
+            @PathVariable Long managerId,
             @RequestParam("keyword") String keyword,
             @RequestParam(name = "size", required = false) Integer size) {
-        List<ProviderClientSearchResponse> response = providerClientService.searchClients(providerId, keyword, size);
+        List<ManagerClientSearchResponse> response = managerClientService.searchClients(managerId, keyword, size);
         return ResponseEntity.ok(response);
     }
 
     @GetMapping("/{clientId}")
-    public ResponseEntity<ProviderClientSearchResponse> getClientDetail(
-            @PathVariable Long providerId, @PathVariable Long clientId) {
-        ProviderClientSearchResponse response = providerClientService.getClientDetail(providerId, clientId);
+    public ResponseEntity<ManagerClientSearchResponse> getClientDetail(
+            @PathVariable Long managerId, @PathVariable Long clientId) {
+        ManagerClientSearchResponse response = managerClientService.getClientDetail(managerId, clientId);
         return ResponseEntity.ok(response);
     }
 
     @PostMapping("/assignments")
     public ResponseEntity<CareAssignmentResponse> assignClient(
-            @PathVariable Long providerId, @Valid @RequestBody ProviderAssignRequest request) {
+            @PathVariable Long managerId, @Valid @RequestBody ManagerAssignRequest request) {
         CareAssignmentResponse response = careAssignmentService.assign(
-                new CareAssignmentRequest(request.clientId(), providerId, request.startDate(), request.endDate()));
+                new CareAssignmentRequest(request.clientId(), managerId, request.startDate(), request.endDate()));
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 }

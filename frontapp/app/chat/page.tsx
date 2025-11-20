@@ -6,21 +6,21 @@ import SockJS from "sockjs-client";
 import { Client, StompSubscription } from "@stomp/stompjs";
 
 const API_BASE =
-  (process.env.NEXT_PUBLIC_API_URL ?? "https://localhost:8081").replace(
+  (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8081").replace(
     /\/$/,
     ""
   );
 const WS_BASE =
-  process.env.NEXT_PUBLIC_WS_URL ?? "https://localhost:8081/ws";
+  process.env.NEXT_PUBLIC_WS_URL ?? "ws://localhost:8081/ws";
 
 type ChatThread = {
   roomId: number;
   clientId: number;
-  providerId: number;
+  managerId: number;
   lastMessageSnippet?: string | null;
   lastMessageAt?: string | null;
   readByClient?: boolean;
-  readByProvider?: boolean;
+  readByManager?: boolean;
 };
 
 type RawMessage = {
@@ -135,7 +135,7 @@ export default function GuardianChatPage() {
   const searchParams = useSearchParams();
   const [meId, setMeId] = useState<number | null>(null);
   const [clientIdInput, setClientIdInput] = useState<number | null>(null);
-  const [providerIdInput, setProviderIdInput] = useState<number | null>(null);
+  const [managerIdInput, setManagerIdInput] = useState<number | null>(null);
   const [threads, setThreads] = useState<ChatThread[]>([]);
   const [threadsLoading, setThreadsLoading] = useState(false);
   const [threadsError, setThreadsError] = useState<string | null>(null);
@@ -235,15 +235,15 @@ export default function GuardianChatPage() {
     if (searchParams) {
       const meParam = Number(searchParams.get("me") ?? "");
       const clientParam = Number(searchParams.get("client") ?? "");
-      const providerParam = Number(searchParams.get("provider") ?? "");
+      const managerParam = Number(searchParams.get("manager") ?? "");
       if (!Number.isNaN(meParam) && meParam > 0) {
         setMeId(meParam);
       }
       if (!Number.isNaN(clientParam) && clientParam > 0) {
         setClientIdInput(clientParam);
       }
-      if (!Number.isNaN(providerParam) && providerParam > 0) {
-        setProviderIdInput(providerParam);
+      if (!Number.isNaN(managerParam) && managerParam > 0) {
+        setManagerIdInput(managerParam);
       }
     }
   }, [meId, searchParams]);
@@ -820,8 +820,8 @@ export default function GuardianChatPage() {
   }, [endpoints, inputValue]);
 
   const openRoom = useCallback(async () => {
-    if (!clientIdInput || !providerIdInput) {
-      setRoomActionMessage("clientId와 providerId를 모두 입력해주세요.");
+    if (!clientIdInput || !managerIdInput) {
+      setRoomActionMessage("clientId와 managerId를 모두 입력해주세요.");
       return;
     }
     setRoomActionLoading(true);
@@ -834,7 +834,7 @@ export default function GuardianChatPage() {
         },
         body: JSON.stringify({
           clientId: clientIdInput,
-          providerId: providerIdInput,
+          managerId: managerIdInput,
         }),
       });
       if (!response.ok) {
@@ -855,7 +855,7 @@ export default function GuardianChatPage() {
     } finally {
       setRoomActionLoading(false);
     }
-  }, [clientIdInput, endpoints, loadThreads, providerIdInput, selectRoom]);
+  }, [clientIdInput, endpoints, loadThreads, managerIdInput, selectRoom]);
 
   const deleteRoom = useCallback(async () => {
     if (!currentRoomRef.current) {
@@ -1275,11 +1275,11 @@ export default function GuardianChatPage() {
               />
               <input
                 type="number"
-                placeholder="providerId"
-                value={providerIdInput ?? ""}
+                placeholder="managerId"
+                value={managerIdInput ?? ""}
                 onChange={(event) => {
                   const value = Number(event.target.value);
-                  setProviderIdInput(
+                  setManagerIdInput(
                     Number.isNaN(value) || value <= 0 ? null : value
                   );
                 }}
@@ -1312,7 +1312,7 @@ export default function GuardianChatPage() {
                 >
                   <div>
                     <div className="name">
-                      Room #{thread.roomId} ({thread.clientId}↔{thread.providerId})
+                      Room #{thread.roomId} ({thread.clientId}↔{thread.managerId})
                     </div>
                     <div className="snippet">{thread.lastMessageSnippet ?? ""}</div>
                   </div>

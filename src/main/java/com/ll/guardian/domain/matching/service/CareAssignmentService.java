@@ -29,7 +29,7 @@ public class CareAssignmentService {
 
     public CareAssignmentResponse assign(CareAssignmentRequest request) {
         User client = getUser(request.clientId());
-        User provider = getUser(request.providerId());
+        User manager = getUser(request.managerId());
 
         careMatchRepository.findByClientId(client.getId()).stream()
                 .filter(CareMatch::isCurrent)
@@ -37,7 +37,7 @@ public class CareAssignmentService {
 
         CareMatch newMatch = CareMatch.builder()
                 .client(client)
-                .provider(provider)
+                .manager(manager)
                 .startDate(request.startDate() != null ? request.startDate() : LocalDate.now())
                 .endDate(request.endDate())
                 .current(true)

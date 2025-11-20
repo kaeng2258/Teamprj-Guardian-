@@ -7,10 +7,10 @@ import SockJS from "sockjs-client";
 
 // 환경변수에 ws://, wss:// 를 넣어도 SockJS 에서 쓸 수 있게 변환
 const rawWs =
-  process.env.NEXT_PUBLIC_WS_URL ?? "https://localhost:8081/ws";
-const WS_ENDPOINT = rawWs.startsWith("ws")
-  ? rawWs.replace(/^ws/, "http") // ws → http, wss → https
-  : rawWs;
+  process.env.NEXT_PUBLIC_WS_URL ?? "ws://localhost:8081/ws";
+const WS_ENDPOINT = rawWs.startsWith("http")
+  ? rawWs
+  : rawWs.replace(/^ws/, "http"); // ws → http, wss → https
 
 // 백엔드 ChatMessageResponse 형태에 맞춰서 사용
 export type ChatMessage = {

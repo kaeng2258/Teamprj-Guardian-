@@ -102,7 +102,7 @@ public class UserService {
     }
 
     private UserStatus resolveInitialStatus(UserRole role) {
-        if (role == UserRole.PROVIDER) {
+        if (role == UserRole.MANAGER) {
             return UserStatus.WAITING_MATCH;
         }
         return UserStatus.ACTIVE;

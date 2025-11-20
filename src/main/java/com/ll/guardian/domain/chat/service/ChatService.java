@@ -40,7 +40,7 @@ public class ChatService {
     @Transactional(readOnly = true)
     public List<ChatThreadResponse> getThreadsForUser(Long userId) {
         return chatRoomRepository.findAll().stream()
-                .filter(room -> room.getClient().getId().equals(userId) || room.getProvider().getId().equals(userId))
+                .filter(room -> room.getClient().getId().equals(userId) || room.getManager().getId().equals(userId))
                 .map(ChatThreadResponse::from)
                 .collect(Collectors.toList());
     }
@@ -53,7 +53,7 @@ public class ChatService {
         User sender = getUser(request.senderId());
 
         if (!room.getClient().getId().equals(sender.getId())
-                && !room.getProvider().getId().equals(sender.getId())) {
+                && !room.getManager().getId().equals(sender.getId())) {
             throw new GuardianException(HttpStatus.FORBIDDEN, "채팅방에 참여한 사용자만 메시지를 보낼 수 있습니다.");
         }
 
@@ -86,30 +86,30 @@ public class ChatService {
                 .orElseThrow(() -> new GuardianException(HttpStatus.NOT_FOUND, "채팅방을 찾을 수 없습니다."));
         if (room.getClient().getId().equals(userId)) {
             room.markAsReadByClient();
-        } else if (room.getProvider().getId().equals(userId)) {
-            room.markAsReadByProvider();
+        } else if (room.getManager().getId().equals(userId)) {
+            room.markAsReadByManager();
         } else {
             throw new GuardianException(HttpStatus.FORBIDDEN, "채팅방에 참여한 사용자만 읽음 처리가 가능합니다.");
         }
     }
 
     /** (추가) 방 개설 또는 기존 방 반환 */
-    public ChatRoom openOrGetRoom(Long clientId, Long providerId) {
-        if (clientId.equals(providerId)) {
-            throw new GuardianException(HttpStatus.BAD_REQUEST, "클라이언트와 프로바이더가 동일할 수 없습니다.");
+    public ChatRoom openOrGetRoom(Long clientId, Long managerId) {
+        if (clientId.equals(managerId)) {
+            throw new GuardianException(HttpStatus.BAD_REQUEST, "클라이언트와 매니저가 동일할 수 없습니다.");
         }
 
         User client = getUser(clientId);
-        User provider = getUser(providerId);
+        User manager = getUser(managerId);
 
         return chatRoomRepository
-                .findByClientIdAndProviderId(client.getId(), provider.getId())
+                .findByClientIdAndManagerId(client.getId(), manager.getId())
                 .orElseGet(() -> {
                     ChatRoom newRoom = ChatRoom.builder()
                             .client(client)
-                            .provider(provider)
+                            .manager(manager)
                             .readByClient(true)   // 생성 시점엔 둘 다 읽음 상태로 시작해도 무방
-                            .readByProvider(true) // (요건에 맞게 조정 가능)
+                            .readByManager(true) // (요건에 맞게 조정 가능)
                             .build();
                     return chatRoomRepository.save(newRoom);
                 });
@@ -133,7 +133,7 @@ public class ChatService {
                 .orElseThrow(() -> new GuardianException(HttpStatus.NOT_FOUND, "채팅방을 찾을 수 없습니다."));
 
         // ✅ 권한: 방에 속한 사람만 삭제 가능(둘 중 아무나)
-        if (!(room.getClient().getId().equals(userId) || room.getProvider().getId().equals(userId))) {
+        if (!(room.getClient().getId().equals(userId) || room.getManager().getId().equals(userId))) {
             throw new GuardianException(HttpStatus.FORBIDDEN, "해당 방 참여자만 삭제할 수 있습니다.");
         }
 

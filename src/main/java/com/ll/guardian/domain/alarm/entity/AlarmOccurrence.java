@@ -46,18 +46,18 @@ public class AlarmOccurrence {
     @Column(name = "status", nullable = false, length = 40)
     private AlarmOccurrenceStatus status;
 
-    @Column(name = "is_notified_provider", nullable = false)
-    private boolean notifiedProvider;
+    @Column(name = "is_notified_manager", nullable = false)
+    private boolean notifiedManager;
 
-    @Column(name = "provider_notes", columnDefinition = "TEXT")
-    private String providerNotes;
+    @Column(name = "manager_notes", columnDefinition = "TEXT")
+    private String managerNotes;
 
     public void updateStatus(
             com.ll.guardian.domain.alarm.AlarmOccurrenceStatus status,
             LocalDateTime actualResponseTime,
-            String providerNotes) {
+            String managerNotes) {
         this.status = status;
         this.actualResponseTime = actualResponseTime;
-        this.providerNotes = providerNotes;
+        this.managerNotes = managerNotes;
     }
 }

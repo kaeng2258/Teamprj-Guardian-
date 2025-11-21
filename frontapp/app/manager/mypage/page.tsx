@@ -323,6 +323,7 @@ export default function ManagerMyPage() {
   const [assignmentMessages, setAssignmentMessages] = useState<
     Record<number, PlanActionMessage | undefined>
   >({});
+  const [favoriteClientIds, setFavoriteClientIds] = useState<number[]>([]);
   const [weeklySummaries, setWeeklySummaries] = useState<
     Record<number, MedicationWeeklySummary | null>
   >({});
@@ -410,6 +411,28 @@ export default function ManagerMyPage() {
       return;
     }
 
+    // 즐겨찾기 클라이언트 로드
+    try {
+      const storedFavorites = window.localStorage.getItem("managerFavoriteClients");
+      if (storedFavorites) {
+        const parsed = JSON.parse(storedFavorites);
+        if (Array.isArray(parsed)) {
+          const normalized = Array.from(
+            new Set(
+              parsed
+                .map((id) => Number(id))
+                .filter((id) => Number.isFinite(id) && id > 0),
+            ),
+          );
+          if (normalized.length > 0) {
+            setFavoriteClientIds(normalized);
+          }
+        }
+      }
+    } catch {
+      // ignore parse error
+    }
+
     const accessToken = window.localStorage.getItem("accessToken");
     const role = window.localStorage.getItem("userRole");
 
@@ -447,6 +470,21 @@ export default function ManagerMyPage() {
     }
     setIsReady(true);
   }, [router]);
+
+  // 즐겨찾기 저장
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    try {
+      window.localStorage.setItem(
+        "managerFavoriteClients",
+        JSON.stringify(favoriteClientIds),
+      );
+    } catch {
+      // ignore storage error
+    }
+  }, [favoriteClientIds]);
 
   const loadDashboard = useCallback(async () => {
     if (!manager.userId) {
@@ -571,71 +609,114 @@ export default function ManagerMyPage() {
     }
   };
 
-  const summarySections = useMemo(() => {
+  const managerStats = useMemo(() => {
+    const total = dashboard?.clients.length ?? 0;
+    const pending = dashboard?.pendingMedicationCount ?? 0;
+    const alerts = dashboard?.activeAlertCount ?? 0;
     return [
       {
-        title: "이용자 정보",
-        description: "현재 로그인한 요양보호사/매니저의 기본 정보입니다.",
-        rows: [
-          {
-            label: "이름",
-            value: manager.name || "확인 중",
-          },
-          {
-            label: "이메일",
-            value: manager.email || "확인 중",
-          },
-        ],
+        key: "care",
+        label: "복약관리 인원",
+        value: dashboardLoading && !dashboard ? "확인 중" : `${total}명`,
+        hint: total > 0 ? "현재 담당 중인 이용자 수" : "담당 이용자가 없습니다.",
+        accent: "bg-indigo-100 text-indigo-700",
+        badge: "CARE",
+        detail:
+          total > 0
+            ? "담당 중인 이용자의 복약 일정과 알림을 정기적으로 점검해주세요."
+            : "아직 담당 인원이 없습니다. 관리자나 매칭을 통해 배정해 주세요.",
+        items: (dashboard?.clients ?? [])
+                .slice(0, 5)
+                .map((c) => `${c.clientName} / 일정 ${c.medicationPlans.length}건 / 알림 ${c.emergencyAlerts.length}건`),
       },
       {
-        title: "관리 현황",
-        description:
-          "복약 스케줄, 알림, 매칭 정보를 한눈에 확인하세요.",
-        rows: [
-          {
-            label: "복약관리 인원",
-            value:
-              dashboardLoading && !dashboard
-                ? "확인 중"
-                : dashboard
-                ? `${dashboard.clients.length}명`
-                : "-",
-          },
-          {
-            label: "대기 중 복약 일정",
-            value:
-              dashboard && dashboard.pendingMedicationCount > 0
-                ? `${dashboard.pendingMedicationCount}건`
-                : dashboard
-                ? "모두 등록됨"
-                : "-",
-          },
-          {
-            label: "미처리 비상 알림",
-            value:
-              dashboard && dashboard.activeAlertCount > 0
-                ? `${dashboard.activeAlertCount}건`
-                : dashboard
-                ? "없음"
-                : "-",
-          },
-        ],
+        key: "pending",
+        label: "대기 중 복약 일정",
+        value: dashboardLoading && !dashboard ? "확인 중" : pending > 0 ? `${pending}건` : "모두 등록됨",
+        hint: pending > 0 ? "아직 등록되지 않은 일정이 있습니다." : "모든 이용자 일정이 등록되었습니다.",
+        accent: "bg-amber-100 text-amber-700",
+        badge: "PLAN",
+        detail:
+          pending > 0
+            ? "대기 중인 일정이 있습니다. 이용자와 상의 후 일정을 등록해 주세요."
+            : "모든 이용자 일정이 등록된 상태입니다.",
+        items: (dashboard?.clients ?? [])
+                .flatMap((c) => c.medicationPlans ?? [])
+                .filter((p) => p && p.active === false)
+                .slice(0, 5)
+                .map((p) => `비활성 일정 #${p.id ?? ""}`),
+      },
+      {
+        key: "alert",
+        label: "미처리 비상 알림",
+        value: dashboardLoading && !dashboard ? "확인 중" : alerts > 0 ? `${alerts}건` : "없음",
+        hint: alerts > 0 ? "즉시 확인이 필요합니다." : "미처리 알림이 없습니다.",
+        accent: alerts > 0 ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-700",
+        badge: "ALERT",
+        detail:
+          alerts > 0
+            ? "비상 알림을 우선 처리하고 이용자에게 연락해 주세요."
+            : "처리 대기 중인 비상 알림이 없습니다.",
+        items: (dashboard?.clients ?? [])
+                .flatMap((c) => c.emergencyAlerts ?? [])
+                .slice(0, 5)
+                .map((a) => `알림 ${a.alertType ?? ""} / ${a.status ?? ""}`),
       },
     ];
-  }, [manager, dashboard, dashboardLoading]);
+  }, [dashboard, dashboardLoading]);
+
+  const [activeStat, setActiveStat] = useState<(typeof managerStats)[number] | null>(null);
 
   const filteredClients = useMemo(() => {
     if (!dashboard?.clients) {
       return [];
     }
+    const favoriteSet = new Set(favoriteClientIds);
+    const favoritesOnly = dashboard.clients.filter((client) =>
+      favoriteSet.has(client.clientId),
+    );
     const keyword = clientFilter.trim().toLowerCase();
     if (!keyword) {
-      return dashboard.clients;
+      return favoritesOnly;
     }
-    return dashboard.clients.filter((client) =>
+    return favoritesOnly.filter((client) =>
       client.clientName?.toLowerCase().includes(keyword),
     );
-  }, [dashboard, clientFilter]);
+  }, [dashboard, clientFilter, favoriteClientIds]);
+
+  const favoriteClientCount = useMemo(() => {
+    if (!dashboard?.clients) return 0;
+    const favoriteSet = new Set(favoriteClientIds);
+    return dashboard.clients.filter((client) => favoriteSet.has(client.clientId)).length;
+  }, [dashboard, favoriteClientIds]);
+
+  const isFavorite = useCallback(
+    (clientId: number) => favoriteClientIds.includes(clientId),
+    [favoriteClientIds],
+  );
+
+  const toggleFavorite = useCallback((clientId: number) => {
+    setFavoriteClientIds((prev) => {
+      const set = new Set(prev);
+      if (set.has(clientId)) {
+        set.delete(clientId);
+      } else {
+        set.add(clientId);
+      }
+      return Array.from(set);
+    });
+  }, []);
+
+  const openClientModalById = useCallback(
+    (clientId: number) => {
+      if (!dashboard?.clients) return;
+      const exists = dashboard.clients.some((c) => c.clientId === clientId);
+      if (exists) {
+        setClientModalClientId(clientId);
+      }
+    },
+    [dashboard],
+  );
 
   const selectedClient =
     clientModalClientId && dashboard?.clients
@@ -2251,36 +2332,72 @@ const WeeklyDayCard = ({
 
         {activePanel === "client" && (
           <>
-            <div className="grid gap-4 md:grid-cols-2 md:gap-6">
-              {summarySections.map((section) => (
-                <section
-                  key={section.title}
-                  className="rounded-2xl border border-slate-200 p-4 sm:p-6"
-                >
-                  <h2 className="text-lg font-semibold text-slate-900 sm:text-xl">
-                    {section.title}
-                  </h2>
-                  <p className="mt-1 text-sm text-slate-500">
-                    {section.description}
+            <section className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-indigo-50 p-4 sm:p-6">
+              <div className="flex flex-col gap-2 border-b border-slate-200 pb-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h2 className="text-lg font-semibold text-slate-900 sm:text-xl">관리 현황</h2>
+                  <p className="text-sm text-slate-600">
+                    복약 일정, 미처리 알림, 담당 인원을 한눈에 확인하세요.
                   </p>
-                  <dl className="mt-4 space-y-3">
-                    {section.rows.map((row) => (
-                      <div
-                        key={row.label}
-                        className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2 sm:px-4 sm:py-3"
-                      >
-                        <dt className="text-sm font-medium text-slate-600">
-                          {row.label}
-                        </dt>
-                        <dd className="text-sm font-semibold text-slate-900">
-                          {row.value}
-                        </dd>
+                </div>
+                <div className="flex items-center gap-2 rounded-full bg-white px-3 py-1 text-xs font-semibold text-indigo-700 shadow-sm">
+                  <span className="h-2 w-2 rounded-full bg-indigo-500" />
+                  실시간 업데이트
+                </div>
+              </div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                {managerStats.map((stat) => (
+                  <button
+                    key={stat.key}
+                    type="button"
+                    onClick={() => setActiveStat(stat)}
+                    className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-white/80 p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow"
+                  >
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-semibold text-slate-700">{stat.label}</p>
+                      <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${stat.accent}`}>
+                        {stat.badge}
+                      </span>
+                    </div>
+                    <p className="text-2xl font-bold text-slate-900">{stat.value}</p>
+                    <p className="text-xs text-slate-500 leading-relaxed">{stat.hint}</p>
+                  </button>
+                ))}
+              </div>
+              {activeStat && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4 py-6 backdrop-blur-sm">
+                  <div className="w-full max-w-lg rounded-2xl border border-indigo-100 bg-white p-5 shadow-xl">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-indigo-700">
+                          {activeStat.badge}
+                        </p>
+                        <h3 className="text-lg font-semibold text-slate-900">{activeStat.label}</h3>
                       </div>
-                    ))}
-                  </dl>
-                </section>
-              ))}
-            </div>
+                      <button
+                        className="text-xs font-semibold text-slate-500 hover:text-slate-700"
+                        onClick={() => setActiveStat(null)}
+                        type="button"
+                        aria-label="상세 닫기"
+                    >
+                      닫기 ✕
+                    </button>
+                  </div>
+                  <p className="mt-3 text-sm text-slate-700 leading-relaxed">{activeStat.detail}</p>
+                  {activeStat.items && activeStat.items.length > 0 && (
+                    <ul className="mt-3 space-y-2 rounded-lg bg-slate-50 p-3 text-sm text-slate-700">
+                      {activeStat.items.map((item, idx) => (
+                        <li key={`${activeStat.key}-item-${idx}`} className="flex items-start gap-2">
+                          <span className="mt-0.5 inline-block h-2 w-2 rounded-full bg-indigo-400" />
+                          <span className="leading-relaxed">{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </div>
+              )}
+            </section>
 
             <section className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6">
               <div className="flex flex-col gap-2 border-b border-slate-200 pb-4 sm:flex-row sm:items-center sm:justify-between">
@@ -2363,12 +2480,55 @@ const WeeklyDayCard = ({
                     : "미등록";
                 const statusLabel = mapStatusToLabel(result.status);
                 const assignMessage = assignmentMessages[result.clientId];
+                const favorite = isFavorite(result.clientId);
 
                 return (
                   <article
                     key={result.clientId}
-                    className="rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm sm:p-5"
+                    className="relative rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md sm:p-5"
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => {
+                      if (assignedToCurrent) {
+                        openClientModalById(result.clientId);
+                      }
+                    }}
+                    onKeyDown={(event) => {
+                      if ((event.key === "Enter" || event.key === " ") && assignedToCurrent) {
+                        event.preventDefault();
+                        openClientModalById(result.clientId);
+                      }
+                    }}
+                    aria-label={`${result.name} 정보 보기`}
                   >
+                    <button
+                      className={`absolute right-3 top-3 inline-flex h-9 w-9 items-center justify-center rounded-full border transition hover:-translate-y-0.5 hover:shadow-sm ${
+                        favorite
+                          ? "border-amber-300 bg-amber-50 text-amber-600"
+                          : "border-slate-200 bg-white text-slate-400"
+                      }`}
+                      aria-label={favorite ? "즐겨찾기 해제" : "즐겨찾기 추가"}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        toggleFavorite(result.clientId);
+                      }}
+                      type="button"
+                    >
+                      <svg
+                        aria-hidden="true"
+                        className="h-5 w-5"
+                        fill={favorite ? "currentColor" : "none"}
+                        stroke="currentColor"
+                        strokeWidth={1.7}
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          d="m12 17-5.09 2.674 1.01-5.892L3.84 9.826l5.91-.859L12 3.5l2.25 5.467 5.91.859-4.08 3.956 1.01 5.892z"
+                          strokeLinejoin="round"
+                          strokeLinecap="round"
+                        />
+                      </svg>
+                    </button>
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                       <div>
                         <h3 className="text-base font-semibold text-slate-900 sm:text-lg">
@@ -2380,15 +2540,16 @@ const WeeklyDayCard = ({
                           </span>
                           <span>{result.email}</span>
                         </div>
-                      </div>
-                      <div className="text-right text-xs text-slate-500">
-                        현재 배정:
-                        {" "}
-                        {assignedToOther
-                          ? `${result.assignedManagerName ?? "다른 매니저"} (${result.assignedManagerEmail ?? "정보 없음"})`
-                          : assignedToCurrent
-                          ? "현재 담당 중"
-                          : "없음"}
+                        <div className="mt-2 text-xs text-slate-500">
+                          <p>현재 배정:</p>
+                          <p className="font-semibold text-slate-700">
+                            {assignedToOther
+                              ? `${result.assignedManagerName ?? "다른 매니저"} (${result.assignedManagerEmail ?? "정보 없음"})`
+                              : assignedToCurrent
+                              ? "현재 담당 중"
+                              : "없음"}
+                          </p>
+                        </div>
                       </div>
                     </div>
                     <div className="mt-3 grid gap-2 text-sm text-slate-600 sm:grid-cols-2">
@@ -2400,7 +2561,10 @@ const WeeklyDayCard = ({
                       <button
                         className="w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-indigo-300 sm:w-auto"
                         disabled={buttonDisabled}
-                        onClick={() => handleAssignClient(result.clientId)}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handleAssignClient(result.clientId);
+                        }}
                         type="button"
                       >
                         {buttonLabel}
@@ -2485,6 +2649,10 @@ const WeeklyDayCard = ({
             <div className="mt-4 rounded-xl bg-white px-3 py-2 text-sm text-slate-600">
               현재 배정된 이용자가 없습니다. 관리자에게 문의해주세요.
             </div>
+          ) : favoriteClientCount === 0 ? (
+            <div className="mt-4 rounded-xl bg-white px-3 py-2 text-sm text-slate-600">
+              즐겨찾기한 클라이언트가 없습니다. 상단 검색/배정 목록에서 별표를 눌러 즐겨찾기를 추가하세요.
+            </div>
           ) : filteredClients.length === 0 ? (
             <div className="mt-4 rounded-xl bg-white px-3 py-2 text-sm text-slate-600">
               검색 조건에 맞는 이용자가 없습니다.
@@ -2496,10 +2664,11 @@ const WeeklyDayCard = ({
                 const recentLogLabel = latestLog
                   ? formatDateTime(latestLog.logTimestamp)
                   : "기록 없음";
+                const favorite = isFavorite(client.clientId);
                 return (
                   <article
                     key={client.clientId}
-                    className="cursor-pointer rounded-2xl border border-white bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500 sm:p-5"
+                    className="relative cursor-pointer rounded-2xl border border-white bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500 sm:p-5"
                     role="button"
                     tabIndex={0}
                     onClick={() => setClientModalClientId(client.clientId)}
@@ -2511,6 +2680,34 @@ const WeeklyDayCard = ({
                     }}
                     aria-label={`${client.clientName}님의 복약 관리 열기`}
                   >
+                    <button
+                      className={`absolute right-3 top-3 inline-flex h-9 w-9 items-center justify-center rounded-full border transition hover:-translate-y-0.5 hover:shadow-sm ${
+                        favorite
+                          ? "border-amber-300 bg-amber-50 text-amber-600"
+                          : "border-slate-200 bg-white text-slate-400"
+                      }`}
+                      aria-label={favorite ? "즐겨찾기 해제" : "즐겨찾기 추가"}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        toggleFavorite(client.clientId);
+                      }}
+                      type="button"
+                    >
+                      <svg
+                        aria-hidden="true"
+                        className="h-5 w-5"
+                        fill={favorite ? "currentColor" : "none"}
+                        stroke="currentColor"
+                        strokeWidth={1.7}
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          d="m12 17-5.09 2.674 1.01-5.892L3.84 9.826l5.91-.859L12 3.5l2.25 5.467 5.91.859-4.08 3.956 1.01 5.892z"
+                          strokeLinejoin="round"
+                          strokeLinecap="round"
+                        />
+                      </svg>
+                    </button>
                     <div className="flex flex-col gap-2 border-b border-slate-200 pb-4 sm:flex-row sm:items-center sm:justify-between">
                       <div>
                         <h3 className="text-base font-semibold text-slate-900 sm:text-lg">

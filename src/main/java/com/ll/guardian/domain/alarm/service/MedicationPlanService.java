@@ -8,6 +8,8 @@ import com.ll.guardian.domain.alarm.dto.MedicationPlanResponse;
 import com.ll.guardian.domain.alarm.dto.MedicationPlanUpdateRequest;
 import com.ll.guardian.domain.alarm.entity.MedicationAlarm;
 import com.ll.guardian.domain.alarm.repository.MedicationAlarmRepository;
+import com.ll.guardian.domain.matching.entity.CareMatch;
+import com.ll.guardian.domain.matching.repository.CareMatchRepository;
 import com.ll.guardian.domain.medicine.entity.Medicine;
 import com.ll.guardian.domain.medicine.repository.MedicineRepository;
 import com.ll.guardian.domain.user.entity.User;
@@ -30,14 +32,17 @@ import org.springframework.util.StringUtils;
 public class MedicationPlanService {
 
     private final MedicationAlarmRepository medicationAlarmRepository;
+    private final CareMatchRepository careMatchRepository;
     private final UserRepository userRepository;
     private final MedicineRepository medicineRepository;
 
     public MedicationPlanService(
             MedicationAlarmRepository medicationAlarmRepository,
+            CareMatchRepository careMatchRepository,
             UserRepository userRepository,
             MedicineRepository medicineRepository) {
         this.medicationAlarmRepository = medicationAlarmRepository;
+        this.careMatchRepository = careMatchRepository;
         this.userRepository = userRepository;
         this.medicineRepository = medicineRepository;
     }
@@ -50,12 +55,14 @@ public class MedicationPlanService {
         MedicationAlarm alarm = createMedicationAlarm(
                 client, medicine, request.dosageAmount(), request.dosageUnit(), request.alarmTime(), daysOfWeek);
         MedicationAlarm saved = medicationAlarmRepository.save(alarm);
-        return MedicationPlanResponse.from(saved);
+        CareMatch match = findCurrentMatch(clientId);
+        return MedicationPlanResponse.from(saved, match);
     }
 
     public List<MedicationPlanResponse> createPlans(Long clientId, MedicationPlanBatchRequest request) {
         User client = getUser(clientId);
         String daysOfWeek = normalizeDaysOfWeek(request.daysOfWeek());
+        CareMatch match = findCurrentMatch(clientId);
 
         return request.items().stream()
                 .map(item -> {
@@ -63,7 +70,7 @@ public class MedicationPlanService {
                     MedicationAlarm alarm = createMedicationAlarm(
                             client, medicine, item.dosageAmount(), item.dosageUnit(), request.alarmTime(), daysOfWeek);
                     MedicationAlarm saved = medicationAlarmRepository.save(alarm);
-                    return MedicationPlanResponse.from(saved);
+                    return MedicationPlanResponse.from(saved, match);
                 })
                 .collect(Collectors.toList());
     }
@@ -78,7 +85,8 @@ public class MedicationPlanService {
                 request.alarmTime(),
                 normalizeDaysOfWeek(request.daysOfWeek()),
                 request.active());
-        return MedicationPlanResponse.from(alarm);
+        CareMatch match = findCurrentMatch(clientId);
+        return MedicationPlanResponse.from(alarm, match);
     }
 
     public void deletePlan(Long clientId, Long alarmId) {
@@ -90,8 +98,9 @@ public class MedicationPlanService {
 
     @Transactional(readOnly = true)
     public List<MedicationPlanResponse> getPlans(Long clientId) {
+        CareMatch match = findCurrentMatch(clientId);
         return medicationAlarmRepository.findByClient_Id(clientId).stream()
-                .map(MedicationPlanResponse::from)
+                .map(alarm -> MedicationPlanResponse.from(alarm, match))
                 .collect(Collectors.toList());
     }
 
@@ -107,6 +116,10 @@ public class MedicationPlanService {
 
     private Medicine resolveMedicine(MedicationPlanBatchItemRequest item) {
         return resolveMedicine(item.medicineId(), item.manualMedicine());
+    }
+
+    private CareMatch findCurrentMatch(Long clientId) {
+        return careMatchRepository.findFirstByClientIdAndCurrentTrue(clientId).orElse(null);
     }
 
     private Medicine resolveMedicine(Long medicineId, ManualMedicineRequest manual) {

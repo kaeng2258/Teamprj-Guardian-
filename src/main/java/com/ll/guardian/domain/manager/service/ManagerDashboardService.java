@@ -55,7 +55,7 @@ public class ManagerDashboardService {
                 .collect(Collectors.toMap(
                         match -> match.getClient().getId(),
                         match -> medicationAlarmRepository.findByClient_Id(match.getClient().getId()).stream()
-                                .map(MedicationPlanResponse::from)
+                                .map(alarm -> MedicationPlanResponse.from(alarm, match))
                                 .collect(Collectors.toList())));
 
         Map<Long, List<MedicationLogResponse>> logMap = matches.stream()

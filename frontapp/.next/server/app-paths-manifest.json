@@ -1,4 +1,8 @@
 {
+  "/_not-found/page": "app/_not-found/page.js",
+  "/client/mypage/page": "app/client/mypage/page.js",
   "/page": "app/page.js",
+  "/manager/mypage/page": "app/manager/mypage/page.js",
+  "/chat/[roomId]/page": "app/chat/[roomId]/page.js",
   "/favicon.ico/route": "app/favicon.ico/route.js"
 }

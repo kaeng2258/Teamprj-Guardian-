@@ -1,24 +1,34 @@
 server:
-  port: 8090
+  port: 8081
 spring:
   thymeleaf:
+    prefix: classpath:/templates/
+    suffix: .html
     cache: false
   output:
     ansi:
       enabled: always
   datasource:
-    driver-class-name: org.h2.Driver
-    url: jdbc:h2:mem:db_dev;MODE=MYSQL
-    username: sa
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://127.0.0.1:3306/guardian?createDatabaseIfNotExist=true&characterEncoding=UTF-8&serverTimezone=Asia/Seoul
+    username: root
     password:
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQLDialect
   h2:
     console:
-      settings:
-        web-allow-others: true
-#  datasource:
-#    driver-class-name: org.mariadb.jdbc.Driver
-#    url: jdbc:mariadb://127.0.0.1:3306/db_dev
-#    username: root
-#    password:
+      enabled: false
 custom:
   fileDirPath: /usr/file
+
+webpush:
+  vapid:
+    public-key: "BBYI8uB4QjU8uB0SaKnqpEKsqPYV80d5_dmuhzKzzYi8daE8tJi1-cV5SywwzgsgN9Ti5vcbR3uSBkEjy3YvyMo"
+    private-key: "Aiwoalc4GXseoWGsOfSSqwDiuFtITXp2kDCSRq1HAWo"
+    subject: "mailto:dev@guardian.local"
+  scheduler:
+    timezone: "Asia/Seoul"

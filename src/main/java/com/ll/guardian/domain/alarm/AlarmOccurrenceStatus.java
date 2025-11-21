@@ -6,5 +6,5 @@ public enum AlarmOccurrenceStatus {
     TAKEN,
     LATE,
     SKIPPED,
-    PROVIDER_NOTIFIED
+    MANAGER_NOTIFIED
 }

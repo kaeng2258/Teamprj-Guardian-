@@ -80,10 +80,9 @@ public class AuthService {
     private String resolveRedirectPath(UserRole role) {
         return switch (role) {
             case CLIENT -> "/client/mypage";
-            case PROVIDER -> "/provider/mypage";
+            case MANAGER -> "/manager/mypage";
             case ADMIN -> "/admin/dashboard";
         };
     }
 
 }
-

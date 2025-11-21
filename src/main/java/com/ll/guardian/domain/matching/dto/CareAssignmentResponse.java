@@ -7,7 +7,7 @@ import java.time.LocalDateTime;
 public record CareAssignmentResponse(
         Long matchId,
         Long clientId,
-        Long providerId,
+        Long managerId,
         LocalDate startDate,
         LocalDate endDate,
         boolean current,
@@ -17,7 +17,7 @@ public record CareAssignmentResponse(
         return new CareAssignmentResponse(
                 match.getId(),
                 match.getClient().getId(),
-                match.getProvider().getId(),
+                match.getManager().getId(),
                 match.getStartDate(),
                 match.getEndDate(),
                 match.isCurrent(),

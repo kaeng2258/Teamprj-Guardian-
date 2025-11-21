@@ -36,8 +36,8 @@ public class CareMatch {
     private User client;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "provider_user_id", nullable = false)
-    private User provider;
+    @JoinColumn(name = "manager_user_id", nullable = false)
+    private User manager;
 
     @Column(name = "start_date", nullable = false)
     private LocalDate startDate;

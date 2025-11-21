@@ -27,7 +27,7 @@ import lombok.NoArgsConstructor;
 @Table(
         name = "chat_room",
         uniqueConstraints = {
-            @UniqueConstraint(name = "uk_chat_room_pair", columnNames = {"client_user_id", "provider_user_id"})
+            @UniqueConstraint(name = "uk_chat_room_pair", columnNames = {"client_user_id", "manager_user_id"})
         })
 public class ChatRoom {
 
@@ -41,8 +41,8 @@ public class ChatRoom {
     private User client;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "provider_user_id", nullable = false)
-    private User provider;
+    @JoinColumn(name = "manager_user_id", nullable = false)
+    private User manager;
 
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
@@ -56,8 +56,8 @@ public class ChatRoom {
     @Column(name = "is_read_client", nullable = false)
     private boolean readByClient;
 
-    @Column(name = "is_read_provider", nullable = false)
-    private boolean readByProvider;
+    @Column(name = "is_read_manager", nullable = false)
+    private boolean readByManager;
 
     @PrePersist
     private void onCreate() {
@@ -70,14 +70,14 @@ public class ChatRoom {
         this.lastMessageSnippet = snippet;
         this.lastMessageAt = sentAt;
         this.readByClient = client.getId().equals(senderId);
-        this.readByProvider = provider.getId().equals(senderId);
+        this.readByManager = manager.getId().equals(senderId);
     }
 
     public void markAsReadByClient() {
         this.readByClient = true;
     }
 
-    public void markAsReadByProvider() {
-        this.readByProvider = true;
+    public void markAsReadByManager() {
+        this.readByManager = true;
     }
 }

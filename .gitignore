@@ -35,11 +35,16 @@ out/
 
 ### VS Code ###
 .vscode/
-
 .application-secret.yml
 
 # macOS system files
 .DS_Store
 
 # Node
-frontapp/node_modules
+node_modules
+<<<<<<< HEAD
+=======
+
+#keystore
+keystore.p12
+>>>>>>> origin/js

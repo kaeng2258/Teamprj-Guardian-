@@ -48,6 +48,7 @@ public class UserService {
                 .email(request.email())
                 .password(passwordEncoder.encode(request.password()))
                 .name(request.name())
+                .birthDate(request.birthDate())
                 .role(request.role())
                 .status(initialStatus)
                 .build();
@@ -55,22 +56,35 @@ public class UserService {
         User saved = userRepository.save(user);
 
         if (request.role() == UserRole.CLIENT) {
+            String fullAddress = buildFullAddress(request);
             ClientProfile profile = ClientProfile.builder()
                     .client(saved)
-                    .address("미입력")
+                    .address(fullAddress)
                     .age(0)
                     .medicationCycle("미등록")
                     .build();
             clientProfileRepository.save(profile);
         }
 
-        return new UserResponse(saved.getId(), saved.getEmail(), saved.getName(), saved.getRole(), saved.getStatus());
+        return new UserResponse(
+                saved.getId(),
+                saved.getEmail(),
+                saved.getName(),
+                saved.getBirthDate(),
+                saved.getRole(),
+                saved.getStatus());
     }
 
     public UserResponse updateUser(Long userId, UserUpdateRequest request) {
         User user = getUser(userId);
         user.updateProfile(request.name(), request.profileImageUrl(), request.status());
-        return new UserResponse(user.getId(), user.getEmail(), user.getName(), user.getRole(), user.getStatus());
+        return new UserResponse(
+                user.getId(),
+                user.getEmail(),
+                user.getName(),
+                user.getBirthDate(),
+                user.getRole(),
+                user.getStatus());
     }
 
     public void deleteUser(Long userId) {
@@ -86,7 +100,18 @@ public class UserService {
     @Transactional(readOnly = true)
     public UserResponse findUser(Long userId) {
         User user = getUser(userId);
-        return new UserResponse(user.getId(), user.getEmail(), user.getName(), user.getRole(), user.getStatus());
+        return new UserResponse(
+                user.getId(),
+                user.getEmail(),
+                user.getName(),
+                user.getBirthDate(),
+                user.getRole(),
+                user.getStatus());
+    }
+
+    @Transactional(readOnly = true)
+    public boolean isEmailAvailable(String email) {
+        return userRepository.findByEmail(email).isEmpty();
     }
 
     private User getUser(Long userId) {
@@ -96,9 +121,23 @@ public class UserService {
     }
 
     private UserStatus resolveInitialStatus(UserRole role) {
-        if (role == UserRole.PROVIDER) {
+        if (role == UserRole.MANAGER) {
             return UserStatus.WAITING_MATCH;
         }
         return UserStatus.ACTIVE;
+    }
+
+    private String buildFullAddress(UserRegistrationRequest request) {
+        StringBuilder builder = new StringBuilder();
+        if (request.zipCode() != null && !request.zipCode().isBlank()) {
+            builder.append("[").append(request.zipCode()).append("] ");
+        }
+        if (request.address() != null) {
+            builder.append(request.address().trim());
+        }
+        if (request.detailAddress() != null && !request.detailAddress().isBlank()) {
+            builder.append(" ").append(request.detailAddress().trim());
+        }
+        return builder.toString().trim();
     }
 }

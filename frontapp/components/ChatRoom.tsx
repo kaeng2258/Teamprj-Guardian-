@@ -7,13 +7,18 @@ import SockJS from "sockjs-client";
 import { useRouter } from "next/navigation";
 
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8081";
+  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "";
 
 // RTC용 STOMP 엔드포인트 (SockJS는 http/https 스킴만 허용)
-const rawWs = process.env.NEXT_PUBLIC_WS_URL ?? "ws://localhost:8081/ws";
-const WS_ENDPOINT = rawWs.startsWith("http")
-  ? rawWs
-  : rawWs.replace(/^ws/, "http"); // ws → http, wss → https
+const WS_ENDPOINT = (() => {
+  const env = process.env.NEXT_PUBLIC_WS_URL;
+  if (env) {
+    return env.startsWith("http") ? env : env.replace(/^ws/, "http"); // ws → http, wss → https
+  }
+  if (typeof window === "undefined") return "/ws";
+  const protocol = window.location.protocol === "https:" ? "https" : "http";
+  return `${protocol}://${window.location.host}/ws`;
+})();
 
 type Props = {
   roomId: number;

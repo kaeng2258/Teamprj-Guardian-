@@ -14,12 +14,13 @@ import {
 } from "react";
 
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8081";
+  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "";
 
 type ManagerOverview = {
   userId: number | null;
   email: string;
   name: string;
+  profileImageUrl?: string | null;
 };
 
 type ManagerDashboardResponse = {
@@ -101,6 +102,7 @@ type UserSummary = {
   name: string;
   role: string;
   status: string;
+  profileImageUrl?: string | null;
 };
 
 type ManualMedicineForm = {
@@ -287,6 +289,7 @@ export default function ManagerMyPage() {
     userId: null,
     email: "",
     name: "",
+    profileImageUrl: "",
   });
   const [dashboard, setDashboard] = useState<ManagerDashboardResponse | null>(
     null
@@ -336,6 +339,9 @@ export default function ManagerMyPage() {
   const [selectedDrugDetailSeq, setSelectedDrugDetailSeq] = useState<
     string | null
   >(null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [avatarError, setAvatarError] = useState("");
+  const [avatarMessage, setAvatarMessage] = useState("");
   const updatePlanForm = (
     clientId: number,
     updater: (current: PlanFormState) => PlanFormState
@@ -419,6 +425,7 @@ export default function ManagerMyPage() {
       email: storedEmail,
       userId,
       name: "",
+      profileImageUrl: "",
     });
     if (userId) {
       (async () => {
@@ -431,6 +438,7 @@ export default function ManagerMyPage() {
           setManager((prev) => ({
             ...prev,
             name: data.name ?? "",
+            profileImageUrl: data.profileImageUrl ?? prev.profileImageUrl ?? "",
           }));
         } catch (error) {
           // ignore profile fetch errors
@@ -505,6 +513,63 @@ export default function ManagerMyPage() {
     }
     loadDashboard();
   }, [isReady, manager.userId, loadDashboard]);
+
+  const avatarInitial = useMemo(() => {
+    if (manager.name && manager.name.length > 0) {
+      return manager.name.slice(0, 1).toUpperCase();
+    }
+    if (manager.email && manager.email.length > 0) {
+      return manager.email.slice(0, 1).toUpperCase();
+    }
+    return "M";
+  }, [manager.email, manager.name]);
+
+  const handleAvatarChange = async (file: File | null) => {
+    if (!file || !manager.userId) {
+      return;
+    }
+    if (!file.type.startsWith("image/")) {
+      setAvatarError("이미지 파일만 업로드할 수 있습니다.");
+      return;
+    }
+
+    setAvatarUploading(true);
+    setAvatarError("");
+    setAvatarMessage("");
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const response = await fetch(
+        `${API_BASE_URL}/api/users/${manager.userId}/profile-image`,
+        {
+          method: "POST",
+          body: formData,
+        }
+      );
+      if (!response.ok) {
+        const message = await extractApiError(
+          response,
+          "프로필 이미지를 업로드하지 못했습니다."
+        );
+        throw new Error(message);
+      }
+      const data: UserSummary & { profileImageUrl?: string | null } = await response.json();
+      setManager((prev) => ({
+        ...prev,
+        profileImageUrl: data.profileImageUrl ?? prev.profileImageUrl ?? "",
+      }));
+      setAvatarMessage("프로필 이미지가 업데이트되었습니다.");
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "프로필 이미지를 업로드하지 못했습니다.";
+      setAvatarError(message);
+    } finally {
+      setAvatarUploading(false);
+    }
+  };
 
   const summarySections = useMemo(() => {
     return [
@@ -2098,13 +2163,41 @@ const WeeklyDayCard = ({
       <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 rounded-3xl bg-white p-4 shadow-lg sm:p-8">
         <header className="flex flex-col gap-4 border-b border-slate-200 pb-5">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
-              <p className="text-2xl font-semibold uppercase tracking-wide text-indigo-600 sm:text-3xl">
-                Manager
-              </p>
-              <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">
-                {manager.name} 매니저
-              </h1>
+            <div className="flex items-center gap-3 sm:gap-4">
+              <div className="relative">
+                <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full border-2 border-indigo-200 bg-indigo-50 text-lg font-semibold text-indigo-700">
+                  {manager.profileImageUrl ? (
+                    <img
+                      src={manager.profileImageUrl}
+                      alt="프로필 이미지"
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <span>{avatarInitial}</span>
+                  )}
+                </div>
+                <label className="absolute -right-1 -bottom-1 inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-full bg-indigo-600 text-xs font-semibold text-white shadow-sm ring-4 ring-white transition hover:bg-indigo-700">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="sr-only"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0] ?? null;
+                      void handleAvatarChange(file);
+                      event.target.value = "";
+                    }}
+                  />
+                  {avatarUploading ? "..." : "Edit"}
+                </label>
+              </div>
+              <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
+                <p className="text-2xl font-semibold uppercase tracking-wide text-indigo-600 sm:text-3xl">
+                  Manager
+                </p>
+                <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">
+                  {manager.name ? `${manager.name} 매니저` : "매니저 마이페이지"}
+                </h1>
+              </div>
             </div>
             <button
               className="h-10 rounded-md border border-red-400 px-4 text-sm font-semibold text-red-500 transition hover:border-red-500 hover:bg-red-50 hover:text-red-600"
@@ -2114,6 +2207,15 @@ const WeeklyDayCard = ({
               로그아웃
             </button>
           </div>
+          {(avatarError || avatarMessage) && (
+            <p
+              className={`text-sm ${
+                avatarError ? "text-red-600" : "text-emerald-600"
+              }`}
+            >
+              {avatarError || avatarMessage}
+            </p>
+          )}
           <div className="flex flex-col gap-3">
             <div className="flex gap-3 pb-2 sm:grid sm:grid-cols-3 sm:gap-3 sm:pb-0">
               {managerQuickActions.map((action) => {

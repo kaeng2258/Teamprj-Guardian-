@@ -88,8 +88,8 @@ public class ManagerDashboardService {
 
         long activeAlertCount = emergencyAlertRepository.findByStatus(EmergencyAlertStatus.PENDING).size();
         long pendingMedicationCount = matches.stream()
-                .map(match -> medicationAlarmRepository.findByClient_Id(match.getClient().getId()).size())
-                .mapToLong(Integer::longValue)
+                .map(match -> medicationAlarmRepository.findByClient_Id(match.getClient().getId()))
+                .mapToLong(list -> list.stream().filter(alarm -> !alarm.isActive()).count())
                 .sum();
 
         return new ManagerDashboardResponse(manager.getId(), clients, activeAlertCount, pendingMedicationCount);

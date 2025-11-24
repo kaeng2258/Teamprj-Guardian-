@@ -63,6 +63,8 @@ type EmergencyAlertInfo = {
   alertType: string;
   status: string;
   alertTime: string;
+  clientName?: string;
+  clientBirthDate?: string;
 };
 
 type MedicineSummary = {
@@ -312,6 +314,19 @@ export default function ManagerMyPage() {
   const [deleteProcessing, setDeleteProcessing] = useState<
     Record<number, "idle" | "loading">
   >({});
+  const [editingPlanId, setEditingPlanId] = useState<number | null>(null);
+  const [editingForms, setEditingForms] = useState<
+    Record<
+      number,
+      {
+        dosageAmount: string;
+        dosageUnit: string;
+        alarmTime: string;
+        days: Set<string>;
+        active: boolean;
+      }
+    >
+  >({});
   const [searchKeyword, setSearchKeyword] = useState("");
   const [searchResults, setSearchResults] = useState<ManagerClientSearchResult[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
@@ -411,28 +426,6 @@ export default function ManagerMyPage() {
       return;
     }
 
-    // 즐겨찾기 클라이언트 로드
-    try {
-      const storedFavorites = window.localStorage.getItem("managerFavoriteClients");
-      if (storedFavorites) {
-        const parsed = JSON.parse(storedFavorites);
-        if (Array.isArray(parsed)) {
-          const normalized = Array.from(
-            new Set(
-              parsed
-                .map((id) => Number(id))
-                .filter((id) => Number.isFinite(id) && id > 0),
-            ),
-          );
-          if (normalized.length > 0) {
-            setFavoriteClientIds(normalized);
-          }
-        }
-      }
-    } catch {
-      // ignore parse error
-    }
-
     const accessToken = window.localStorage.getItem("accessToken");
     const role = window.localStorage.getItem("userRole");
 
@@ -471,20 +464,52 @@ export default function ManagerMyPage() {
     setIsReady(true);
   }, [router]);
 
+  const favoritesKey = manager.userId ? `managerFavoriteClients:${manager.userId}` : null;
+
+  // 즐겨찾기 로드 (사용자 기준)
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    if (!manager.userId) {
+      setFavoriteClientIds([]);
+      return;
+    }
+    try {
+      const key = favoritesKey ?? "managerFavoriteClients";
+      const storedFavorites = window.localStorage.getItem(key);
+      const legacy = window.localStorage.getItem("managerFavoriteClients");
+      const source = storedFavorites ?? legacy;
+      if (source) {
+        const parsed = JSON.parse(source);
+        if (Array.isArray(parsed)) {
+          const normalized = Array.from(
+            new Set(
+              parsed
+                .map((id) => Number(id))
+                .filter((id) => Number.isFinite(id) && id > 0),
+            ),
+          );
+          setFavoriteClientIds(normalized);
+        }
+      }
+    } catch {
+      // ignore parse error
+    }
+  }, [manager.userId, favoritesKey]);
+
   // 즐겨찾기 저장
   useEffect(() => {
     if (typeof window === "undefined") {
       return;
     }
+    if (!favoritesKey) return;
     try {
-      window.localStorage.setItem(
-        "managerFavoriteClients",
-        JSON.stringify(favoriteClientIds),
-      );
+      window.localStorage.setItem(favoritesKey, JSON.stringify(favoriteClientIds));
     } catch {
       // ignore storage error
     }
-  }, [favoriteClientIds]);
+  }, [favoriteClientIds, favoritesKey]);
 
   const loadDashboard = useCallback(async () => {
     if (!manager.userId) {
@@ -648,7 +673,7 @@ export default function ManagerMyPage() {
       },
       {
         key: "alert",
-        label: "미처리 비상 알림",
+        label: "미처리 알림",
         value: dashboardLoading && !dashboard ? "확인 중" : alerts > 0 ? `${alerts}건` : "없음",
         hint: alerts > 0 ? "즉시 확인이 필요합니다." : "미처리 알림이 없습니다.",
         accent: alerts > 0 ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-700",
@@ -666,6 +691,113 @@ export default function ManagerMyPage() {
   }, [dashboard, dashboardLoading]);
 
   const [activeStat, setActiveStat] = useState<(typeof managerStats)[number] | null>(null);
+  type AlertTab = "overdue" | "chat" | "emergency";
+  const [managerAlertTab, setManagerAlertTab] = useState<AlertTab>("overdue");
+  const [alertPage, setAlertPage] = useState<Record<AlertTab, number>>({
+    overdue: 0,
+    chat: 0,
+    emergency: 0,
+  });
+  const PAGE_SIZE = 10;
+
+  const todayToken = useMemo(() => {
+    const tokens = ["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"];
+    return tokens[new Date().getDay()] ?? "ALL";
+  }, []);
+
+  const todayDateString = useMemo(() => new Date().toISOString().split("T")[0] ?? "", []);
+
+  const emergencyAlerts = useMemo(
+    () =>
+      (dashboard?.clients ?? [])
+        .flatMap((c) =>
+          (c.emergencyAlerts ?? []).map((a) => {
+            const time = a.alertTime ? a.alertTime.replace("T", " ").slice(0, 16) : "";
+            const name = c.clientName != null ? `${c.clientName}` : "이용자";
+            return `${name} 긴급 호출 / ${time} / ${a.status ?? ""}`;
+          }),
+        ),
+    [dashboard],
+  );
+
+  const overdueAlerts = useMemo(() => {
+    const now = new Date();
+    const list: string[] = [];
+    (dashboard?.clients ?? []).forEach((client) => {
+      (client.medicationPlans ?? []).forEach((plan) => {
+        if (!plan.active) return;
+        const days = (plan.daysOfWeek ?? []).map((d) => d.toUpperCase());
+        const dueToday = days.includes("ALL") || days.includes(todayToken);
+        if (!dueToday) return;
+        const [h, m] = (plan.alarmTime ?? "").split(":");
+        const alarm = new Date(now);
+        alarm.setHours(Number(h) || 0, Number(m) || 0, 0, 0);
+        if (alarm.getTime() > now.getTime()) return;
+        const logs = client.latestMedicationLogs ?? [];
+        const hasTodayLog = logs.some((log) => {
+          const logDate = (log.logTimestamp ?? "").split("T")[0];
+          const sameDay = logDate === todayDateString;
+          if (!sameDay) return false;
+          if (log.planId && plan.id) return log.planId === plan.id;
+          return log.medicineId === plan.medicineId;
+        });
+        if (!hasTodayLog) {
+          list.push(`${client.clientName} / ${plan.medicineName} / ${plan.alarmTime?.slice(0, 5) ?? ""} 확인 필요`);
+        }
+      });
+    });
+    return list;
+  }, [dashboard, todayDateString, todayToken]);
+
+  const [chatAlerts, setChatAlerts] = useState<Array<{ roomId: number; label: string }>>([]);
+
+  useEffect(() => {
+    const loadUnread = async () => {
+      if (!manager.userId) return;
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/chat/threads?userId=${manager.userId}`);
+        if (!res.ok) return;
+        const data: Array<{
+          roomId: number;
+          clientName?: string;
+          managerName?: string;
+          lastMessageSnippet?: string;
+          readByManager: boolean;
+        }> = await res.json();
+        const unread = data
+          .filter((t) => !t.readByManager)
+          .map((t) => ({
+            roomId: t.roomId,
+            label: `${t.clientName ?? "이용자"} / ${t.lastMessageSnippet ?? "새 메시지"}`,
+          }));
+        setChatAlerts(unread);
+      } catch {
+        // ignore
+      }
+    };
+    void loadUnread();
+  }, [manager.userId]);
+
+  const currentAlerts = useMemo(() => {
+    switch (managerAlertTab) {
+      case "overdue":
+        return overdueAlerts.length > 0 ? overdueAlerts : ["미복약 알림이 없습니다."];
+      case "chat":
+        return chatAlerts.length > 0 ? chatAlerts.map((c) => c.label) : ["메시지가 없습니다."];
+      case "emergency":
+        return emergencyAlerts.length > 0 ? emergencyAlerts : ["알림이 없습니다."];
+      default:
+        return [];
+    }
+  }, [managerAlertTab, overdueAlerts, chatAlerts, emergencyAlerts]);
+
+  const pagedAlerts = useMemo(() => {
+    const page = alertPage[managerAlertTab] ?? 0;
+    const start = page * PAGE_SIZE;
+    return currentAlerts.slice(start, start + PAGE_SIZE);
+  }, [alertPage, managerAlertTab, currentAlerts]);
+
+  const totalPages = useMemo(() => Math.max(1, Math.ceil(currentAlerts.length / PAGE_SIZE)), [currentAlerts.length]);
 
   const filteredClients = useMemo(() => {
     if (!dashboard?.clients) {
@@ -696,6 +828,7 @@ export default function ManagerMyPage() {
   );
 
   const toggleFavorite = useCallback((clientId: number) => {
+    if (!manager.userId) return;
     setFavoriteClientIds((prev) => {
       const set = new Set(prev);
       if (set.has(clientId)) {
@@ -794,6 +927,19 @@ export default function ManagerMyPage() {
     };
     return labels[normalized] ?? value;
   }, []);
+
+  const dayOptions = useMemo(
+    () => [
+      "MONDAY",
+      "TUESDAY",
+      "WEDNESDAY",
+      "THURSDAY",
+      "FRIDAY",
+      "SATURDAY",
+      "SUNDAY",
+    ],
+    [],
+  );
 
   const formatAlarmTime = (value: string) => {
     if (!value) {
@@ -1537,6 +1683,99 @@ const WeeklyDayCard = ({
     }
   };
 
+  const handleUpdatePlan = async (
+    clientId: number,
+    planId: number,
+    payload: Partial<{
+      dosageAmount: number;
+      dosageUnit: string;
+      alarmTime: string;
+      daysOfWeek: string[];
+      active: boolean;
+      medicineId: number | null;
+      manualMedicine?: Partial<ManualMedicineForm>;
+    }>
+  ) => {
+    setPlanMessages((prev) => ({ ...prev, [planId]: undefined }));
+    updatePlanForm(clientId, (current) => ({
+      ...current,
+      submitting: true,
+      error: "",
+      message: "",
+    }));
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/clients/${clientId}/medication/plans/${planId}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ...payload,
+            daysOfWeek: payload.daysOfWeek ?? [],
+            active: payload.active ?? true,
+          }),
+        }
+      );
+      if (!response.ok) {
+        const message = await extractApiError(
+          response,
+          "복약 일정을 수정하지 못했습니다."
+        );
+        throw new Error(message);
+      }
+      await loadDashboard();
+      setPlanMessages((prev) => ({
+        ...prev,
+        [planId]: { type: "success", text: "복약 일정이 수정되었습니다." },
+      }));
+      setEditingPlanId(null);
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "복약 일정을 수정하지 못했습니다.";
+      setPlanMessages((prev) => ({
+        ...prev,
+        [planId]: { type: "error", text: message },
+      }));
+    } finally {
+      updatePlanForm(clientId, (current) => ({
+        ...current,
+        submitting: false,
+      }));
+    }
+  };
+
+  const beginEditPlan = (plan: MedicationPlan) => {
+    setEditingPlanId(plan.id);
+    setEditingForms((prev) => ({
+      ...prev,
+      [plan.id]: {
+        dosageAmount: String(plan.dosageAmount),
+        dosageUnit: plan.dosageUnit,
+        alarmTime: plan.alarmTime,
+        days: new Set(plan.daysOfWeek.map((d) => d.toUpperCase())),
+        active: plan.active,
+      },
+    }));
+  };
+
+  const updateEditField = (planId: number, updater: (draft: {
+    dosageAmount: string;
+    dosageUnit: string;
+    alarmTime: string;
+    days: Set<string>;
+    active: boolean;
+  }) => void) => {
+    setEditingForms((prev) => {
+      const current = prev[planId];
+      if (!current) return prev;
+      const next = { ...current, days: new Set(current.days) };
+      updater(next);
+      return { ...prev, [planId]: next };
+    });
+  };
+
   const handleRecordMedication = async (
     clientId: number,
     plan: MedicationPlan
@@ -1741,6 +1980,13 @@ const WeeklyDayCard = ({
                       <div className="flex gap-2">
                         <button
                           className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:border-slate-400 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
+                          onClick={() => beginEditPlan(plan)}
+                          type="button"
+                        >
+                          수정
+                        </button>
+                        <button
+                          className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:border-slate-400 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
                           disabled={deleteProcessing[plan.id] === "loading"}
                           onClick={() => handleDeletePlan(client.clientId, plan.id)}
                           type="button"
@@ -1756,15 +2002,147 @@ const WeeklyDayCard = ({
                         최근 확인:{" "}
                         {latestLog ? `${formatDateTime(latestLog.logTimestamp)}` : "기록 없음"}
                       </p>
-                      <button
-                        className="w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-indigo-300 sm:w-auto"
-                        disabled={logProcessing[plan.id] === "loading"}
-                        onClick={() => handleRecordMedication(client.clientId, plan)}
-                        type="button"
-                      >
-                        {logProcessing[plan.id] === "loading" ? "기록 중..." : "복약 확정"}
-                      </button>
+                      <div className="flex gap-2">
+                        <button
+                          className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:border-slate-400 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
+                          onClick={() =>
+                            handleUpdatePlan(client.clientId, plan.id, {
+                              active: !plan.active,
+                              dosageAmount: plan.dosageAmount,
+                              dosageUnit: plan.dosageUnit,
+                              alarmTime: plan.alarmTime,
+                              daysOfWeek: plan.daysOfWeek,
+                              medicineId: plan.medicineId,
+                            })
+                          }
+                          type="button"
+                        >
+                          {plan.active ? "비활성화" : "활성화"}
+                        </button>
+                        <button
+                          className="w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-indigo-300 sm:w-auto"
+                          disabled={logProcessing[plan.id] === "loading"}
+                          onClick={() => handleRecordMedication(client.clientId, plan)}
+                          type="button"
+                        >
+                          {logProcessing[plan.id] === "loading" ? "기록 중..." : "복약 확정"}
+                        </button>
+                      </div>
                     </div>
+                    {editingPlanId === plan.id && editingForms[plan.id] && (
+                      <div className="mt-4 grid gap-3 rounded-xl border border-slate-200 bg-white p-3">
+                        <div className="grid gap-3 sm:grid-cols-3">
+                          <label className="flex flex-col gap-1 text-sm text-slate-700">
+                            <span>복용량</span>
+                            <input
+                              type="number"
+                              min={1}
+                              value={editingForms[plan.id].dosageAmount}
+                              className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+                              onChange={(event) =>
+                                updateEditField(plan.id, (draft) => {
+                                  draft.dosageAmount = event.target.value;
+                                })
+                              }
+                            />
+                          </label>
+                          <label className="flex flex-col gap-1 text-sm text-slate-700">
+                            <span>단위</span>
+                            <input
+                              value={editingForms[plan.id].dosageUnit}
+                              className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+                              onChange={(event) =>
+                                updateEditField(plan.id, (draft) => {
+                                  draft.dosageUnit = event.target.value;
+                                })
+                              }
+                            />
+                          </label>
+                          <label className="flex flex-col gap-1 text-sm text-slate-700">
+                            <span>알람 시간</span>
+                            <input
+                              type="time"
+                              value={editingForms[plan.id].alarmTime}
+                              className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+                              onChange={(event) =>
+                                updateEditField(plan.id, (draft) => {
+                                  draft.alarmTime = event.target.value;
+                                })
+                              }
+                            />
+                          </label>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {dayOptions.map((day) => {
+                            const checked = editingForms[plan.id].days.has(day);
+                            return (
+                              <label
+                                key={day}
+                                className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold ${
+                                  checked
+                                    ? "border-indigo-500 bg-indigo-50 text-indigo-700"
+                                    : "border-slate-200 bg-white text-slate-600"
+                                }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  className="sr-only"
+                                  checked={checked}
+                                  onChange={(event) =>
+                                    updateEditField(plan.id, (draft) => {
+                                      const next = new Set(draft.days);
+                                      if (event.target.checked) next.add(day);
+                                      else next.delete(day);
+                                      draft.days = next;
+                                    })
+                                  }
+                                />
+                                {mapDayToLabel(day)}
+                              </label>
+                            );
+                          })}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <label className="inline-flex items-center gap-2 text-sm font-semibold text-slate-700">
+                            <input
+                              type="checkbox"
+                              checked={editingForms[plan.id].active}
+                              onChange={(event) =>
+                                updateEditField(plan.id, (draft) => {
+                                  draft.active = event.target.checked;
+                                })
+                              }
+                            />
+                            활성화
+                          </label>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700"
+                            type="button"
+                            onClick={() =>
+                              handleUpdatePlan(client.clientId, plan.id, {
+                                dosageAmount: Number(editingForms[plan.id].dosageAmount) || plan.dosageAmount,
+                                dosageUnit: editingForms[plan.id].dosageUnit || plan.dosageUnit,
+                                alarmTime: editingForms[plan.id].alarmTime || plan.alarmTime,
+                                daysOfWeek: Array.from(editingForms[plan.id].days),
+                                active: editingForms[plan.id].active,
+                                medicineId: plan.medicineId,
+                              })
+                            }
+                          >
+                            수정 저장
+                          </button>
+                          <button
+                            className="rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-400"
+                            type="button"
+                            onClick={() => setEditingPlanId(null)}
+                          >
+                            닫기
+                          </button>
+                        </div>
+                      </div>
+                    )}
                     {logMessage && (
                       <p
                         className={`mt-2 text-sm ${
@@ -2257,19 +2635,13 @@ const WeeklyDayCard = ({
                     <span>{avatarInitial}</span>
                   )}
                 </div>
-                <label className="absolute -right-1 -bottom-1 inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-full bg-indigo-600 text-xs font-semibold text-white shadow-sm ring-4 ring-white transition hover:bg-indigo-700">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="sr-only"
-                    onChange={(event) => {
-                      const file = event.target.files?.[0] ?? null;
-                      void handleAvatarChange(file);
-                      event.target.value = "";
-                    }}
-                  />
-                  {avatarUploading ? "..." : "Edit"}
-                </label>
+                <button
+                  className="absolute -left-1 -bottom-1 inline-flex h-8 w-8 items-center justify-center rounded-full bg-indigo-600 text-xs font-semibold text-white shadow-sm ring-4 ring-white transition hover:bg-indigo-700"
+                  type="button"
+                  onClick={() => router.push("/manager/profile/edit")}
+                >
+                  Edit
+                </button>
               </div>
               <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
                 <p className="text-2xl font-semibold uppercase tracking-wide text-indigo-600 sm:text-3xl">
@@ -2379,63 +2751,168 @@ const WeeklyDayCard = ({
                         onClick={() => setActiveStat(null)}
                         type="button"
                         aria-label="상세 닫기"
-                    >
-                      닫기 ✕
-                    </button>
+                      >
+                        닫기 ✕
+                      </button>
+                    </div>
+                    <p className="mt-3 text-sm text-slate-700 leading-relaxed">{activeStat.detail}</p>
+                    {activeStat.key === "alert" ? (
+                      <>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {[
+                            { key: "overdue", label: "미복약", count: overdueAlerts.length },
+                            { key: "chat", label: "메시지", count: chatAlerts.length },
+                            { key: "emergency", label: "긴급 호출", count: emergencyAlerts.length },
+                          ].map((tab) => (
+                            <button
+                              key={tab.key}
+                              type="button"
+                              onClick={() => setManagerAlertTab(tab.key as AlertTab)}
+                              className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
+                                managerAlertTab === tab.key
+                                  ? "border-indigo-500 bg-indigo-50 text-indigo-700"
+                                  : "border-slate-200 bg-white text-slate-600 hover:border-indigo-300"
+                              }`}
+                            >
+                              {tab.label} ({tab.count})
+                            </button>
+                          ))}
+                        </div>
+                        <div className="mt-3 max-h-64 overflow-y-auto rounded-lg bg-slate-50 p-3 text-sm text-slate-700">
+                          <ul className="space-y-2">
+                            {pagedAlerts.map((item, idx) => {
+                              const absoluteIdx = (alertPage[managerAlertTab] ?? 0) * PAGE_SIZE + idx;
+                              return (
+                                <li
+                                  key={`${managerAlertTab}-item-${idx}`}
+                                  className="flex items-start gap-2"
+                                  onClick={() => {
+                                    if (managerAlertTab === "chat" && chatAlerts[absoluteIdx]) {
+                                      const target = chatAlerts[absoluteIdx];
+                                      setClientModalClientId(null);
+                                      setActivePanel("chat");
+                                      setTimeout(() => {
+                                        const el = document.querySelector(`[data-room-id='${target.roomId}']`);
+                                        if (el instanceof HTMLElement) {
+                                          el.scrollIntoView({ behavior: "smooth", block: "center" });
+                                        }
+                                      }, 100);
+                                    }
+                                    if (managerAlertTab === "emergency") {
+                                      const label = item;
+                                      const roomId = label.match(/room (\\d+)/i)?.[1];
+                                      if (roomId) {
+                                        setClientModalClientId(null);
+                                        setActivePanel("chat");
+                                        setTimeout(() => {
+                                          const el = document.querySelector(`[data-room-id='${roomId}']`);
+                                          if (el instanceof HTMLElement) {
+                                            el.scrollIntoView({ behavior: "smooth", block: "center" });
+                                          }
+                                        }, 100);
+                                      }
+                                    }
+                                  }}
+                                  role="button"
+                                >
+                                  <span className="mt-0.5 inline-block h-2 w-2 rounded-full bg-indigo-400" />
+                                  <span className="leading-relaxed">{item}</span>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        </div>
+                        {totalPages > 1 && (
+                          <div className="mt-2 flex items-center justify-between text-xs text-slate-600">
+                            <span>
+                              페이지 { (alertPage[managerAlertTab] ?? 0) + 1 } / {totalPages}
+                            </span>
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                className="rounded-md border border-slate-200 px-2 py-1 hover:border-indigo-300"
+                                disabled={(alertPage[managerAlertTab] ?? 0) === 0}
+                                onClick={() =>
+                                  setAlertPage((prev) => ({
+                                    ...prev,
+                                    [managerAlertTab]: Math.max(0, (prev[managerAlertTab] ?? 0) - 1),
+                                  }))
+                                }
+                              >
+                                이전
+                              </button>
+                              <button
+                                type="button"
+                                className="rounded-md border border-slate-200 px-2 py-1 hover:border-indigo-300"
+                                disabled={(alertPage[managerAlertTab] ?? 0) >= totalPages - 1}
+                                onClick={() =>
+                                  setAlertPage((prev) => ({
+                                    ...prev,
+                                    [managerAlertTab]: Math.min(totalPages - 1, (prev[managerAlertTab] ?? 0) + 1),
+                                  }))
+                                }
+                              >
+                                다음
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      activeStat.items &&
+                      activeStat.items.length > 0 && (
+                        <ul className="mt-3 space-y-2 rounded-lg bg-slate-50 p-3 text-sm text-slate-700">
+                          {activeStat.items.map((item, idx) => (
+                            <li key={`${activeStat.key}-item-${idx}`} className="flex items-start gap-2">
+                              <span className="mt-0.5 inline-block h-2 w-2 rounded-full bg-indigo-400" />
+                              <span className="leading-relaxed">{item}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )
+                    )}
                   </div>
-                  <p className="mt-3 text-sm text-slate-700 leading-relaxed">{activeStat.detail}</p>
-                  {activeStat.items && activeStat.items.length > 0 && (
-                    <ul className="mt-3 space-y-2 rounded-lg bg-slate-50 p-3 text-sm text-slate-700">
-                      {activeStat.items.map((item, idx) => (
-                        <li key={`${activeStat.key}-item-${idx}`} className="flex items-start gap-2">
-                          <span className="mt-0.5 inline-block h-2 w-2 rounded-full bg-indigo-400" />
-                          <span className="leading-relaxed">{item}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
                 </div>
-              </div>
               )}
             </section>
 
             <section className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6">
               <div className="flex flex-col gap-2 border-b border-slate-200 pb-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h2 className="text-lg font-semibold text-slate-900">
-                검색 및 배정
-              </h2>
-              <p className="text-sm text-slate-600">
-                이름 또는 이메일로 이용자를 찾아 배정 여부를 확인하고 배정을 진행하세요.
-              </p>
-            </div>
-          </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-slate-900">
+                    검색 및 배정
+                  </h2>
+                  <p className="text-sm text-slate-600">
+                    이름 또는 이메일로 이용자를 찾아 배정 여부를 확인하고 배정을 진행하세요.
+                  </p>
+                </div>
+              </div>
 
-          <form
-            className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center"
-            onSubmit={(event) => {
-              void handleClientSearch(event);
-            }}
-          >
-            <input
-              className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-              onChange={(event) => {
-                setSearchKeyword(event.target.value);
-                if (searchError) {
-                  setSearchError("");
-                }
-              }}
-              placeholder="이름 또는 이메일"
-              value={searchKeyword}
-            />
-            <button
-              className="w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-indigo-300 sm:w-auto"
-              disabled={searchLoading}
-              type="submit"
-            >
-              {searchLoading ? "검색 중..." : "검색"}
-            </button>
-          </form>
+              <form
+                className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center"
+                onSubmit={(event) => {
+                  void handleClientSearch(event);
+                }}
+              >
+                <input
+                  className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+                  onChange={(event) => {
+                    setSearchKeyword(event.target.value);
+                    if (searchError) {
+                      setSearchError("");
+                    }
+                  }}
+                  placeholder="이름 또는 이메일"
+                  value={searchKeyword}
+                />
+                <button
+                  className="w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-indigo-300 sm:w-auto"
+                  disabled={searchLoading}
+                  type="submit"
+                >
+                  {searchLoading ? "검색 중..." : "검색"}
+                </button>
+              </form>
 
           {searchError && (
             <p className="mt-3 text-sm text-red-600">{searchError}</p>
@@ -2502,33 +2979,14 @@ const WeeklyDayCard = ({
                     aria-label={`${result.name} 정보 보기`}
                   >
                     <button
-                      className={`absolute right-3 top-3 inline-flex h-9 w-9 items-center justify-center rounded-full border transition hover:-translate-y-0.5 hover:shadow-sm ${
-                        favorite
-                          ? "border-amber-300 bg-amber-50 text-amber-600"
-                          : "border-slate-200 bg-white text-slate-400"
-                      }`}
+                      className={`favorite-heart absolute right-3 top-3 ${favorite ? "on" : ""}`}
                       aria-label={favorite ? "즐겨찾기 해제" : "즐겨찾기 추가"}
                       onClick={(event) => {
                         event.stopPropagation();
                         toggleFavorite(result.clientId);
                       }}
                       type="button"
-                    >
-                      <svg
-                        aria-hidden="true"
-                        className="h-5 w-5"
-                        fill={favorite ? "currentColor" : "none"}
-                        stroke="currentColor"
-                        strokeWidth={1.7}
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          d="m12 17-5.09 2.674 1.01-5.892L3.84 9.826l5.91-.859L12 3.5l2.25 5.467 5.91.859-4.08 3.956 1.01 5.892z"
-                          strokeLinejoin="round"
-                          strokeLinecap="round"
-                        />
-                      </svg>
-                    </button>
+                    />
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                       <div>
                         <h3 className="text-base font-semibold text-slate-900 sm:text-lg">
@@ -2681,34 +3139,15 @@ const WeeklyDayCard = ({
                     aria-label={`${client.clientName}님의 복약 관리 열기`}
                   >
                     <button
-                      className={`absolute right-3 top-3 inline-flex h-9 w-9 items-center justify-center rounded-full border transition hover:-translate-y-0.5 hover:shadow-sm ${
-                        favorite
-                          ? "border-amber-300 bg-amber-50 text-amber-600"
-                          : "border-slate-200 bg-white text-slate-400"
-                      }`}
+                      className={`favorite-heart absolute right-3 top-3 ${favorite ? "on" : ""}`}
                       aria-label={favorite ? "즐겨찾기 해제" : "즐겨찾기 추가"}
                       onClick={(event) => {
                         event.stopPropagation();
                         toggleFavorite(client.clientId);
                       }}
                       type="button"
-                    >
-                      <svg
-                        aria-hidden="true"
-                        className="h-5 w-5"
-                        fill={favorite ? "currentColor" : "none"}
-                        stroke="currentColor"
-                        strokeWidth={1.7}
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          d="m12 17-5.09 2.674 1.01-5.892L3.84 9.826l5.91-.859L12 3.5l2.25 5.467 5.91.859-4.08 3.956 1.01 5.892z"
-                          strokeLinejoin="round"
-                          strokeLinecap="round"
-                        />
-                      </svg>
-                    </button>
-                    <div className="flex flex-col gap-2 border-b border-slate-200 pb-4 sm:flex-row sm:items-center sm:justify-between">
+                    />
+                    <div className="flex flex-col gap-2 border-b border-slate-200 pb-4 sm:flex-row sm:items-center sm:justify-between pr-12">
                       <div>
                         <h3 className="text-base font-semibold text-slate-900 sm:text-lg">
                           {client.clientName} 님
@@ -2717,9 +3156,6 @@ const WeeklyDayCard = ({
                           복약 일정 {client.medicationPlans.length}건 · 최근 확인{" "}
                           {client.latestMedicationLogs.length}건
                         </p>
-                      </div>
-                      <div className="text-xs font-semibold text-amber-700">
-                        비상 알림 {client.emergencyAlerts.length}건
                       </div>
                     </div>
                     <div className="flex flex-col gap-3 pt-4 sm:flex-row sm:items-center sm:justify-between">
@@ -2778,6 +3214,42 @@ const WeeklyDayCard = ({
         </section>
       )}
       </main>
+      <style jsx global>{`
+        .favorite-heart {
+          position: absolute;
+          width: 30px;
+          height: 30px;
+          border: 0;
+          font-size: 0;
+          border-radius: 9999px;
+          background: #fff url("https://umings.github.io/images/i_like_off.png") no-repeat center / 18px;
+          box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+          cursor: pointer;
+          transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .favorite-heart.on {
+          background: #fff url("https://umings.github.io/images/i_like_on.png") no-repeat center / 18px;
+          animation: favorite-beat 0.5s 1 alternate;
+          }
+        .favorite-heart:hover {
+          transform: translateY(-1px);
+          box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
+        }
+        @keyframes favorite-beat {
+          0% {
+            transform: scale(1);
+          }
+          40% {
+            transform: scale(1.15);
+          }
+          70% {
+            transform: scale(0.9);
+          }
+          100% {
+            transform: scale(1);
+          }
+        }
+      `}</style>
       {selectedClient && selectedClientForm && (
         <>
           <div

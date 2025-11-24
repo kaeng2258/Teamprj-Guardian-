@@ -7,7 +7,9 @@ import com.ll.guardian.domain.alarm.dto.MedicationPlanRequest;
 import com.ll.guardian.domain.alarm.dto.MedicationPlanResponse;
 import com.ll.guardian.domain.alarm.dto.MedicationPlanUpdateRequest;
 import com.ll.guardian.domain.alarm.entity.MedicationAlarm;
+import com.ll.guardian.domain.alarm.repository.AlarmOccurrenceRepository;
 import com.ll.guardian.domain.alarm.repository.MedicationAlarmRepository;
+import com.ll.guardian.domain.alarm.repository.MedicationLogRepository;
 import com.ll.guardian.domain.matching.entity.CareMatch;
 import com.ll.guardian.domain.matching.repository.CareMatchRepository;
 import com.ll.guardian.domain.medicine.entity.Medicine;
@@ -32,16 +34,22 @@ import org.springframework.util.StringUtils;
 public class MedicationPlanService {
 
     private final MedicationAlarmRepository medicationAlarmRepository;
+    private final MedicationLogRepository medicationLogRepository;
+    private final AlarmOccurrenceRepository alarmOccurrenceRepository;
     private final CareMatchRepository careMatchRepository;
     private final UserRepository userRepository;
     private final MedicineRepository medicineRepository;
 
     public MedicationPlanService(
             MedicationAlarmRepository medicationAlarmRepository,
+            MedicationLogRepository medicationLogRepository,
+            AlarmOccurrenceRepository alarmOccurrenceRepository,
             CareMatchRepository careMatchRepository,
             UserRepository userRepository,
             MedicineRepository medicineRepository) {
         this.medicationAlarmRepository = medicationAlarmRepository;
+        this.medicationLogRepository = medicationLogRepository;
+        this.alarmOccurrenceRepository = alarmOccurrenceRepository;
         this.careMatchRepository = careMatchRepository;
         this.userRepository = userRepository;
         this.medicineRepository = medicineRepository;
@@ -93,6 +101,9 @@ public class MedicationPlanService {
         MedicationAlarm alarm = medicationAlarmRepository
                 .findByIdAndClient_Id(alarmId, clientId)
                 .orElseThrow(() -> new GuardianException(HttpStatus.NOT_FOUND, "알람 정보를 찾을 수 없습니다."));
+        // 알람과 연관된 복약 기록 제거 (FK 제약 대비)
+        medicationLogRepository.deleteByAlarm_Id(alarmId);
+        alarmOccurrenceRepository.deleteByAlarm_Id(alarmId);
         medicationAlarmRepository.delete(alarm);
     }
 

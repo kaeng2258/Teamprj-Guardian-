@@ -678,17 +678,14 @@ export default function ClientMyPage() {
       },
       {
         key: "push",
-        label: "알림 상태",
+        label: "미처리 알림",
         value: pushCapable ? "푸시 가능" : "푸시 불가",
-        hint: pushHelperText,
+        hint: pushCapable ? "푸시를 켜면 매니저의 비상 알림을 받을 수 있습니다." : pushHelperText,
         accent: pushCapable ? "bg-amber-100 text-amber-700" : "bg-slate-100 text-slate-500",
-        badge: "PUSH",
+        badge: "ALERT",
         detail: pushCapable
-          ? "웹 푸시를 지원하는 브라우저입니다. 복약 알림을 받을 수 있도록 브라우저 권한을 확인하세요."
+          ? "모바일 푸시를 활성화하여 매니저의 비상/안내 알림을 바로 받을 수 있습니다."
           : "이 브라우저에서는 푸시 알림이 제한됩니다. 지원되는 환경에서 접속하거나 앱 설치를 고려해주세요.",
-        actionLabel: pushStatus === "requesting" ? "설정 중..." : "푸시 알림 활성화",
-        actionDisabled: pushButtonDisabled,
-        onAction: handleEnablePush,
       },
     ] as ServiceStat[],
     [
@@ -704,6 +701,87 @@ export default function ClientMyPage() {
       pushStatus,
     ],
   );
+
+  type AlertTab = "overdue" | "chat" | "emergency";
+  const [alertTab, setAlertTab] = useState<AlertTab>("overdue");
+  const [alertPage, setAlertPage] = useState<Record<AlertTab, number>>({
+    overdue: 0,
+    chat: 0,
+    emergency: 0,
+  });
+  const PAGE_SIZE = 10;
+  const [emergencyAlerts, setEmergencyAlerts] = useState<string[]>([]);
+  const [emergencyLoaded, setEmergencyLoaded] = useState(false);
+  const [emergencyError, setEmergencyError] = useState("");
+
+  const overdueAlerts = useMemo(() => {
+    const now = new Date();
+    const today = todayToken;
+    return plans
+      .filter((plan) => {
+        const days = plan.daysOfWeek?.map((d) => d.toUpperCase()) ?? [];
+        const dueToday = days.includes("ALL") || days.includes(today);
+        if (!dueToday) return false;
+        const [h, m] = plan.alarmTime?.split(":") ?? [];
+        const planDate = new Date(now);
+        planDate.setHours(Number(h) || 0, Number(m) || 0, 0, 0);
+        const past = planDate.getTime() < now.getTime();
+        const confirmed = Boolean(todayLogs[plan.id]);
+        return past && !confirmed;
+      })
+      .slice(0, 10)
+      .map((plan) => `${plan.medicineName} / 알람 ${plan.alarmTime.slice(0, 5)} / 확인 필요`);
+  }, [plans, todayLogs, todayToken]);
+
+  const chatAlerts = useMemo(
+    () => ["채팅 미읽음 알림 연동 준비 중입니다."],
+    [],
+  );
+
+  useEffect(() => {
+    if (alertTab !== "emergency" || emergencyLoaded || !client.userId) return;
+    const load = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/emergency/alerts/client/${client.userId}`);
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(text || "알림을 불러오지 못했습니다.");
+        }
+        const data: Array<{ alertType?: string; status?: string; alertTime?: string }> = await res.json();
+        const list = data.map((a) => {
+          const time = a.alertTime ? a.alertTime.replace("T", " ").slice(0, 16) : "";
+          return `${time} / ${a.alertType ?? ""} / ${a.status ?? ""}`;
+        });
+        setEmergencyAlerts(list);
+      } catch (e: any) {
+        setEmergencyError(e instanceof Error ? e.message : "알림을 불러오지 못했습니다.");
+      } finally {
+        setEmergencyLoaded(true);
+      }
+    };
+    void load();
+  }, [alertTab, emergencyLoaded, client.userId]);
+
+  const currentAlerts = useMemo(() => {
+    switch (alertTab) {
+      case "overdue":
+        return overdueAlerts;
+      case "chat":
+        return chatAlerts;
+      case "emergency":
+        return emergencyError ? [emergencyError] : emergencyAlerts.length > 0 ? emergencyAlerts : ["알림이 없습니다."];
+      default:
+        return [];
+    }
+  }, [alertTab, overdueAlerts, chatAlerts, emergencyAlerts, emergencyError]);
+
+  const pagedAlerts = useMemo(() => {
+    const page = alertPage[alertTab] ?? 0;
+    const start = page * PAGE_SIZE;
+    return currentAlerts.slice(start, start + PAGE_SIZE);
+  }, [alertPage, alertTab, currentAlerts]);
+
+  const totalPages = useMemo(() => Math.max(1, Math.ceil(currentAlerts.length / PAGE_SIZE)), [currentAlerts.length]);
 
   const formatAlarmTime = (value: string) => {
     if (!value) {
@@ -1003,19 +1081,13 @@ export default function ClientMyPage() {
                     <span>{avatarInitial}</span>
                   )}
                 </div>
-                <label className="absolute -right-1 -bottom-1 inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-full bg-indigo-600 text-xs font-semibold text-white shadow-sm ring-4 ring-white transition hover:bg-indigo-700">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="sr-only"
-                    onChange={(event) => {
-                      const file = event.target.files?.[0] ?? null;
-                      void handleAvatarChange(file);
-                      event.target.value = "";
-                    }}
-                  />
-                  {avatarUploading ? "..." : "Edit"}
-                </label>
+                <button
+                  className="absolute -left-1 -bottom-1 inline-flex h-8 w-8 items-center justify-center rounded-full bg-indigo-600 text-xs font-semibold text-white shadow-sm ring-4 ring-white transition hover:bg-indigo-700"
+                  type="button"
+                  onClick={() => router.push("/client/profile/edit")}
+                >
+                  Edit
+                </button>
               </div>
               <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
                 <p className="text-2xl font-semibold uppercase tracking-wide text-indigo-600 sm:text-3xl">
@@ -1084,11 +1156,11 @@ export default function ClientMyPage() {
                 오늘의 복약 진행 상황과 알림 상태를 한눈에 확인하세요.
               </p>
             </div>
-            <div className="flex items-center gap-2 rounded-full bg-white px-3 py-1 text-xs font-semibold text-indigo-700 shadow-sm">
-              <span className="h-2 w-2 rounded-full bg-indigo-500" />
-              실시간 업데이트
-            </div>
-          </div>
+                <div className="flex items-center gap-2 rounded-full bg-white px-3 py-1 text-xs font-semibold text-indigo-700 shadow-sm">
+                  <span className="h-2 w-2 rounded-full bg-indigo-500" />
+                  미처리 알림 포함
+                </div>
+              </div>
           <div className="mt-4 grid gap-3 sm:grid-cols-3">
             {serviceStats.map((stat) => (
               <button
@@ -1128,25 +1200,107 @@ export default function ClientMyPage() {
                   </button>
                 </div>
                 <p className="mt-3 text-sm text-slate-700 leading-relaxed">{activeStat.detail}</p>
-                {activeStat.items && activeStat.items.length > 0 && (
-                  <ul className="mt-3 space-y-2 rounded-lg bg-slate-50 p-3 text-sm text-slate-700">
-                    {activeStat.items.map((item, idx) => (
-                      <li key={`${activeStat.key}-item-${idx}`} className="flex items-start gap-2">
-                        <span className="mt-0.5 inline-block h-2 w-2 rounded-full bg-indigo-400" />
-                        <span className="leading-relaxed">{item}</span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                {activeStat.onAction && (
-                  <button
-                    className="mt-4 inline-flex h-11 items-center justify-center rounded-xl bg-indigo-600 px-4 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-400"
-                    disabled={activeStat.actionDisabled}
-                    onClick={activeStat.onAction}
-                    type="button"
-                  >
-                    {activeStat.actionLabel ?? "실행"}
-                  </button>
+                {activeStat.key === "push" ? (
+                  <>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {[
+                        { key: "overdue", label: "미복약", count: overdueAlerts.length },
+                        { key: "chat", label: "미읽 메세지", count: chatAlerts.length },
+                        { key: "emergency", label: "긴급 호출", count: emergencyAlerts.length },
+                      ].map((tab) => (
+                        <button
+                          key={tab.key}
+                          type="button"
+                          onClick={() => setAlertTab(tab.key as AlertTab)}
+                          className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
+                            alertTab === tab.key
+                              ? "border-indigo-500 bg-indigo-50 text-indigo-700"
+                              : "border-slate-200 bg-white text-slate-600 hover:border-indigo-300"
+                          }`}
+                        >
+                          {tab.label} ({tab.count})
+                        </button>
+                      ))}
+                    </div>
+                    <div className="mt-3 max-h-64 overflow-y-auto rounded-lg bg-slate-50 p-3 text-sm text-slate-700">
+                      <ul className="space-y-2">
+                        {pagedAlerts.map((item, idx) => (
+                          <li key={`${alertTab}-item-${idx}`} className="flex items-start gap-2">
+                            <span className="mt-0.5 inline-block h-2 w-2 rounded-full bg-indigo-400" />
+                            <span className="leading-relaxed">{item}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                    {totalPages > 1 && (
+                      <div className="mt-2 flex items-center justify-between text-xs text-slate-600">
+                        <span>
+                          페이지 { (alertPage[alertTab] ?? 0) + 1 } / {totalPages}
+                        </span>
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            className="rounded-md border border-slate-200 px-2 py-1 hover:border-indigo-300"
+                            disabled={(alertPage[alertTab] ?? 0) === 0}
+                            onClick={() =>
+                              setAlertPage((prev) => ({
+                                ...prev,
+                                [alertTab]: Math.max(0, (prev[alertTab] ?? 0) - 1),
+                              }))
+                            }
+                          >
+                            이전
+                          </button>
+                          <button
+                            type="button"
+                            className="rounded-md border border-slate-200 px-2 py-1 hover:border-indigo-300"
+                            disabled={(alertPage[alertTab] ?? 0) >= totalPages - 1}
+                            onClick={() =>
+                              setAlertPage((prev) => ({
+                                ...prev,
+                                [alertTab]: Math.min(totalPages - 1, (prev[alertTab] ?? 0) + 1),
+                              }))
+                            }
+                          >
+                            다음
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                    {activeStat.onAction && (
+                      <button
+                        className="mt-4 inline-flex h-11 items-center justify-center rounded-xl bg-indigo-600 px-4 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-400"
+                        disabled={activeStat.actionDisabled}
+                        onClick={activeStat.onAction}
+                        type="button"
+                      >
+                        {activeStat.actionLabel ?? "실행"}
+                      </button>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    {activeStat.items && activeStat.items.length > 0 && (
+                      <ul className="mt-3 space-y-2 rounded-lg bg-slate-50 p-3 text-sm text-slate-700">
+                        {activeStat.items.map((item, idx) => (
+                          <li key={`${activeStat.key}-item-${idx}`} className="flex items-start gap-2">
+                            <span className="mt-0.5 inline-block h-2 w-2 rounded-full bg-indigo-400" />
+                            <span className="leading-relaxed">{item}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    {activeStat.onAction && (
+                      <button
+                        className="mt-4 inline-flex h-11 items-center justify-center rounded-xl bg-indigo-600 px-4 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-400"
+                        disabled={activeStat.actionDisabled}
+                        onClick={activeStat.onAction}
+                        type="button"
+                      >
+                        {activeStat.actionLabel ?? "실행"}
+                      </button>
+                    )}
+                  </>
                 )}
               </div>
             </div>

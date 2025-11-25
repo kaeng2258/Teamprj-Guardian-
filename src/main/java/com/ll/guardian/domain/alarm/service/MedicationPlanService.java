@@ -7,14 +7,22 @@ import com.ll.guardian.domain.alarm.dto.MedicationPlanRequest;
 import com.ll.guardian.domain.alarm.dto.MedicationPlanResponse;
 import com.ll.guardian.domain.alarm.dto.MedicationPlanUpdateRequest;
 import com.ll.guardian.domain.alarm.entity.MedicationAlarm;
+import com.ll.guardian.domain.alarm.repository.AlarmOccurrenceRepository;
 import com.ll.guardian.domain.alarm.repository.MedicationAlarmRepository;
+import com.ll.guardian.domain.alarm.repository.MedicationLogRepository;
+import com.ll.guardian.domain.matching.entity.CareMatch;
+import com.ll.guardian.domain.matching.repository.CareMatchRepository;
 import com.ll.guardian.domain.medicine.entity.Medicine;
 import com.ll.guardian.domain.medicine.repository.MedicineRepository;
 import com.ll.guardian.domain.user.entity.User;
 import com.ll.guardian.domain.user.repository.UserRepository;
 import com.ll.guardian.global.exception.GuardianException;
+import java.time.DayOfWeek;
 import java.time.LocalTime;
+import java.util.EnumSet;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -26,14 +34,23 @@ import org.springframework.util.StringUtils;
 public class MedicationPlanService {
 
     private final MedicationAlarmRepository medicationAlarmRepository;
+    private final MedicationLogRepository medicationLogRepository;
+    private final AlarmOccurrenceRepository alarmOccurrenceRepository;
+    private final CareMatchRepository careMatchRepository;
     private final UserRepository userRepository;
     private final MedicineRepository medicineRepository;
 
     public MedicationPlanService(
             MedicationAlarmRepository medicationAlarmRepository,
+            MedicationLogRepository medicationLogRepository,
+            AlarmOccurrenceRepository alarmOccurrenceRepository,
+            CareMatchRepository careMatchRepository,
             UserRepository userRepository,
             MedicineRepository medicineRepository) {
         this.medicationAlarmRepository = medicationAlarmRepository;
+        this.medicationLogRepository = medicationLogRepository;
+        this.alarmOccurrenceRepository = alarmOccurrenceRepository;
+        this.careMatchRepository = careMatchRepository;
         this.userRepository = userRepository;
         this.medicineRepository = medicineRepository;
     }
@@ -41,17 +58,19 @@ public class MedicationPlanService {
     public MedicationPlanResponse createPlan(Long clientId, MedicationPlanRequest request) {
         User client = getUser(clientId);
         Medicine medicine = resolveMedicine(request);
-        String daysOfWeek = String.join(",", request.daysOfWeek());
+        String daysOfWeek = normalizeDaysOfWeek(request.daysOfWeek());
 
         MedicationAlarm alarm = createMedicationAlarm(
                 client, medicine, request.dosageAmount(), request.dosageUnit(), request.alarmTime(), daysOfWeek);
         MedicationAlarm saved = medicationAlarmRepository.save(alarm);
-        return MedicationPlanResponse.from(saved);
+        CareMatch match = findCurrentMatch(clientId);
+        return MedicationPlanResponse.from(saved, match);
     }
 
     public List<MedicationPlanResponse> createPlans(Long clientId, MedicationPlanBatchRequest request) {
         User client = getUser(clientId);
-        String daysOfWeek = String.join(",", request.daysOfWeek());
+        String daysOfWeek = normalizeDaysOfWeek(request.daysOfWeek());
+        CareMatch match = findCurrentMatch(clientId);
 
         return request.items().stream()
                 .map(item -> {
@@ -59,7 +78,7 @@ public class MedicationPlanService {
                     MedicationAlarm alarm = createMedicationAlarm(
                             client, medicine, item.dosageAmount(), item.dosageUnit(), request.alarmTime(), daysOfWeek);
                     MedicationAlarm saved = medicationAlarmRepository.save(alarm);
-                    return MedicationPlanResponse.from(saved);
+                    return MedicationPlanResponse.from(saved, match);
                 })
                 .collect(Collectors.toList());
     }
@@ -72,22 +91,27 @@ public class MedicationPlanService {
                 request.dosageAmount(),
                 request.dosageUnit(),
                 request.alarmTime(),
-                String.join(",", request.daysOfWeek()),
+                normalizeDaysOfWeek(request.daysOfWeek()),
                 request.active());
-        return MedicationPlanResponse.from(alarm);
+        CareMatch match = findCurrentMatch(clientId);
+        return MedicationPlanResponse.from(alarm, match);
     }
 
     public void deletePlan(Long clientId, Long alarmId) {
         MedicationAlarm alarm = medicationAlarmRepository
                 .findByIdAndClient_Id(alarmId, clientId)
                 .orElseThrow(() -> new GuardianException(HttpStatus.NOT_FOUND, "알람 정보를 찾을 수 없습니다."));
+        // 알람과 연관된 복약 기록 제거 (FK 제약 대비)
+        medicationLogRepository.deleteByAlarm_Id(alarmId);
+        alarmOccurrenceRepository.deleteByAlarm_Id(alarmId);
         medicationAlarmRepository.delete(alarm);
     }
 
     @Transactional(readOnly = true)
     public List<MedicationPlanResponse> getPlans(Long clientId) {
+        CareMatch match = findCurrentMatch(clientId);
         return medicationAlarmRepository.findByClient_Id(clientId).stream()
-                .map(MedicationPlanResponse::from)
+                .map(alarm -> MedicationPlanResponse.from(alarm, match))
                 .collect(Collectors.toList());
     }
 
@@ -103,6 +127,10 @@ public class MedicationPlanService {
 
     private Medicine resolveMedicine(MedicationPlanBatchItemRequest item) {
         return resolveMedicine(item.medicineId(), item.manualMedicine());
+    }
+
+    private CareMatch findCurrentMatch(Long clientId) {
+        return careMatchRepository.findFirstByClientIdAndCurrentTrue(clientId).orElse(null);
     }
 
     private Medicine resolveMedicine(Long medicineId, ManualMedicineRequest manual) {
@@ -154,6 +182,51 @@ public class MedicationPlanService {
         return medicineRepository
                 .findById(medicineId)
                 .orElseThrow(() -> new GuardianException(HttpStatus.NOT_FOUND, "약품 정보를 찾을 수 없습니다."));
+    }
+
+    /**
+     * 요일 목록을 저장용 문자열로 변환한다.
+     * - ALL이 포함되었거나 7일 모두 선택된 경우 "ALL"로 축약하여 days_of_week 컬럼 길이를 넘지 않도록 한다.
+     * - 입력 순서는 유지하고 중복은 제거한다.
+     */
+    private String normalizeDaysOfWeek(List<String> days) {
+        if (days == null || days.isEmpty()) {
+            throw new GuardianException(HttpStatus.BAD_REQUEST, "복용 요일을 선택해주세요.");
+        }
+
+        Set<String> normalized = new LinkedHashSet<>();
+        for (String raw : days) {
+            if (!StringUtils.hasText(raw)) {
+                continue;
+            }
+            String token = raw.trim().toUpperCase();
+            if ("ALL".equals(token)) {
+                return "ALL";
+            }
+            normalized.add(token);
+        }
+
+        // 모든 요일이 선택된 경우 ALL로 축약
+        Set<DayOfWeek> selected = normalized.stream()
+                .map(token -> {
+                    try {
+                        return DayOfWeek.valueOf(token);
+                    } catch (IllegalArgumentException e) {
+                        return null;
+                    }
+                })
+                .filter(day -> day != null)
+                .collect(Collectors.toCollection(() -> EnumSet.noneOf(DayOfWeek.class)));
+
+        if (selected.containsAll(EnumSet.allOf(DayOfWeek.class))) {
+            return "ALL";
+        }
+
+        if (normalized.isEmpty()) {
+            throw new GuardianException(HttpStatus.BAD_REQUEST, "복용 요일을 올바르게 입력해주세요.");
+        }
+
+        return String.join(",", normalized);
     }
 
     private MedicationAlarm createMedicationAlarm(

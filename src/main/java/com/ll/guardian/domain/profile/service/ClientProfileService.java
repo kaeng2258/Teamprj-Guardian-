@@ -39,7 +39,13 @@ public class ClientProfileService {
 
     public ClientProfileResponse updateProfile(Long clientId, ClientProfileUpdateRequest request) {
         ClientProfile profile = getClientProfile(clientId);
-        profile.updateProfile(request.address(), request.age(), request.medicalNotes(), request.medicationCycle());
+        profile.updateProfile(
+                request.address(),
+                request.detailAddress(),
+                request.zipCode(),
+                request.age(),
+                request.medicalNotes(),
+                request.medicationCycle());
         return ClientProfileResponse.from(profile);
     }
 

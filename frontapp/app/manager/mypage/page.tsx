@@ -2,6 +2,7 @@
 import MyChatRooms from "@/components/MyChatRooms";
 import { InlineDrugSearch } from "@/components/InlineDrugSearch";
 import { DrugDetailModal } from "@/components/DrugDetailModal";
+import { resolveProfileImageUrl } from "@/lib/image";
 import { useRouter } from "next/navigation";
 
 import {
@@ -14,12 +15,13 @@ import {
 } from "react";
 
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8081";
+  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "";
 
 type ManagerOverview = {
   userId: number | null;
   email: string;
   name: string;
+  profileImageUrl?: string | null;
 };
 
 type ManagerDashboardResponse = {
@@ -32,9 +34,28 @@ type ManagerDashboardResponse = {
 type ManagerClientSummary = {
   clientId: number;
   clientName: string;
+  email?: string | null;
+  address?: string | null;
+  detailAddress?: string | null;
+  zipCode?: string | null;
+  birthDate?: string | null;
+  gender?: string | null;
+  age?: number | null;
+  profileImageUrl?: string | null;
   medicationPlans: MedicationPlan[];
   latestMedicationLogs: MedicationLog[];
   emergencyAlerts: EmergencyAlertInfo[];
+};
+
+type ClientDetail = {
+  email?: string | null;
+  address?: string | null;
+  detailAddress?: string | null;
+  zipCode?: string | null;
+  birthDate?: string | null;
+  gender?: string | null;
+  age?: number | null;
+  profileImageUrl?: string | null;
 };
 
 type MedicationPlan = {
@@ -62,6 +83,8 @@ type EmergencyAlertInfo = {
   alertType: string;
   status: string;
   alertTime: string;
+  clientName?: string;
+  clientBirthDate?: string;
 };
 
 type MedicineSummary = {
@@ -86,7 +109,10 @@ type ManagerClientSearchResult = {
   email: string;
   status: string;
   address?: string | null;
+  detailAddress?: string | null;
   age?: number | null;
+  birthDate?: string | null;
+  gender?: string | null;
   medicationCycle?: string | null;
   currentlyAssigned: boolean;
   assignedManagerId?: number | null;
@@ -101,6 +127,7 @@ type UserSummary = {
   name: string;
   role: string;
   status: string;
+  profileImageUrl?: string | null;
 };
 
 type ManualMedicineForm = {
@@ -287,6 +314,7 @@ export default function ManagerMyPage() {
     userId: null,
     email: "",
     name: "",
+    profileImageUrl: "",
   });
   const [dashboard, setDashboard] = useState<ManagerDashboardResponse | null>(
     null
@@ -309,6 +337,19 @@ export default function ManagerMyPage() {
   const [deleteProcessing, setDeleteProcessing] = useState<
     Record<number, "idle" | "loading">
   >({});
+  const [editingPlanId, setEditingPlanId] = useState<number | null>(null);
+  const [editingForms, setEditingForms] = useState<
+    Record<
+      number,
+      {
+        dosageAmount: string;
+        dosageUnit: string;
+        alarmTime: string;
+        days: Set<string>;
+        active: boolean;
+      }
+    >
+  >({});
   const [searchKeyword, setSearchKeyword] = useState("");
   const [searchResults, setSearchResults] = useState<ManagerClientSearchResult[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
@@ -320,6 +361,7 @@ export default function ManagerMyPage() {
   const [assignmentMessages, setAssignmentMessages] = useState<
     Record<number, PlanActionMessage | undefined>
   >({});
+  const [favoriteClientIds, setFavoriteClientIds] = useState<number[]>([]);
   const [weeklySummaries, setWeeklySummaries] = useState<
     Record<number, MedicationWeeklySummary | null>
   >({});
@@ -336,6 +378,61 @@ export default function ManagerMyPage() {
   const [selectedDrugDetailSeq, setSelectedDrugDetailSeq] = useState<
     string | null
   >(null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [avatarError, setAvatarError] = useState("");
+  const [avatarMessage, setAvatarMessage] = useState("");
+  const [clientDetails, setClientDetails] = useState<Record<number, ClientDetail>>({});
+  const defaultProfileImage = resolveProfileImageUrl("/image/픽토그램.png") || "/image/픽토그램.png";
+  const logoImage = resolveProfileImageUrl("/image/logo.png") || "/image/logo.png";
+  const getProfileImage = (url?: string | null) =>
+    url && url.trim().length > 0
+      ? resolveProfileImageUrl(url) || defaultProfileImage
+      : defaultProfileImage;
+  const formatAddress = (addr?: string | null, detail?: string | null) => {
+    const base = addr?.trim() ?? "";
+    const sub = detail?.trim() ?? "";
+    if (base && sub) return `${base} ${sub}`;
+    return base || sub || "미등록";
+  };
+  const authHeaders = () => {
+    if (typeof window === "undefined") return {};
+    const token = window.localStorage.getItem("accessToken");
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  };
+  const InfoChip = ({
+    label,
+    value,
+    truncate,
+  }: {
+    label: string;
+    value: string;
+    truncate?: boolean;
+  }) => (
+    <div className="flex flex-col gap-0.5 rounded-lg bg-white px-3 py-2 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
+      <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+        {label}
+      </span>
+      <span
+        className={`text-sm font-semibold text-slate-900 ${truncate ? "truncate" : ""}`}
+        title={value}
+      >
+        {value}
+      </span>
+    </div>
+  );
+  const computeInternationalAge = (birthDate?: string | null) => {
+    if (!birthDate) return null;
+    const birth = new Date(birthDate);
+    if (Number.isNaN(birth.getTime())) return null;
+    const today = new Date();
+    let age = today.getFullYear() - birth.getFullYear();
+    const monthDiff = today.getMonth() - birth.getMonth();
+    const dayDiff = today.getDate() - birth.getDate();
+    if (monthDiff < 0 || (monthDiff === 0 && dayDiff < 0)) {
+      age -= 1;
+    }
+    return age >= 0 ? age : null;
+  };
   const updatePlanForm = (
     clientId: number,
     updater: (current: PlanFormState) => PlanFormState
@@ -419,6 +516,7 @@ export default function ManagerMyPage() {
       email: storedEmail,
       userId,
       name: "",
+      profileImageUrl: defaultProfileImage,
     });
     if (userId) {
       (async () => {
@@ -431,6 +529,9 @@ export default function ManagerMyPage() {
           setManager((prev) => ({
             ...prev,
             name: data.name ?? "",
+            profileImageUrl:
+              resolveProfileImageUrl(data.profileImageUrl) ||
+              defaultProfileImage,
           }));
         } catch (error) {
           // ignore profile fetch errors
@@ -439,6 +540,53 @@ export default function ManagerMyPage() {
     }
     setIsReady(true);
   }, [router]);
+
+  const favoritesKey = manager.userId ? `managerFavoriteClients:${manager.userId}` : null;
+
+  // 즐겨찾기 로드 (사용자 기준)
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    if (!manager.userId) {
+      setFavoriteClientIds([]);
+      return;
+    }
+    try {
+      const key = favoritesKey ?? "managerFavoriteClients";
+      const storedFavorites = window.localStorage.getItem(key);
+      const legacy = window.localStorage.getItem("managerFavoriteClients");
+      const source = storedFavorites ?? legacy;
+      if (source) {
+        const parsed = JSON.parse(source);
+        if (Array.isArray(parsed)) {
+          const normalized = Array.from(
+            new Set(
+              parsed
+                .map((id) => Number(id))
+                .filter((id) => Number.isFinite(id) && id > 0),
+            ),
+          );
+          setFavoriteClientIds(normalized);
+        }
+      }
+    } catch {
+      // ignore parse error
+    }
+  }, [manager.userId, favoritesKey]);
+
+  // 즐겨찾기 저장
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    if (!favoritesKey) return;
+    try {
+      window.localStorage.setItem(favoritesKey, JSON.stringify(favoriteClientIds));
+    } catch {
+      // ignore storage error
+    }
+  }, [favoriteClientIds, favoritesKey]);
 
   const loadDashboard = useCallback(async () => {
     if (!manager.userId) {
@@ -461,17 +609,75 @@ export default function ManagerMyPage() {
       }
 
       const data: ManagerDashboardResponse = await response.json();
+      const normalizedClients = data.clients.map((client) => ({
+        ...client,
+        latestMedicationLogs: [...(client.latestMedicationLogs ?? [])].sort(
+          (a, b) =>
+            new Date(b.logTimestamp).getTime() -
+            new Date(a.logTimestamp).getTime()
+        ),
+      }));
+
+      const mergedClients: ManagerClientSummary[] = await Promise.all(
+        normalizedClients.map(async (client) => {
+          try {
+            const res = await fetch(`${API_BASE_URL}/api/users/${client.clientId}`, {
+              credentials: "include",
+              headers: {
+                "Content-Type": "application/json",
+                ...authHeaders(),
+              },
+            });
+            if (!res.ok) return client;
+            const detail: ClientDetail = await res.json();
+            const birthDate = detail.birthDate ?? client.birthDate ?? null;
+            const computedAge = computeInternationalAge(birthDate);
+            return {
+              ...client,
+              email: detail.email ?? client.email,
+              birthDate,
+              gender: detail.gender ?? client.gender,
+              address: detail.address ?? client.address,
+              detailAddress: detail.detailAddress ?? client.detailAddress,
+              zipCode: detail.zipCode ?? client.zipCode,
+              profileImageUrl: detail.profileImageUrl ?? client.profileImageUrl,
+              age:
+                typeof detail.age === "number" && detail.age > 0
+                  ? detail.age
+                  : typeof client.age === "number" && client.age > 0
+                  ? client.age
+                  : typeof computedAge === "number"
+                  ? computedAge
+                  : null,
+            };
+          } catch {
+            return client;
+          }
+        })
+      );
+
+      setClientDetails((prev) => {
+        const next = { ...prev };
+        mergedClients.forEach((c) => {
+          next[c.clientId] = {
+            email: c.email,
+            address: c.address,
+            detailAddress: c.detailAddress,
+            zipCode: c.zipCode,
+            birthDate: c.birthDate,
+            gender: c.gender,
+            age: c.age,
+            profileImageUrl: c.profileImageUrl,
+          };
+        });
+        return next;
+      });
+
       const normalized: ManagerDashboardResponse = {
         ...data,
-        clients: data.clients.map((client) => ({
-          ...client,
-          latestMedicationLogs: [...(client.latestMedicationLogs ?? [])].sort(
-            (a, b) =>
-              new Date(b.logTimestamp).getTime() -
-              new Date(a.logTimestamp).getTime()
-          ),
-        })),
+        clients: mergedClients,
       };
+
       setDashboard(normalized);
       setManagerProfileId(data.managerId ?? null);
       const clients = normalized.clients;
@@ -506,76 +712,289 @@ export default function ManagerMyPage() {
     loadDashboard();
   }, [isReady, manager.userId, loadDashboard]);
 
-  const summarySections = useMemo(() => {
+  const avatarInitial = useMemo(() => {
+    if (manager.name && manager.name.length > 0) {
+      return manager.name.slice(0, 1).toUpperCase();
+    }
+    if (manager.email && manager.email.length > 0) {
+      return manager.email.slice(0, 1).toUpperCase();
+    }
+    return "M";
+  }, [manager.email, manager.name]);
+
+  const handleAvatarChange = async (file: File | null) => {
+    if (!file || !manager.userId) {
+      return;
+    }
+    if (!file.type.startsWith("image/")) {
+      setAvatarError("이미지 파일만 업로드할 수 있습니다.");
+      return;
+    }
+
+    setAvatarUploading(true);
+    setAvatarError("");
+    setAvatarMessage("");
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const response = await fetch(
+        `${API_BASE_URL}/api/users/${manager.userId}/profile-image`,
+        {
+          method: "POST",
+          body: formData,
+        }
+      );
+      if (!response.ok) {
+        const message = await extractApiError(
+          response,
+          "프로필 이미지를 업로드하지 못했습니다."
+        );
+        throw new Error(message);
+      }
+      const data: UserSummary & { profileImageUrl?: string | null } = await response.json();
+      setManager((prev) => ({
+        ...prev,
+        profileImageUrl:
+          resolveProfileImageUrl(data.profileImageUrl) ||
+          defaultProfileImage,
+      }));
+      setAvatarMessage("프로필 이미지가 업데이트되었습니다.");
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "프로필 이미지를 업로드하지 못했습니다.";
+      setAvatarError(message);
+    } finally {
+      setAvatarUploading(false);
+    }
+  };
+
+  const managerStats = useMemo(() => {
+    const total = dashboard?.clients.length ?? 0;
+    const pending = dashboard?.pendingMedicationCount ?? 0;
+    const alerts = dashboard?.activeAlertCount ?? 0;
     return [
       {
-        title: "이용자 정보",
-        description: "현재 로그인한 요양보호사/매니저의 기본 정보입니다.",
-        rows: [
-          {
-            label: "이름",
-            value: manager.name || "확인 중",
-          },
-          {
-            label: "이메일",
-            value: manager.email || "확인 중",
-          },
-        ],
+        key: "care",
+        label: "복약관리 인원",
+        value: dashboardLoading && !dashboard ? "확인 중" : `${total}명`,
+        hint: total > 0 ? "현재 담당 중인 이용자 수" : "담당 이용자가 없습니다.",
+        accent: "bg-indigo-100 text-indigo-700",
+        badge: "CARE",
+        detail:
+          total > 0
+            ? "담당 중인 이용자의 복약 일정과 알림을 정기적으로 점검해주세요."
+            : "아직 담당 인원이 없습니다. 관리자나 매칭을 통해 배정해 주세요.",
+        items: (dashboard?.clients ?? [])
+                .slice(0, 5)
+                .map((c) => `${c.clientName} / 일정 ${c.medicationPlans.length}건 / 알림 ${c.emergencyAlerts.length}건`),
       },
       {
-        title: "관리 현황",
-        description:
-          "복약 스케줄, 알림, 매칭 정보를 한눈에 확인하세요.",
-        rows: [
-          {
-            label: "복약관리 인원",
-            value:
-              dashboardLoading && !dashboard
-                ? "확인 중"
-                : dashboard
-                ? `${dashboard.clients.length}명`
-                : "-",
-          },
-          {
-            label: "대기 중 복약 일정",
-            value:
-              dashboard && dashboard.pendingMedicationCount > 0
-                ? `${dashboard.pendingMedicationCount}건`
-                : dashboard
-                ? "모두 등록됨"
-                : "-",
-          },
-          {
-            label: "미처리 비상 알림",
-            value:
-              dashboard && dashboard.activeAlertCount > 0
-                ? `${dashboard.activeAlertCount}건`
-                : dashboard
-                ? "없음"
-                : "-",
-          },
-        ],
+        key: "pending",
+        label: "대기 중 복약 일정",
+        value: dashboardLoading && !dashboard ? "확인 중" : pending > 0 ? `${pending}건` : "모두 등록됨",
+        hint: pending > 0 ? "아직 등록되지 않은 일정이 있습니다." : "모든 이용자 일정이 등록되었습니다.",
+        accent: "bg-amber-100 text-amber-700",
+        badge: "PLAN",
+        detail:
+          pending > 0
+            ? "대기 중인 일정이 있습니다. 이용자와 상의 후 일정을 등록해 주세요."
+            : "모든 이용자 일정이 등록된 상태입니다.",
+        items: (dashboard?.clients ?? [])
+                .flatMap((c) => c.medicationPlans ?? [])
+                .filter((p) => p && p.active === false)
+                .slice(0, 5)
+                .map((p) => `비활성 일정 #${p.id ?? ""}`),
+      },
+      {
+        key: "alert",
+        label: "미처리 알림",
+        value: dashboardLoading && !dashboard ? "확인 중" : alerts > 0 ? `${alerts}건` : "없음",
+        hint: alerts > 0 ? "즉시 확인이 필요합니다." : "미처리 알림이 없습니다.",
+        accent: alerts > 0 ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-700",
+        badge: "ALERT",
+        detail:
+          alerts > 0
+            ? "비상 알림을 우선 처리하고 이용자에게 연락해 주세요."
+            : "처리 대기 중인 비상 알림이 없습니다.",
+        items: (dashboard?.clients ?? [])
+                .flatMap((c) => c.emergencyAlerts ?? [])
+                .slice(0, 5)
+                .map((a) => `알림 ${a.alertType ?? ""} / ${a.status ?? ""}`),
       },
     ];
-  }, [manager, dashboard, dashboardLoading]);
+  }, [dashboard, dashboardLoading]);
+
+  const [activeStat, setActiveStat] = useState<(typeof managerStats)[number] | null>(null);
+  type AlertTab = "overdue" | "chat" | "emergency";
+  const [managerAlertTab, setManagerAlertTab] = useState<AlertTab>("overdue");
+  const [alertPage, setAlertPage] = useState<Record<AlertTab, number>>({
+    overdue: 0,
+    chat: 0,
+    emergency: 0,
+  });
+  const PAGE_SIZE = 10;
+
+  const todayToken = useMemo(() => {
+    const tokens = ["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"];
+    return tokens[new Date().getDay()] ?? "ALL";
+  }, []);
+
+  const todayDateString = useMemo(() => new Date().toISOString().split("T")[0] ?? "", []);
+
+  const emergencyAlerts = useMemo(
+    () =>
+      (dashboard?.clients ?? [])
+        .flatMap((c) =>
+          (c.emergencyAlerts ?? []).map((a) => {
+            const time = a.alertTime ? a.alertTime.replace("T", " ").slice(0, 16) : "";
+            const name = c.clientName != null ? `${c.clientName}` : "이용자";
+            return `${name} 긴급 호출 / ${time} / ${a.status ?? ""}`;
+          }),
+        ),
+    [dashboard],
+  );
+
+  const overdueAlerts = useMemo(() => {
+    const now = new Date();
+    const list: string[] = [];
+    (dashboard?.clients ?? []).forEach((client) => {
+      (client.medicationPlans ?? []).forEach((plan) => {
+        if (!plan.active) return;
+        const days = (plan.daysOfWeek ?? []).map((d) => d.toUpperCase());
+        const dueToday = days.includes("ALL") || days.includes(todayToken);
+        if (!dueToday) return;
+        const [h, m] = (plan.alarmTime ?? "").split(":");
+        const alarm = new Date(now);
+        alarm.setHours(Number(h) || 0, Number(m) || 0, 0, 0);
+        if (alarm.getTime() > now.getTime()) return;
+        const logs = client.latestMedicationLogs ?? [];
+        const hasTodayLog = logs.some((log) => {
+          const logDate = (log.logTimestamp ?? "").split("T")[0];
+          const sameDay = logDate === todayDateString;
+          if (!sameDay) return false;
+          if (log.planId && plan.id) return log.planId === plan.id;
+          return log.medicineId === plan.medicineId;
+        });
+        if (!hasTodayLog) {
+          list.push(`${client.clientName} / ${plan.medicineName} / ${plan.alarmTime?.slice(0, 5) ?? ""} 확인 필요`);
+        }
+      });
+    });
+    return list;
+  }, [dashboard, todayDateString, todayToken]);
+
+  const [chatAlerts, setChatAlerts] = useState<Array<{ roomId: number; label: string }>>([]);
+
+  useEffect(() => {
+    const loadUnread = async () => {
+      if (!manager.userId) return;
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/chat/threads?userId=${manager.userId}`);
+        if (!res.ok) return;
+        const data: Array<{
+          roomId: number;
+          clientName?: string;
+          managerName?: string;
+          lastMessageSnippet?: string;
+          readByManager: boolean;
+        }> = await res.json();
+        const unread = data
+          .filter((t) => !t.readByManager)
+          .map((t) => ({
+            roomId: t.roomId,
+            label: `${t.clientName ?? "이용자"} / ${t.lastMessageSnippet ?? "새 메시지"}`,
+          }));
+        setChatAlerts(unread);
+      } catch {
+        // ignore
+      }
+    };
+    void loadUnread();
+  }, [manager.userId]);
+
+  const currentAlerts = useMemo(() => {
+    switch (managerAlertTab) {
+      case "overdue":
+        return overdueAlerts.length > 0 ? overdueAlerts : ["미복약 알림이 없습니다."];
+      case "chat":
+        return chatAlerts.length > 0 ? chatAlerts.map((c) => c.label) : ["메시지가 없습니다."];
+      case "emergency":
+        return emergencyAlerts.length > 0 ? emergencyAlerts : ["알림이 없습니다."];
+      default:
+        return [];
+    }
+  }, [managerAlertTab, overdueAlerts, chatAlerts, emergencyAlerts]);
+
+  const pagedAlerts = useMemo(() => {
+    const page = alertPage[managerAlertTab] ?? 0;
+    const start = page * PAGE_SIZE;
+    return currentAlerts.slice(start, start + PAGE_SIZE);
+  }, [alertPage, managerAlertTab, currentAlerts]);
+
+  const totalPages = useMemo(() => Math.max(1, Math.ceil(currentAlerts.length / PAGE_SIZE)), [currentAlerts.length]);
 
   const filteredClients = useMemo(() => {
     if (!dashboard?.clients) {
       return [];
     }
+    const favoriteSet = new Set(favoriteClientIds);
+    const favoritesOnly = dashboard.clients.filter((client) =>
+      favoriteSet.has(client.clientId),
+    );
     const keyword = clientFilter.trim().toLowerCase();
     if (!keyword) {
-      return dashboard.clients;
+      return favoritesOnly;
     }
-    return dashboard.clients.filter((client) =>
+    return favoritesOnly.filter((client) =>
       client.clientName?.toLowerCase().includes(keyword),
     );
-  }, [dashboard, clientFilter]);
+  }, [dashboard, clientFilter, favoriteClientIds]);
+
+  const favoriteClientCount = useMemo(() => {
+    if (!dashboard?.clients) return 0;
+    const favoriteSet = new Set(favoriteClientIds);
+    return dashboard.clients.filter((client) => favoriteSet.has(client.clientId)).length;
+  }, [dashboard, favoriteClientIds]);
+
+  const isFavorite = useCallback(
+    (clientId: number) => favoriteClientIds.includes(clientId),
+    [favoriteClientIds],
+  );
+
+  const toggleFavorite = useCallback((clientId: number) => {
+    if (!manager.userId) return;
+    setFavoriteClientIds((prev) => {
+      const set = new Set(prev);
+      if (set.has(clientId)) {
+        set.delete(clientId);
+      } else {
+        set.add(clientId);
+      }
+      return Array.from(set);
+    });
+  }, []);
+
+  const openClientModalById = useCallback(
+    (clientId: number) => {
+      if (!dashboard?.clients) return;
+      const exists = dashboard.clients.some((c) => c.clientId === clientId);
+      if (exists) {
+        setClientModalClientId(clientId);
+      }
+    },
+    [dashboard],
+  );
 
   const selectedClient =
     clientModalClientId && dashboard?.clients
       ? dashboard.clients.find((client) => client.clientId === clientModalClientId) ?? null
       : null;
+  const selectedClientDetail = selectedClient
+    ? clientDetails[selectedClient.clientId] ?? null
+    : null;
   const selectedClientForm = selectedClient
     ? planForms[selectedClient.clientId] ?? createInitialFormState()
     : null;
@@ -589,6 +1008,41 @@ export default function ManagerMyPage() {
     ? weeklySummaryErrors[selectedClient.clientId] ?? ""
     : "";
   const closeClientModal = () => setClientModalClientId(null);
+
+  useEffect(() => {
+    const loadClientDetail = async (clientId: number) => {
+      const existing = clientDetails[clientId];
+      const needsMore =
+        !existing ||
+        !existing.address ||
+        !existing.detailAddress ||
+        !existing.profileImageUrl ||
+        !existing.gender ||
+        !existing.birthDate;
+      if (!needsMore) return;
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/users/${clientId}`, {
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+            ...authHeaders(),
+          },
+        });
+        if (!res.ok) return;
+        const detail: ClientDetail = await res.json();
+        setClientDetails((prev) => ({
+          ...prev,
+          [clientId]: detail,
+        }));
+      } catch {
+        // ignore detail fetch errors
+      }
+    };
+
+    if (selectedClient) {
+      void loadClientDetail(selectedClient.clientId);
+    }
+  }, [selectedClient, clientDetails]);
 
   useEffect(() => {
     if (clientModalClientId === null) {
@@ -642,9 +1096,25 @@ export default function ManagerMyPage() {
       FRIDAY: "금",
       SATURDAY: "토",
       SUNDAY: "일",
+      WEEKDAY: "평일",
+      WEEKEND: "주말",
+      ALL: "매일",
     };
     return labels[normalized] ?? value;
   }, []);
+
+  const dayOptions = useMemo(
+    () => [
+      "MONDAY",
+      "TUESDAY",
+      "WEDNESDAY",
+      "THURSDAY",
+      "FRIDAY",
+      "SATURDAY",
+      "SUNDAY",
+    ],
+    [],
+  );
 
   const formatAlarmTime = (value: string) => {
     if (!value) {
@@ -822,7 +1292,71 @@ const WeeklyDayCard = ({
       }
 
       const data: ManagerClientSearchResult[] = await response.json();
-      setSearchResults(data);
+      const enriched = data.map((item) => {
+        const computedAge =
+          typeof item.age === "number" && item.age > 0
+            ? item.age
+            : computeInternationalAge(item.birthDate);
+        return {
+          ...item,
+          age: typeof computedAge === "number" ? computedAge : null,
+        };
+      });
+
+      const detailedResults = await Promise.all(
+        enriched.map(async (item) => {
+          const needsDetail =
+            !item.birthDate ||
+            !(typeof item.age === "number" && item.age > 0) ||
+            !item.address ||
+            !item.detailAddress ||
+            !item.profileImageUrl ||
+            !item.gender;
+          if (!needsDetail) {
+            return item;
+          }
+          try {
+            const detailRes = await fetch(`${API_BASE_URL}/api/users/${item.clientId}`, {
+              credentials: "include",
+              headers: {
+                "Content-Type": "application/json",
+                ...authHeaders(),
+              },
+            });
+            if (!detailRes.ok) return item;
+            const detail: {
+              birthDate?: string | null;
+              age?: number | null;
+              gender?: string | null;
+              address?: string | null;
+              profileImageUrl?: string | null;
+              detailAddress?: string | null;
+            } = await detailRes.json();
+            const birthDate = detail.birthDate ?? item.birthDate ?? null;
+            const computedAge = computeInternationalAge(birthDate);
+            return {
+              ...item,
+              birthDate,
+              gender: detail.gender ?? item.gender ?? null,
+              address: detail.address ?? item.address ?? null,
+              detailAddress: detail.detailAddress ?? item.detailAddress ?? null,
+              profileImageUrl: detail.profileImageUrl ?? item.profileImageUrl ?? null,
+              age:
+                typeof detail.age === "number" && detail.age > 0
+                  ? detail.age
+                  : typeof item.age === "number" && item.age > 0
+                  ? item.age
+                  : typeof computedAge === "number"
+                  ? computedAge
+                  : null,
+            };
+          } catch {
+            return item;
+          }
+        })
+      );
+
+      setSearchResults(detailedResults);
       setSearchMessage(data.length === 0 ? "검색 결과가 없습니다." : "");
     } catch (error) {
       const message =
@@ -1304,7 +1838,8 @@ const WeeklyDayCard = ({
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            alarmTime: form.alarmTime,
+            // 백엔드 LocalTime 디시리얼라이저는 초 단위를 요구하므로 HH:mm → HH:mm:ss 로 보낸다.
+            alarmTime: form.alarmTime ? `${form.alarmTime}:00` : "",
             daysOfWeek: form.daysOfWeek,
             items: itemsPayload,
           }),
@@ -1385,6 +1920,99 @@ const WeeklyDayCard = ({
     } finally {
       setDeleteProcessing((prev) => ({ ...prev, [planId]: "idle" }));
     }
+  };
+
+  const handleUpdatePlan = async (
+    clientId: number,
+    planId: number,
+    payload: Partial<{
+      dosageAmount: number;
+      dosageUnit: string;
+      alarmTime: string;
+      daysOfWeek: string[];
+      active: boolean;
+      medicineId: number | null;
+      manualMedicine?: Partial<ManualMedicineForm>;
+    }>
+  ) => {
+    setPlanMessages((prev) => ({ ...prev, [planId]: undefined }));
+    updatePlanForm(clientId, (current) => ({
+      ...current,
+      submitting: true,
+      error: "",
+      message: "",
+    }));
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/clients/${clientId}/medication/plans/${planId}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ...payload,
+            daysOfWeek: payload.daysOfWeek ?? [],
+            active: payload.active ?? true,
+          }),
+        }
+      );
+      if (!response.ok) {
+        const message = await extractApiError(
+          response,
+          "복약 일정을 수정하지 못했습니다."
+        );
+        throw new Error(message);
+      }
+      await loadDashboard();
+      setPlanMessages((prev) => ({
+        ...prev,
+        [planId]: { type: "success", text: "복약 일정이 수정되었습니다." },
+      }));
+      setEditingPlanId(null);
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "복약 일정을 수정하지 못했습니다.";
+      setPlanMessages((prev) => ({
+        ...prev,
+        [planId]: { type: "error", text: message },
+      }));
+    } finally {
+      updatePlanForm(clientId, (current) => ({
+        ...current,
+        submitting: false,
+      }));
+    }
+  };
+
+  const beginEditPlan = (plan: MedicationPlan) => {
+    setEditingPlanId(plan.id);
+    setEditingForms((prev) => ({
+      ...prev,
+      [plan.id]: {
+        dosageAmount: String(plan.dosageAmount),
+        dosageUnit: plan.dosageUnit,
+        alarmTime: plan.alarmTime,
+        days: new Set(plan.daysOfWeek.map((d) => d.toUpperCase())),
+        active: plan.active,
+      },
+    }));
+  };
+
+  const updateEditField = (planId: number, updater: (draft: {
+    dosageAmount: string;
+    dosageUnit: string;
+    alarmTime: string;
+    days: Set<string>;
+    active: boolean;
+  }) => void) => {
+    setEditingForms((prev) => {
+      const current = prev[planId];
+      if (!current) return prev;
+      const next = { ...current, days: new Set(current.days) };
+      updater(next);
+      return { ...prev, [planId]: next };
+    });
   };
 
   const handleRecordMedication = async (
@@ -1577,7 +2205,7 @@ const WeeklyDayCard = ({
                     key={plan.id}
                     className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
                   >
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-start sm:gap-4">
                       <div>
                         <h4 className="text-base font-semibold text-slate-900 sm:text-lg">
                           {plan.medicineName}
@@ -1589,6 +2217,13 @@ const WeeklyDayCard = ({
                         </p>
                       </div>
                       <div className="flex gap-2">
+                        <button
+                          className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:border-slate-400 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
+                          onClick={() => beginEditPlan(plan)}
+                          type="button"
+                        >
+                          수정
+                        </button>
                         <button
                           className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:border-slate-400 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
                           disabled={deleteProcessing[plan.id] === "loading"}
@@ -1606,15 +2241,147 @@ const WeeklyDayCard = ({
                         최근 확인:{" "}
                         {latestLog ? `${formatDateTime(latestLog.logTimestamp)}` : "기록 없음"}
                       </p>
-                      <button
-                        className="w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-indigo-300 sm:w-auto"
-                        disabled={logProcessing[plan.id] === "loading"}
-                        onClick={() => handleRecordMedication(client.clientId, plan)}
-                        type="button"
-                      >
-                        {logProcessing[plan.id] === "loading" ? "기록 중..." : "복약 확정"}
-                      </button>
+                      <div className="flex gap-2">
+                        <button
+                          className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:border-slate-400 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
+                          onClick={() =>
+                            handleUpdatePlan(client.clientId, plan.id, {
+                              active: !plan.active,
+                              dosageAmount: plan.dosageAmount,
+                              dosageUnit: plan.dosageUnit,
+                              alarmTime: plan.alarmTime,
+                              daysOfWeek: plan.daysOfWeek,
+                              medicineId: plan.medicineId,
+                            })
+                          }
+                          type="button"
+                        >
+                          {plan.active ? "비활성화" : "활성화"}
+                        </button>
+                        <button
+                          className="w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-indigo-300 sm:w-auto"
+                          disabled={logProcessing[plan.id] === "loading"}
+                          onClick={() => handleRecordMedication(client.clientId, plan)}
+                          type="button"
+                        >
+                          {logProcessing[plan.id] === "loading" ? "기록 중..." : "복약 확정"}
+                        </button>
+                      </div>
                     </div>
+                    {editingPlanId === plan.id && editingForms[plan.id] && (
+                      <div className="mt-4 grid gap-3 rounded-xl border border-slate-200 bg-white p-3">
+                        <div className="grid gap-3 sm:grid-cols-3">
+                          <label className="flex flex-col gap-1 text-sm text-slate-700">
+                            <span>복용량</span>
+                            <input
+                              type="number"
+                              min={1}
+                              value={editingForms[plan.id].dosageAmount}
+                              className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+                              onChange={(event) =>
+                                updateEditField(plan.id, (draft) => {
+                                  draft.dosageAmount = event.target.value;
+                                })
+                              }
+                            />
+                          </label>
+                          <label className="flex flex-col gap-1 text-sm text-slate-700">
+                            <span>단위</span>
+                            <input
+                              value={editingForms[plan.id].dosageUnit}
+                              className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+                              onChange={(event) =>
+                                updateEditField(plan.id, (draft) => {
+                                  draft.dosageUnit = event.target.value;
+                                })
+                              }
+                            />
+                          </label>
+                          <label className="flex flex-col gap-1 text-sm text-slate-700">
+                            <span>알람 시간</span>
+                            <input
+                              type="time"
+                              value={editingForms[plan.id].alarmTime}
+                              className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+                              onChange={(event) =>
+                                updateEditField(plan.id, (draft) => {
+                                  draft.alarmTime = event.target.value;
+                                })
+                              }
+                            />
+                          </label>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {dayOptions.map((day) => {
+                            const checked = editingForms[plan.id].days.has(day);
+                            return (
+                              <label
+                                key={day}
+                                className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold ${
+                                  checked
+                                    ? "border-indigo-500 bg-indigo-50 text-indigo-700"
+                                    : "border-slate-200 bg-white text-slate-600"
+                                }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  className="sr-only"
+                                  checked={checked}
+                                  onChange={(event) =>
+                                    updateEditField(plan.id, (draft) => {
+                                      const next = new Set(draft.days);
+                                      if (event.target.checked) next.add(day);
+                                      else next.delete(day);
+                                      draft.days = next;
+                                    })
+                                  }
+                                />
+                                {mapDayToLabel(day)}
+                              </label>
+                            );
+                          })}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <label className="inline-flex items-center gap-2 text-sm font-semibold text-slate-700">
+                            <input
+                              type="checkbox"
+                              checked={editingForms[plan.id].active}
+                              onChange={(event) =>
+                                updateEditField(plan.id, (draft) => {
+                                  draft.active = event.target.checked;
+                                })
+                              }
+                            />
+                            활성화
+                          </label>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700"
+                            type="button"
+                            onClick={() =>
+                              handleUpdatePlan(client.clientId, plan.id, {
+                                dosageAmount: Number(editingForms[plan.id].dosageAmount) || plan.dosageAmount,
+                                dosageUnit: editingForms[plan.id].dosageUnit || plan.dosageUnit,
+                                alarmTime: editingForms[plan.id].alarmTime || plan.alarmTime,
+                                daysOfWeek: Array.from(editingForms[plan.id].days),
+                                active: editingForms[plan.id].active,
+                                medicineId: plan.medicineId,
+                              })
+                            }
+                          >
+                            수정 저장
+                          </button>
+                          <button
+                            className="rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-400"
+                            type="button"
+                            onClick={() => setEditingPlanId(null)}
+                          >
+                            닫기
+                          </button>
+                        </div>
+                      </div>
+                    )}
                     {logMessage && (
                       <p
                         className={`mt-2 text-sm ${
@@ -2094,13 +2861,47 @@ const WeeklyDayCard = ({
       <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 rounded-3xl bg-white p-4 shadow-lg sm:p-8">
         <header className="flex flex-col gap-4 border-b border-slate-200 pb-5">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
-              <p className="text-2xl font-semibold uppercase tracking-wide text-indigo-600 sm:text-3xl">
-                Manager
-              </p>
-              <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">
-                {manager.name} 매니저
-              </h1>
+            <div className="flex items-center gap-4 sm:gap-5">
+              <div className="relative">
+                <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full border-2 border-indigo-200 bg-indigo-50 text-lg font-semibold text-indigo-700">
+                  {manager.profileImageUrl ? (
+                    <img
+                      src={manager.profileImageUrl}
+                      alt="프로필 이미지"
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <span>{avatarInitial}</span>
+                  )}
+                </div>
+                <button
+                  className="absolute -left-1 -bottom-1 inline-flex h-8 w-8 items-center justify-center rounded-full bg-indigo-600 text-xs font-semibold text-white shadow-sm ring-4 ring-white transition hover:bg-indigo-700"
+                  type="button"
+                  onClick={() => router.push("/manager/profile/edit")}
+                >
+                  Edit
+                </button>
+              </div>
+              <div className="flex flex-col gap-1">
+                <div className="flex items-center gap-2">
+                  <img
+                    src={logoImage}
+                    alt="Guardian 로고"
+                    className="h-6 w-auto sm:h-7"
+                  />
+                  <span className="text-sm font-semibold uppercase tracking-[0.12em] text-slate-600 sm:text-base">
+                    GUARDIAN
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <p className="text-2xl font-semibold uppercase tracking-wide text-indigo-600 sm:text-3xl">
+                    Manager
+                  </p>
+                  <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">
+                    {manager.name ? `${manager.name} 매니저` : "매니저"}
+                  </h1>
+                </div>
+              </div>
             </div>
             <button
               className="h-10 rounded-md border border-red-400 px-4 text-sm font-semibold text-red-500 transition hover:border-red-500 hover:bg-red-50 hover:text-red-600"
@@ -2110,6 +2911,15 @@ const WeeklyDayCard = ({
               로그아웃
             </button>
           </div>
+          {(avatarError || avatarMessage) && (
+            <p
+              className={`text-sm ${
+                avatarError ? "text-red-600" : "text-emerald-600"
+              }`}
+            >
+              {avatarError || avatarMessage}
+            </p>
+          )}
           <div className="flex flex-col gap-3">
             <div className="flex gap-3 pb-2 sm:grid sm:grid-cols-3 sm:gap-3 sm:pb-0">
               {managerQuickActions.map((action) => {
@@ -2145,74 +2955,215 @@ const WeeklyDayCard = ({
 
         {activePanel === "client" && (
           <>
-            <div className="grid gap-4 md:grid-cols-2 md:gap-6">
-              {summarySections.map((section) => (
-                <section
-                  key={section.title}
-                  className="rounded-2xl border border-slate-200 p-4 sm:p-6"
-                >
-                  <h2 className="text-lg font-semibold text-slate-900 sm:text-xl">
-                    {section.title}
-                  </h2>
-                  <p className="mt-1 text-sm text-slate-500">
-                    {section.description}
+            <section className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-indigo-50 p-4 sm:p-6">
+              <div className="flex flex-col gap-2 border-b border-slate-200 pb-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h2 className="text-lg font-semibold text-slate-900 sm:text-xl">관리 현황</h2>
+                  <p className="text-sm text-slate-600">
+                    복약 일정, 미처리 알림, 담당 인원을 한눈에 확인하세요.
                   </p>
-                  <dl className="mt-4 space-y-3">
-                    {section.rows.map((row) => (
-                      <div
-                        key={row.label}
-                        className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2 sm:px-4 sm:py-3"
-                      >
-                        <dt className="text-sm font-medium text-slate-600">
-                          {row.label}
-                        </dt>
-                        <dd className="text-sm font-semibold text-slate-900">
-                          {row.value}
-                        </dd>
+                </div>
+                <div className="flex items-center gap-2 rounded-full bg-white px-3 py-1 text-xs font-semibold text-indigo-700 shadow-sm">
+                  <span className="h-2 w-2 rounded-full bg-indigo-500" />
+                  실시간 업데이트
+                </div>
+              </div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                {managerStats.map((stat) => (
+                  <button
+                    key={stat.key}
+                    type="button"
+                    onClick={() => setActiveStat(stat)}
+                    className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-white/80 p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow"
+                  >
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-semibold text-slate-700">{stat.label}</p>
+                      <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${stat.accent}`}>
+                        {stat.badge}
+                      </span>
+                    </div>
+                    <p className="text-2xl font-bold text-slate-900">{stat.value}</p>
+                    <p className="text-xs text-slate-500 leading-relaxed">{stat.hint}</p>
+                  </button>
+                ))}
+              </div>
+              {activeStat && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4 py-6 backdrop-blur-sm">
+                  <div className="w-full max-w-lg rounded-2xl border border-indigo-100 bg-white p-5 shadow-xl">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-indigo-700">
+                          {activeStat.badge}
+                        </p>
+                        <h3 className="text-lg font-semibold text-slate-900">{activeStat.label}</h3>
                       </div>
-                    ))}
-                  </dl>
-                </section>
-              ))}
-            </div>
+                      <button
+                        className="text-xs font-semibold text-slate-500 hover:text-slate-700"
+                        onClick={() => setActiveStat(null)}
+                        type="button"
+                        aria-label="상세 닫기"
+                      >
+                        닫기 ✕
+                      </button>
+                    </div>
+                    <p className="mt-3 text-sm text-slate-700 leading-relaxed">{activeStat.detail}</p>
+                    {activeStat.key === "alert" ? (
+                      <>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {[
+                            { key: "overdue", label: "미복약", count: overdueAlerts.length },
+                            { key: "chat", label: "메시지", count: chatAlerts.length },
+                            { key: "emergency", label: "긴급 호출", count: emergencyAlerts.length },
+                          ].map((tab) => (
+                            <button
+                              key={tab.key}
+                              type="button"
+                              onClick={() => setManagerAlertTab(tab.key as AlertTab)}
+                              className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
+                                managerAlertTab === tab.key
+                                  ? "border-indigo-500 bg-indigo-50 text-indigo-700"
+                                  : "border-slate-200 bg-white text-slate-600 hover:border-indigo-300"
+                              }`}
+                            >
+                              {tab.label} ({tab.count})
+                            </button>
+                          ))}
+                        </div>
+                        <div className="mt-3 max-h-64 overflow-y-auto rounded-lg bg-slate-50 p-3 text-sm text-slate-700">
+                          <ul className="space-y-2">
+                            {pagedAlerts.map((item, idx) => {
+                              const absoluteIdx = (alertPage[managerAlertTab] ?? 0) * PAGE_SIZE + idx;
+                              return (
+                                <li
+                                  key={`${managerAlertTab}-item-${idx}`}
+                                  className="flex items-start gap-2"
+                                  onClick={() => {
+                                    if (managerAlertTab === "chat" && chatAlerts[absoluteIdx]) {
+                                      const target = chatAlerts[absoluteIdx];
+                                      setClientModalClientId(null);
+                                      setActivePanel("chat");
+                                      setTimeout(() => {
+                                        const el = document.querySelector(`[data-room-id='${target.roomId}']`);
+                                        if (el instanceof HTMLElement) {
+                                          el.scrollIntoView({ behavior: "smooth", block: "center" });
+                                        }
+                                      }, 100);
+                                    }
+                                    if (managerAlertTab === "emergency") {
+                                      const label = item;
+                                      const roomId = label.match(/room (\\d+)/i)?.[1];
+                                      if (roomId) {
+                                        setClientModalClientId(null);
+                                        setActivePanel("chat");
+                                        setTimeout(() => {
+                                          const el = document.querySelector(`[data-room-id='${roomId}']`);
+                                          if (el instanceof HTMLElement) {
+                                            el.scrollIntoView({ behavior: "smooth", block: "center" });
+                                          }
+                                        }, 100);
+                                      }
+                                    }
+                                  }}
+                                  role="button"
+                                >
+                                  <span className="mt-0.5 inline-block h-2 w-2 rounded-full bg-indigo-400" />
+                                  <span className="leading-relaxed">{item}</span>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        </div>
+                        {totalPages > 1 && (
+                          <div className="mt-2 flex items-center justify-between text-xs text-slate-600">
+                            <span>
+                              페이지 { (alertPage[managerAlertTab] ?? 0) + 1 } / {totalPages}
+                            </span>
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                className="rounded-md border border-slate-200 px-2 py-1 hover:border-indigo-300"
+                                disabled={(alertPage[managerAlertTab] ?? 0) === 0}
+                                onClick={() =>
+                                  setAlertPage((prev) => ({
+                                    ...prev,
+                                    [managerAlertTab]: Math.max(0, (prev[managerAlertTab] ?? 0) - 1),
+                                  }))
+                                }
+                              >
+                                이전
+                              </button>
+                              <button
+                                type="button"
+                                className="rounded-md border border-slate-200 px-2 py-1 hover:border-indigo-300"
+                                disabled={(alertPage[managerAlertTab] ?? 0) >= totalPages - 1}
+                                onClick={() =>
+                                  setAlertPage((prev) => ({
+                                    ...prev,
+                                    [managerAlertTab]: Math.min(totalPages - 1, (prev[managerAlertTab] ?? 0) + 1),
+                                  }))
+                                }
+                              >
+                                다음
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      activeStat.items &&
+                      activeStat.items.length > 0 && (
+                        <ul className="mt-3 space-y-2 rounded-lg bg-slate-50 p-3 text-sm text-slate-700">
+                          {activeStat.items.map((item, idx) => (
+                            <li key={`${activeStat.key}-item-${idx}`} className="flex items-start gap-2">
+                              <span className="mt-0.5 inline-block h-2 w-2 rounded-full bg-indigo-400" />
+                              <span className="leading-relaxed">{item}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )
+                    )}
+                  </div>
+                </div>
+              )}
+            </section>
 
             <section className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6">
               <div className="flex flex-col gap-2 border-b border-slate-200 pb-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h2 className="text-lg font-semibold text-slate-900">
-                검색 및 배정
-              </h2>
-              <p className="text-sm text-slate-600">
-                이름 또는 이메일로 이용자를 찾아 배정 여부를 확인하고 배정을 진행하세요.
-              </p>
-            </div>
-          </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-slate-900">
+                    검색 및 배정
+                  </h2>
+                  <p className="text-sm text-slate-600">
+                    이름 또는 이메일로 이용자를 찾아 배정 여부를 확인하고 배정을 진행하세요.
+                  </p>
+                </div>
+              </div>
 
-          <form
-            className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center"
-            onSubmit={(event) => {
-              void handleClientSearch(event);
-            }}
-          >
-            <input
-              className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-              onChange={(event) => {
-                setSearchKeyword(event.target.value);
-                if (searchError) {
-                  setSearchError("");
-                }
-              }}
-              placeholder="이름 또는 이메일"
-              value={searchKeyword}
-            />
-            <button
-              className="w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-indigo-300 sm:w-auto"
-              disabled={searchLoading}
-              type="submit"
-            >
-              {searchLoading ? "검색 중..." : "검색"}
-            </button>
-          </form>
+              <form
+                className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center"
+                onSubmit={(event) => {
+                  void handleClientSearch(event);
+                }}
+              >
+                <input
+                  className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+                  onChange={(event) => {
+                    setSearchKeyword(event.target.value);
+                    if (searchError) {
+                      setSearchError("");
+                    }
+                  }}
+                  placeholder="이름 또는 이메일"
+                  value={searchKeyword}
+                />
+                <button
+                  className="w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-indigo-300 sm:w-auto"
+                  disabled={searchLoading}
+                  type="submit"
+                >
+                  {searchLoading ? "검색 중..." : "검색"}
+                </button>
+              </form>
 
           {searchError && (
             <p className="mt-3 text-sm text-red-600">{searchError}</p>
@@ -2243,13 +3194,14 @@ const WeeklyDayCard = ({
                   buttonLabel = "배정 불가";
                 }
 
-                const addressDisplay =
-                  result.address && result.address.trim().length > 0
-                    ? result.address
-                    : "미등록";
-                const ageDisplay =
+                const addressDisplay = formatAddress(result.address, result.detailAddress);
+                const computedAge =
                   typeof result.age === "number" && result.age > 0
-                    ? `${result.age}세`
+                    ? result.age
+                    : computeInternationalAge(result.birthDate);
+                const ageDisplay =
+                  typeof computedAge === "number" && computedAge >= 0
+                    ? `${computedAge}세`
                     : "미등록";
                 const cycleDisplay =
                   result.medicationCycle && result.medicationCycle.trim().length > 0
@@ -2257,44 +3209,109 @@ const WeeklyDayCard = ({
                     : "미등록";
                 const statusLabel = mapStatusToLabel(result.status);
                 const assignMessage = assignmentMessages[result.clientId];
+                const favorite = isFavorite(result.clientId);
+                const avatarUrl = getProfileImage(result.profileImageUrl);
+                const nameInitial =
+                  result.name && result.name.trim().length > 0
+                    ? result.name.trim().charAt(0).toUpperCase()
+                    : "C";
 
                 return (
                   <article
                     key={result.clientId}
-                    className="rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm sm:p-5"
+                    className="relative rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md sm:p-5"
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => {
+                      if (assignedToCurrent) {
+                        openClientModalById(result.clientId);
+                      }
+                    }}
+                    onKeyDown={(event) => {
+                      if ((event.key === "Enter" || event.key === " ") && assignedToCurrent) {
+                        event.preventDefault();
+                        openClientModalById(result.clientId);
+                      }
+                    }}
+                    aria-label={`${result.name} 정보 보기`}
                   >
+                    <button
+                      className={`favorite-heart absolute right-3 top-3 ${favorite ? "on" : ""}`}
+                      aria-label={favorite ? "즐겨찾기 해제" : "즐겨찾기 추가"}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        toggleFavorite(result.clientId);
+                      }}
+                      type="button"
+                    />
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                      <div>
-                        <h3 className="text-base font-semibold text-slate-900 sm:text-lg">
-                          {result.name} 님
-                        </h3>
-                        <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                          <span className="rounded-full bg-slate-100 px-2 py-1 font-medium text-indigo-700">
-                            {statusLabel}
-                          </span>
-                          <span>{result.email}</span>
+                      <div className="flex items-start gap-3">
+                        <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-slate-50 text-sm font-semibold text-slate-700">
+                          {avatarUrl ? (
+                            <img src={avatarUrl} alt={`${result.name} 프로필`} className="h-full w-full object-cover" />
+                          ) : (
+                            <span>{nameInitial}</span>
+                          )}
+                        </div>
+                        <div className="flex flex-col gap-1.5">
+                          <h3 className="text-base font-semibold text-slate-900 sm:text-lg">
+                            {result.name} 님
+                          </h3>
+                          <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                            <span className="rounded-full bg-slate-100 px-2 py-1 font-medium text-indigo-700">
+                              {statusLabel}
+                            </span>
+                            <span>{result.email}</span>
+                          </div>
                         </div>
                       </div>
-                      <div className="text-right text-xs text-slate-500">
-                        현재 배정:
-                        {" "}
-                        {assignedToOther
-                          ? `${result.assignedManagerName ?? "다른 매니저"} (${result.assignedManagerEmail ?? "정보 없음"})`
-                          : assignedToCurrent
-                          ? "현재 담당 중"
-                          : "없음"}
-                      </div>
                     </div>
-                    <div className="mt-3 grid gap-2 text-sm text-slate-600 sm:grid-cols-2">
-                      <p>주소: {addressDisplay}</p>
-                      <p>나이: {ageDisplay}</p>
-                      <p>복약 주기: {cycleDisplay}</p>
+                    <div className="mt-3 grid grid-cols-1 gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-800 sm:grid-cols-2">
+                      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 sm:col-span-2">
+                        <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-indigo-700">
+                          현재 배정
+                        </span>
+                        <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-indigo-800">
+                          {assignedToOther
+                            ? `${result.assignedManagerName ?? "다른 매니저"} (${result.assignedManagerEmail ?? "정보 없음"})`
+                            : assignedToCurrent
+                            ? "현재 담당 중"
+                            : "없음"}
+                        </span>
+                      </div>
+                      <div className="flex items-start gap-2 rounded-lg bg-white px-3 py-2 shadow-[0_1px_2px_rgba(0,0,0,0.05)]">
+                        <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+                          주소
+                        </span>
+                        <span className="flex-1 text-slate-800">{addressDisplay}</span>
+                      </div>
+                      <div className="flex items-center justify-between rounded-lg bg-white px-3 py-2 shadow-[0_1px_2px_rgba(0,0,0,0.05)]">
+                        <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+                          나이
+                        </span>
+                        <span className="font-semibold text-slate-900">{ageDisplay}</span>
+                      </div>
+                      <div className="flex items-center justify-between rounded-lg bg-white px-3 py-2 shadow-[0_1px_2px_rgba(0,0,0,0.05)]">
+                        <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+                          성별
+                        </span>
+                        <span className="font-semibold text-slate-900">{result.gender ?? "미등록"}</span>
+                      </div>
+                      <div className="flex items-center justify-between rounded-lg bg-white px-3 py-2 shadow-[0_1px_2px_rgba(0,0,0,0.05)]">
+                        <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+                          복약 주기
+                        </span>
+                        <span className="font-semibold text-slate-900">{cycleDisplay}</span>
+                      </div>
                     </div>
                     <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                       <button
                         className="w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-indigo-300 sm:w-auto"
                         disabled={buttonDisabled}
-                        onClick={() => handleAssignClient(result.clientId)}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handleAssignClient(result.clientId);
+                        }}
                         type="button"
                       >
                         {buttonLabel}
@@ -2379,6 +3396,10 @@ const WeeklyDayCard = ({
             <div className="mt-4 rounded-xl bg-white px-3 py-2 text-sm text-slate-600">
               현재 배정된 이용자가 없습니다. 관리자에게 문의해주세요.
             </div>
+          ) : favoriteClientCount === 0 ? (
+            <div className="mt-4 rounded-xl bg-white px-3 py-2 text-sm text-slate-600">
+              즐겨찾기한 클라이언트가 없습니다. 상단 검색/배정 목록에서 별표를 눌러 즐겨찾기를 추가하세요.
+            </div>
           ) : filteredClients.length === 0 ? (
             <div className="mt-4 rounded-xl bg-white px-3 py-2 text-sm text-slate-600">
               검색 조건에 맞는 이용자가 없습니다.
@@ -2390,10 +3411,16 @@ const WeeklyDayCard = ({
                 const recentLogLabel = latestLog
                   ? formatDateTime(latestLog.logTimestamp)
                   : "기록 없음";
+                const favorite = isFavorite(client.clientId);
+                const avatarUrl = getProfileImage(client.profileImageUrl);
+                const nameInitial =
+                  client.clientName && client.clientName.trim().length > 0
+                    ? client.clientName.trim().charAt(0).toUpperCase()
+                    : "C";
                 return (
                   <article
                     key={client.clientId}
-                    className="cursor-pointer rounded-2xl border border-white bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500 sm:p-5"
+                    className="relative cursor-pointer rounded-2xl border border-white bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500 sm:p-5"
                     role="button"
                     tabIndex={0}
                     onClick={() => setClientModalClientId(client.clientId)}
@@ -2405,18 +3432,37 @@ const WeeklyDayCard = ({
                     }}
                     aria-label={`${client.clientName}님의 복약 관리 열기`}
                   >
-                    <div className="flex flex-col gap-2 border-b border-slate-200 pb-4 sm:flex-row sm:items-center sm:justify-between">
-                      <div>
-                        <h3 className="text-base font-semibold text-slate-900 sm:text-lg">
-                          {client.clientName} 님
-                        </h3>
-                        <p className="text-xs text-slate-500 sm:text-sm">
-                          복약 일정 {client.medicationPlans.length}건 · 최근 확인{" "}
-                          {client.latestMedicationLogs.length}건
-                        </p>
-                      </div>
-                      <div className="text-xs font-semibold text-amber-700">
-                        비상 알림 {client.emergencyAlerts.length}건
+                    <button
+                      className={`favorite-heart absolute right-3 top-3 ${favorite ? "on" : ""}`}
+                      aria-label={favorite ? "즐겨찾기 해제" : "즐겨찾기 추가"}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        toggleFavorite(client.clientId);
+                      }}
+                      type="button"
+                    />
+                    <div className="flex flex-col gap-2 border-b border-slate-200 pb-4 sm:flex-row sm:items-center sm:justify-between pr-12">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-slate-50 text-sm font-semibold text-slate-700">
+                          {avatarUrl ? (
+                            <img
+                              src={avatarUrl}
+                              alt={`${client.clientName} 프로필`}
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
+                            <span>{nameInitial}</span>
+                          )}
+                        </div>
+                        <div>
+                          <h3 className="text-base font-semibold text-slate-900 sm:text-lg">
+                            {client.clientName} 님
+                          </h3>
+                          <p className="text-xs text-slate-500 sm:text-sm">
+                            복약 일정 {client.medicationPlans.length}건 · 최근 확인{" "}
+                            {client.latestMedicationLogs.length}건
+                          </p>
+                        </div>
                       </div>
                     </div>
                     <div className="flex flex-col gap-3 pt-4 sm:flex-row sm:items-center sm:justify-between">
@@ -2475,6 +3521,42 @@ const WeeklyDayCard = ({
         </section>
       )}
       </main>
+      <style jsx global>{`
+        .favorite-heart {
+          position: absolute;
+          width: 30px;
+          height: 30px;
+          border: 0;
+          font-size: 0;
+          border-radius: 9999px;
+          background: #fff url("https://umings.github.io/images/i_like_off.png") no-repeat center / 18px;
+          box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+          cursor: pointer;
+          transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .favorite-heart.on {
+          background: #fff url("https://umings.github.io/images/i_like_on.png") no-repeat center / 18px;
+          animation: favorite-beat 0.5s 1 alternate;
+          }
+        .favorite-heart:hover {
+          transform: translateY(-1px);
+          box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
+        }
+        @keyframes favorite-beat {
+          0% {
+            transform: scale(1);
+          }
+          40% {
+            transform: scale(1.15);
+          }
+          70% {
+            transform: scale(0.9);
+          }
+          100% {
+            transform: scale(1);
+          }
+        }
+      `}</style>
       {selectedClient && selectedClientForm && (
         <>
           <div
@@ -2506,18 +3588,74 @@ const WeeklyDayCard = ({
                 </svg>
               </button>
               <div className="modal-scroll max-h-[90vh] overflow-y-auto p-4 sm:p-6">
-                <div className="pr-2 sm:pr-4">
-                  <div className="pr-8">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-indigo-600">
-                      복약 관리
-                    </p>
-                    <h3 className="mt-1 text-xl font-bold text-slate-900">
-                      {selectedClient.clientName} 님
-                    </h3>
-                    <p className="text-sm text-slate-500">
-                      복약 일정 {selectedClient.medicationPlans.length}건 · 최근 확인{" "}
-                      {selectedClient.latestMedicationLogs.length}건
-                    </p>
+                <div className="space-y-4 pr-2 sm:pr-4">
+                  <div className="grid gap-4 rounded-2xl border border-slate-100 bg-slate-50/80 p-4 sm:grid-cols-[240px,1fr] sm:items-center sm:gap-6">
+                    <div className="flex items-center gap-4 sm:gap-5">
+                      <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl border-2 border-indigo-100 bg-white text-xl font-semibold text-indigo-700 shadow-sm sm:h-20 sm:w-20">
+                        <img
+                          src={getProfileImage(
+                            selectedClientDetail?.profileImageUrl ?? selectedClient.profileImageUrl
+                          )}
+                          alt={`${selectedClient.clientName} 프로필`}
+                          className="h-full w-full object-cover"
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-indigo-600">
+                          복약 관리
+                        </p>
+                        <h3 className="text-xl font-bold text-slate-900">
+                          {selectedClient.clientName} 님
+                        </h3>
+                        <p className="text-sm text-slate-500">
+                          복약 일정 {selectedClient.medicationPlans.length}건 · 최근 확인{" "}
+                          {selectedClient.latestMedicationLogs.length}건
+                        </p>
+                      </div>
+                    </div>
+                    <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2">
+                      <InfoChip label="나이" value={(() => {
+                        const age =
+                          typeof selectedClientDetail?.age === "number" && selectedClientDetail.age > 0
+                            ? selectedClientDetail.age
+                            : typeof selectedClient.age === "number" && selectedClient.age > 0
+                            ? selectedClient.age
+                            : computeInternationalAge(
+                                selectedClientDetail?.birthDate ?? selectedClient.birthDate
+                              );
+                        return typeof age === "number" ? `${age}세` : "미등록";
+                      })()} />
+                      <InfoChip
+                        label="성별"
+                        value={
+                          selectedClientDetail?.gender &&
+                          selectedClientDetail.gender.trim().length > 0
+                            ? selectedClientDetail.gender
+                            : selectedClient.gender ?? "미등록"
+                        }
+                      />
+                      <InfoChip
+                        label="이메일"
+                        value={
+                          selectedClientDetail?.email && selectedClientDetail.email.trim().length > 0
+                            ? selectedClientDetail.email
+                            : selectedClient.email ?? "미등록"
+                        }
+                        truncate
+                      />
+                      <InfoChip
+                        label="주소"
+                        value={
+                          selectedClientDetail
+                            ? formatAddress(
+                                selectedClientDetail.address ?? selectedClient.address,
+                                selectedClientDetail.detailAddress ?? selectedClient.detailAddress
+                              )
+                            : "불러오는 중..."
+                        }
+                        truncate
+                      />
+                    </div>
                   </div>
                   {renderClientDetailSections(selectedClient, {
                     form: selectedClientForm,

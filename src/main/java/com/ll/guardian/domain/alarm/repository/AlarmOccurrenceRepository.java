@@ -11,4 +11,6 @@ public interface AlarmOccurrenceRepository extends JpaRepository<AlarmOccurrence
     List<AlarmOccurrence> findByAlarmId(Long alarmId);
 
     List<AlarmOccurrence> findByStatusAndScheduledTimeBefore(AlarmOccurrenceStatus status, LocalDateTime scheduledTime);
+
+    void deleteByAlarm_Id(Long alarmId);
 }

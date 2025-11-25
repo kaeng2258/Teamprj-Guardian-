@@ -1,4 +1,4 @@
-// File: C:\Users\User\OneDrive\바탕 화면\fullstack\guardian\Teamprj-Guardian-\frontapp\app\page.tsx
+// File: /Users/hwangjeongseong/java/Teamprj-Guardian-/frontapp/app/page.tsx
 import * as entry from '../../../app/page.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 

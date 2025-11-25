@@ -2,6 +2,7 @@
 "use client";
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
+import { resolveProfileImageUrl } from "@/lib/image";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "";
@@ -12,6 +13,8 @@ type ChatThread = {
   managerId: number;
   clientName?: string | null;
   managerName?: string | null;
+  clientProfileImageUrl?: string | null;
+  managerProfileImageUrl?: string | null;
   lastMessageSnippet?: string | null;
   lastMessageAt?: string | null;
   readByClient?: boolean;
@@ -34,6 +37,14 @@ export default function MyChatRooms({
   const [threads, setThreads] = useState<ChatThread[]>([]);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [profileImages, setProfileImages] = useState<Record<number, string>>({});
+  const defaultProfileImage =
+    resolveProfileImageUrl("/image/픽토그램.png") || "/image/픽토그램.png";
+
+  const getProfileImage = (url?: string | null) =>
+    url && typeof url === "string" && url.trim().length > 0
+      ? resolveProfileImageUrl(url) || defaultProfileImage
+      : defaultProfileImage;
 
   useEffect(() => {
     const effectiveUserId =
@@ -86,6 +97,32 @@ export default function MyChatRooms({
     };
   }, [role, userId, managerProfileId, refreshToken]);
 
+  useEffect(() => {
+    // 다른 참여자의 프로필 이미지를 추가로 로드
+    const loadProfileImages = async () => {
+      const targets = threads
+        .map((t) => (role === "MANAGER" ? t.clientId : t.managerId))
+        .filter((id) => id && !profileImages[id]);
+      if (targets.length === 0) return;
+
+      for (const id of targets) {
+        try {
+          const res = await fetch(`${API_BASE_URL}/api/users/${id}`);
+          if (!res.ok) continue;
+          const detail: { profileImageUrl?: string | null } = await res.json();
+          setProfileImages((prev) => ({
+            ...prev,
+            [id]: getProfileImage(detail.profileImageUrl),
+          }));
+        } catch {
+          // ignore fetch errors
+        }
+      }
+    };
+    void loadProfileImages();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [threads, role]);
+
   return (
     <section className="flex flex-col gap-4 rounded-xl border border-sky-200 bg-sky-50/70 p-6">
       <div>
@@ -117,6 +154,11 @@ export default function MyChatRooms({
           const displayName = otherName && otherName.trim().length > 0
             ? otherName
             : "이름 미등록";
+          const otherId = role === "MANAGER" ? t.clientId : t.managerId;
+          const avatar =
+            role === "MANAGER"
+              ? getProfileImage(profileImages[otherId] ?? t.clientProfileImageUrl)
+              : getProfileImage(profileImages[otherId] ?? t.managerProfileImageUrl);
 
           const lastTime = t.lastMessageAt ?? undefined;
           const lastSnippet = t.lastMessageSnippet ?? "";
@@ -133,8 +175,12 @@ export default function MyChatRooms({
               <Link href={`/chat/${roomId}`} className="flex flex-col gap-1">
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
-                    <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-sky-100 text-sm font-semibold text-sky-700">
-                      {displayName.charAt(0)}
+                    <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full border border-sky-100 bg-sky-50 text-sm font-semibold text-sky-700">
+                      <img
+                        src={avatar}
+                        alt={`${displayName} 프로필`}
+                        className="h-full w-full object-cover"
+                      />
                     </span>
                     <div>
                       <p className="text-sm font-semibold text-slate-900">

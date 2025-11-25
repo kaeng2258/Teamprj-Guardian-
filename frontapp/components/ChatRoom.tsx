@@ -5,6 +5,7 @@ import { ChatMessage, useStomp } from "@/hooks/useStomp";
 import { Client } from "@stomp/stompjs";
 import SockJS from "sockjs-client";
 import { useRouter } from "next/navigation";
+import { resolveProfileImageUrl } from "@/lib/image";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "";
@@ -32,6 +33,8 @@ type ThreadInfo = {
   managerId: number;
   clientName?: string | null;
   managerName?: string | null;
+  clientProfileImageUrl?: string | null;
+  managerProfileImageUrl?: string | null;
   lastMessageSnippet?: string | null;
   lastMessageAt?: string | null;
 };
@@ -56,6 +59,18 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
   >("disconnected");
   const logRef = useRef<HTMLDivElement | null>(null);
   const seen = useRef<Set<string>>(new Set());
+  const [participantProfiles, setParticipantProfiles] = useState<Record<number, string>>({});
+  const defaultProfileImage =
+    resolveProfileImageUrl("/image/픽토그램.png") || "/image/픽토그램.png";
+  const getProfileImage = useCallback(
+    (url?: string | null) => {
+      if (url && typeof url === "string" && url.trim().length > 0) {
+        return resolveProfileImageUrl(url) || defaultProfileImage;
+      }
+      return defaultProfileImage;
+    },
+    [defaultProfileImage]
+  );
 
   // 초기 메시지 + seen 초기화
   useEffect(() => {
@@ -79,6 +94,32 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
       }
     })();
   }, [roomId]);
+
+  // 프로필 이미지 보강 로딩
+  useEffect(() => {
+    const loadProfiles = async () => {
+      if (!thread) return;
+      const targets = [thread.clientId, thread.managerId].filter(
+        (id) => !participantProfiles[id]
+      );
+      if (targets.length === 0) return;
+
+      for (const id of targets) {
+        try {
+          const res = await fetch(`${API_BASE_URL}/api/users/${id}`);
+          if (!res.ok) continue;
+          const detail: { profileImageUrl?: string | null } = await res.json();
+          setParticipantProfiles((prev) => ({
+            ...prev,
+            [id]: getProfileImage(detail.profileImageUrl),
+          }));
+        } catch {
+          // ignore
+        }
+      }
+    };
+    void loadProfiles();
+  }, [thread, participantProfiles, getProfileImage]);
 
   // STOMP 채팅 연결
   const onMessageHandler = useCallback((msg: ChatMessage) => {
@@ -148,6 +189,21 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
   const displayMeName = useMemo(
     () => resolveName(me.id, me.name),
     [thread, me.id, me.name]
+  );
+  const resolveAvatar = useCallback(
+    (senderId: number) => {
+      if (!thread) return defaultProfileImage;
+      const detailAvatar = participantProfiles[senderId];
+      if (detailAvatar) return detailAvatar;
+      if (senderId === thread.clientId) {
+        return getProfileImage(thread.clientProfileImageUrl);
+      }
+      if (senderId === thread.managerId) {
+        return getProfileImage(thread.managerProfileImageUrl);
+      }
+      return defaultProfileImage;
+    },
+    [thread, getProfileImage, participantProfiles]
   );
 
   const handleSend = (e: React.FormEvent) => {
@@ -484,6 +540,7 @@ const rtcTextClass = connected ? "text-emerald-700" : "text-slate-500";
                 {messages.map((m, idx) => {
                   const mine = m.senderId === me.id;
                   const name = resolveName(m.senderId, m.senderName);
+                  const avatar = resolveAvatar(m.senderId);
                   return (
                     <li
                       key={idx}
@@ -499,8 +556,17 @@ const rtcTextClass = connected ? "text-emerald-700" : "text-slate-500";
                         }`}
                       >
                         {!mine && (
-                          <div className="mb-0.5 text-xs font-semibold text-emerald-700">
-                            {name}
+                          <div className="mb-0.5 flex items-center gap-2">
+                            <span className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-slate-100 text-[11px] font-semibold text-emerald-700">
+                              <img
+                                src={avatar}
+                                alt={`${name} 프로필`}
+                                className="h-full w-full object-cover"
+                              />
+                            </span>
+                            <span className="text-xs font-semibold text-emerald-700">
+                              {name}
+                            </span>
                           </div>
                         )}
                         <div className="whitespace-pre-wrap break-words">

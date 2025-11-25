@@ -34,9 +34,24 @@ type ManagerDashboardResponse = {
 type ManagerClientSummary = {
   clientId: number;
   clientName: string;
+  email?: string | null;
+  address?: string | null;
+  birthDate?: string | null;
+  gender?: string | null;
+  age?: number | null;
+  profileImageUrl?: string | null;
   medicationPlans: MedicationPlan[];
   latestMedicationLogs: MedicationLog[];
   emergencyAlerts: EmergencyAlertInfo[];
+};
+
+type ClientDetail = {
+  email?: string | null;
+  address?: string | null;
+  birthDate?: string | null;
+  gender?: string | null;
+  age?: number | null;
+  profileImageUrl?: string | null;
 };
 
 type MedicationPlan = {
@@ -91,6 +106,8 @@ type ManagerClientSearchResult = {
   status: string;
   address?: string | null;
   age?: number | null;
+  birthDate?: string | null;
+  gender?: string | null;
   medicationCycle?: string | null;
   currentlyAssigned: boolean;
   assignedManagerId?: number | null;
@@ -359,7 +376,47 @@ export default function ManagerMyPage() {
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [avatarError, setAvatarError] = useState("");
   const [avatarMessage, setAvatarMessage] = useState("");
+  const [clientDetails, setClientDetails] = useState<Record<number, ClientDetail>>({});
   const defaultProfileImage = resolveProfileImageUrl("/image/픽토그램.png") || "/image/픽토그램.png";
+  const logoImage = resolveProfileImageUrl("/image/logo.png") || "/image/logo.png";
+  const getProfileImage = (url?: string | null) =>
+    url && url.trim().length > 0
+      ? resolveProfileImageUrl(url) || defaultProfileImage
+      : defaultProfileImage;
+  const InfoChip = ({
+    label,
+    value,
+    truncate,
+  }: {
+    label: string;
+    value: string;
+    truncate?: boolean;
+  }) => (
+    <div className="flex flex-col gap-0.5 rounded-lg bg-white px-3 py-2 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
+      <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+        {label}
+      </span>
+      <span
+        className={`text-sm font-semibold text-slate-900 ${truncate ? "truncate" : ""}`}
+        title={value}
+      >
+        {value}
+      </span>
+    </div>
+  );
+  const computeInternationalAge = (birthDate?: string | null) => {
+    if (!birthDate) return null;
+    const birth = new Date(birthDate);
+    if (Number.isNaN(birth.getTime())) return null;
+    const today = new Date();
+    let age = today.getFullYear() - birth.getFullYear();
+    const monthDiff = today.getMonth() - birth.getMonth();
+    const dayDiff = today.getDate() - birth.getDate();
+    if (monthDiff < 0 || (monthDiff === 0 && dayDiff < 0)) {
+      age -= 1;
+    }
+    return age >= 0 ? age : null;
+  };
   const updatePlanForm = (
     clientId: number,
     updater: (current: PlanFormState) => PlanFormState
@@ -861,6 +918,9 @@ export default function ManagerMyPage() {
     clientModalClientId && dashboard?.clients
       ? dashboard.clients.find((client) => client.clientId === clientModalClientId) ?? null
       : null;
+  const selectedClientDetail = selectedClient
+    ? clientDetails[selectedClient.clientId] ?? null
+    : null;
   const selectedClientForm = selectedClient
     ? planForms[selectedClient.clientId] ?? createInitialFormState()
     : null;
@@ -874,6 +934,27 @@ export default function ManagerMyPage() {
     ? weeklySummaryErrors[selectedClient.clientId] ?? ""
     : "";
   const closeClientModal = () => setClientModalClientId(null);
+
+  useEffect(() => {
+    const loadClientDetail = async (clientId: number) => {
+      if (clientDetails[clientId]) return;
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/users/${clientId}`);
+        if (!res.ok) return;
+        const detail: ClientDetail = await res.json();
+        setClientDetails((prev) => ({
+          ...prev,
+          [clientId]: detail,
+        }));
+      } catch {
+        // ignore detail fetch errors
+      }
+    };
+
+    if (selectedClient) {
+      void loadClientDetail(selectedClient.clientId);
+    }
+  }, [selectedClient, clientDetails]);
 
   useEffect(() => {
     if (clientModalClientId === null) {
@@ -1123,7 +1204,47 @@ const WeeklyDayCard = ({
       }
 
       const data: ManagerClientSearchResult[] = await response.json();
-      setSearchResults(data);
+      const enriched = data.map((item) => {
+        const computedAge =
+          typeof item.age === "number" && item.age > 0
+            ? item.age
+            : computeInternationalAge(item.birthDate);
+        return {
+          ...item,
+          age: typeof computedAge === "number" ? computedAge : null,
+        };
+      });
+
+      const detailedResults = await Promise.all(
+        enriched.map(async (item) => {
+          if (item.birthDate || (typeof item.age === "number" && item.age > 0)) {
+            return item;
+          }
+          try {
+            const detailRes = await fetch(`${API_BASE_URL}/api/users/${item.clientId}`);
+            if (!detailRes.ok) return item;
+            const detail: { birthDate?: string | null; age?: number | null; gender?: string | null } =
+              await detailRes.json();
+            const birthDate = detail.birthDate ?? null;
+            const computedAge = computeInternationalAge(birthDate);
+            return {
+              ...item,
+              birthDate,
+              gender: detail.gender ?? item.gender ?? null,
+              age:
+                typeof detail.age === "number" && detail.age > 0
+                  ? detail.age
+                  : typeof computedAge === "number"
+                  ? computedAge
+                  : item.age,
+            };
+          } catch {
+            return item;
+          }
+        })
+      );
+
+      setSearchResults(detailedResults);
       setSearchMessage(data.length === 0 ? "검색 결과가 없습니다." : "");
     } catch (error) {
       const message =
@@ -1972,7 +2093,7 @@ const WeeklyDayCard = ({
                     key={plan.id}
                     className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
                   >
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-start sm:gap-4">
                       <div>
                         <h4 className="text-base font-semibold text-slate-900 sm:text-lg">
                           {plan.medicineName}
@@ -2628,7 +2749,7 @@ const WeeklyDayCard = ({
       <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 rounded-3xl bg-white p-4 shadow-lg sm:p-8">
         <header className="flex flex-col gap-4 border-b border-slate-200 pb-5">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-3 sm:gap-4">
+            <div className="flex items-center gap-4 sm:gap-5">
               <div className="relative">
                 <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full border-2 border-indigo-200 bg-indigo-50 text-lg font-semibold text-indigo-700">
                   {manager.profileImageUrl ? (
@@ -2649,13 +2770,25 @@ const WeeklyDayCard = ({
                   Edit
                 </button>
               </div>
-              <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
-                <p className="text-2xl font-semibold uppercase tracking-wide text-indigo-600 sm:text-3xl">
-                  Manager
-                </p>
-                <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">
-                  {manager.name ? `${manager.name} 매니저` : "매니저 마이페이지"}
-                </h1>
+              <div className="flex flex-col gap-1">
+                <div className="flex items-center gap-2">
+                  <img
+                    src={logoImage}
+                    alt="Guardian 로고"
+                    className="h-6 w-auto sm:h-7"
+                  />
+                  <span className="text-sm font-semibold uppercase tracking-[0.12em] text-slate-600 sm:text-base">
+                    GUARDIAN
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <p className="text-2xl font-semibold uppercase tracking-wide text-indigo-600 sm:text-3xl">
+                    Manager
+                  </p>
+                  <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">
+                    {manager.name ? `${manager.name} 매니저` : "매니저"}
+                  </h1>
+                </div>
               </div>
             </div>
             <button
@@ -2953,9 +3086,13 @@ const WeeklyDayCard = ({
                   result.address && result.address.trim().length > 0
                     ? result.address
                     : "미등록";
-                const ageDisplay =
+                const computedAge =
                   typeof result.age === "number" && result.age > 0
-                    ? `${result.age}세`
+                    ? result.age
+                    : computeInternationalAge(result.birthDate);
+                const ageDisplay =
+                  typeof computedAge === "number" && computedAge >= 0
+                    ? `${computedAge}세`
                     : "미등록";
                 const cycleDisplay =
                   result.medicationCycle && result.medicationCycle.trim().length > 0
@@ -2964,6 +3101,11 @@ const WeeklyDayCard = ({
                 const statusLabel = mapStatusToLabel(result.status);
                 const assignMessage = assignmentMessages[result.clientId];
                 const favorite = isFavorite(result.clientId);
+                const avatarUrl = getProfileImage(result.profileImageUrl);
+                const nameInitial =
+                  result.name && result.name.trim().length > 0
+                    ? result.name.trim().charAt(0).toUpperCase()
+                    : "C";
 
                 return (
                   <article
@@ -2994,32 +3136,64 @@ const WeeklyDayCard = ({
                       type="button"
                     />
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                      <div>
-                        <h3 className="text-base font-semibold text-slate-900 sm:text-lg">
-                          {result.name} 님
-                        </h3>
-                        <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                          <span className="rounded-full bg-slate-100 px-2 py-1 font-medium text-indigo-700">
-                            {statusLabel}
-                          </span>
-                          <span>{result.email}</span>
+                      <div className="flex items-start gap-3">
+                        <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-slate-50 text-sm font-semibold text-slate-700">
+                          {avatarUrl ? (
+                            <img src={avatarUrl} alt={`${result.name} 프로필`} className="h-full w-full object-cover" />
+                          ) : (
+                            <span>{nameInitial}</span>
+                          )}
                         </div>
-                        <div className="mt-2 text-xs text-slate-500">
-                          <p>현재 배정:</p>
-                          <p className="font-semibold text-slate-700">
-                            {assignedToOther
-                              ? `${result.assignedManagerName ?? "다른 매니저"} (${result.assignedManagerEmail ?? "정보 없음"})`
-                              : assignedToCurrent
-                              ? "현재 담당 중"
-                              : "없음"}
-                          </p>
+                        <div className="flex flex-col gap-1.5">
+                          <h3 className="text-base font-semibold text-slate-900 sm:text-lg">
+                            {result.name} 님
+                          </h3>
+                          <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                            <span className="rounded-full bg-slate-100 px-2 py-1 font-medium text-indigo-700">
+                              {statusLabel}
+                            </span>
+                            <span>{result.email}</span>
+                          </div>
                         </div>
                       </div>
                     </div>
-                    <div className="mt-3 grid gap-2 text-sm text-slate-600 sm:grid-cols-2">
-                      <p>주소: {addressDisplay}</p>
-                      <p>나이: {ageDisplay}</p>
-                      <p>복약 주기: {cycleDisplay}</p>
+                    <div className="mt-3 grid grid-cols-1 gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-800 sm:grid-cols-2">
+                      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 sm:col-span-2">
+                        <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-indigo-700">
+                          현재 배정
+                        </span>
+                        <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-indigo-800">
+                          {assignedToOther
+                            ? `${result.assignedManagerName ?? "다른 매니저"} (${result.assignedManagerEmail ?? "정보 없음"})`
+                            : assignedToCurrent
+                            ? "현재 담당 중"
+                            : "없음"}
+                        </span>
+                      </div>
+                      <div className="flex items-start gap-2 rounded-lg bg-white px-3 py-2 shadow-[0_1px_2px_rgba(0,0,0,0.05)]">
+                        <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+                          주소
+                        </span>
+                        <span className="flex-1 text-slate-800">{addressDisplay}</span>
+                      </div>
+                      <div className="flex items-center justify-between rounded-lg bg-white px-3 py-2 shadow-[0_1px_2px_rgba(0,0,0,0.05)]">
+                        <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+                          나이
+                        </span>
+                        <span className="font-semibold text-slate-900">{ageDisplay}</span>
+                      </div>
+                      <div className="flex items-center justify-between rounded-lg bg-white px-3 py-2 shadow-[0_1px_2px_rgba(0,0,0,0.05)]">
+                        <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+                          성별
+                        </span>
+                        <span className="font-semibold text-slate-900">{result.gender ?? "미등록"}</span>
+                      </div>
+                      <div className="flex items-center justify-between rounded-lg bg-white px-3 py-2 shadow-[0_1px_2px_rgba(0,0,0,0.05)]">
+                        <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+                          복약 주기
+                        </span>
+                        <span className="font-semibold text-slate-900">{cycleDisplay}</span>
+                      </div>
                     </div>
                     <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                       <button
@@ -3129,6 +3303,11 @@ const WeeklyDayCard = ({
                   ? formatDateTime(latestLog.logTimestamp)
                   : "기록 없음";
                 const favorite = isFavorite(client.clientId);
+                const avatarUrl = getProfileImage(client.profileImageUrl);
+                const nameInitial =
+                  client.clientName && client.clientName.trim().length > 0
+                    ? client.clientName.trim().charAt(0).toUpperCase()
+                    : "C";
                 return (
                   <article
                     key={client.clientId}
@@ -3154,14 +3333,27 @@ const WeeklyDayCard = ({
                       type="button"
                     />
                     <div className="flex flex-col gap-2 border-b border-slate-200 pb-4 sm:flex-row sm:items-center sm:justify-between pr-12">
-                      <div>
-                        <h3 className="text-base font-semibold text-slate-900 sm:text-lg">
-                          {client.clientName} 님
-                        </h3>
-                        <p className="text-xs text-slate-500 sm:text-sm">
-                          복약 일정 {client.medicationPlans.length}건 · 최근 확인{" "}
-                          {client.latestMedicationLogs.length}건
-                        </p>
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-slate-50 text-sm font-semibold text-slate-700">
+                          {avatarUrl ? (
+                            <img
+                              src={avatarUrl}
+                              alt={`${client.clientName} 프로필`}
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
+                            <span>{nameInitial}</span>
+                          )}
+                        </div>
+                        <div>
+                          <h3 className="text-base font-semibold text-slate-900 sm:text-lg">
+                            {client.clientName} 님
+                          </h3>
+                          <p className="text-xs text-slate-500 sm:text-sm">
+                            복약 일정 {client.medicationPlans.length}건 · 최근 확인{" "}
+                            {client.latestMedicationLogs.length}건
+                          </p>
+                        </div>
                       </div>
                     </div>
                     <div className="flex flex-col gap-3 pt-4 sm:flex-row sm:items-center sm:justify-between">
@@ -3289,16 +3481,71 @@ const WeeklyDayCard = ({
               <div className="modal-scroll max-h-[90vh] overflow-y-auto p-4 sm:p-6">
                 <div className="pr-2 sm:pr-4">
                   <div className="pr-8">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-indigo-600">
-                      복약 관리
-                    </p>
-                    <h3 className="mt-1 text-xl font-bold text-slate-900">
-                      {selectedClient.clientName} 님
-                    </h3>
-                    <p className="text-sm text-slate-500">
-                      복약 일정 {selectedClient.medicationPlans.length}건 · 최근 확인{" "}
-                      {selectedClient.latestMedicationLogs.length}건
-                    </p>
+                    <div className="flex flex-col gap-4 rounded-2xl border border-slate-100 bg-slate-50/80 p-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+                      <div className="flex items-center gap-4">
+                        <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl border-2 border-indigo-100 bg-white text-xl font-semibold text-indigo-700 shadow-sm sm:h-20 sm:w-20">
+                          <img
+                            src={getProfileImage(
+                              selectedClientDetail?.profileImageUrl ?? selectedClient.profileImageUrl
+                            )}
+                            alt={`${selectedClient.clientName} 프로필`}
+                            className="h-full w-full object-cover"
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-indigo-600">
+                            복약 관리
+                          </p>
+                          <h3 className="text-xl font-bold text-slate-900">
+                            {selectedClient.clientName} 님
+                          </h3>
+                          <p className="text-sm text-slate-500">
+                            복약 일정 {selectedClient.medicationPlans.length}건 · 최근 확인{" "}
+                            {selectedClient.latestMedicationLogs.length}건
+                          </p>
+                        </div>
+                      </div>
+                      <div className="grid w-full grid-cols-2 gap-2 sm:max-w-md">
+                        <InfoChip label="나이" value={(() => {
+                          const age =
+                            typeof selectedClientDetail?.age === "number" && selectedClientDetail.age > 0
+                              ? selectedClientDetail.age
+                              : typeof selectedClient.age === "number" && selectedClient.age > 0
+                              ? selectedClient.age
+                              : computeInternationalAge(
+                                  selectedClientDetail?.birthDate ?? selectedClient.birthDate
+                                );
+                          return typeof age === "number" ? `${age}세` : "미등록";
+                        })()} />
+                        <InfoChip
+                          label="성별"
+                          value={
+                            selectedClientDetail?.gender &&
+                            selectedClientDetail.gender.trim().length > 0
+                              ? selectedClientDetail.gender
+                              : selectedClient.gender ?? "미등록"
+                          }
+                        />
+                        <InfoChip
+                          label="이메일"
+                          value={
+                            selectedClientDetail?.email && selectedClientDetail.email.trim().length > 0
+                              ? selectedClientDetail.email
+                              : selectedClient.email ?? "미등록"
+                          }
+                          truncate
+                        />
+                        <InfoChip
+                          label="주소"
+                          value={
+                            selectedClientDetail?.address && selectedClientDetail.address.trim().length > 0
+                              ? selectedClientDetail.address
+                              : selectedClient.address ?? "미등록"
+                          }
+                          truncate
+                        />
+                      </div>
+                    </div>
                   </div>
                   {renderClientDetailSections(selectedClient, {
                     form: selectedClientForm,

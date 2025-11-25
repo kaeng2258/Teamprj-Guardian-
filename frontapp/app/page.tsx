@@ -81,6 +81,7 @@ export default function Home() {
   const [registerRole, setRegisterRole] = useState<RegisterRoleValue>("");
   const [registerName, setRegisterName] = useState("");
   const [registerBirthDate, setRegisterBirthDate] = useState("");
+  const [registerGender, setRegisterGender] = useState("");
   const [registerEmail, setRegisterEmail] = useState("");
   const [registerPassword, setRegisterPassword] = useState("");
   const [registerConfirmPassword, setRegisterConfirmPassword] = useState("");
@@ -186,6 +187,11 @@ export default function Home() {
       return;
     }
 
+    if (!registerGender) {
+      setRegisterError("성별을 선택해주세요.");
+      return;
+    }
+
     if (registerPassword !== registerConfirmPassword) {
       setRegisterError("비밀번호 확인이 일치하지 않습니다.");
       return;
@@ -220,6 +226,7 @@ export default function Home() {
           password: registerPassword,
           name: registerName,
           birthDate: registerBirthDate,
+          gender: registerGender,
           zipCode: registerZipCode,
           address: registerAddress,
           detailAddress: registerDetailAddress,
@@ -245,6 +252,7 @@ export default function Home() {
       setRegisterPassword("");
       setRegisterConfirmPassword("");
       setRegisterBirthDate("");
+      setRegisterGender("");
       setEmailCheckStatus("idle");
       setEmailCheckMessage("");
       setCheckedEmail("");
@@ -437,6 +445,20 @@ export default function Home() {
                   type="date"
                   value={registerBirthDate}
                 />
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-sm text-gray-600">성별</span>
+                <select
+                  aria-label="성별"
+                  className="rounded-md border border-gray-300 px-3 py-2 focus:border-black focus:outline-none"
+                  value={registerGender}
+                  onChange={(event) => setRegisterGender(event.target.value)}
+                  required
+                >
+                  <option value="">선택해주세요</option>
+                  <option value="MALE">남성</option>
+                  <option value="FEMALE">여성</option>
+                </select>
               </label>
               <label className="flex flex-col gap-1">
                 <span className="text-sm text-gray-600">이메일</span>

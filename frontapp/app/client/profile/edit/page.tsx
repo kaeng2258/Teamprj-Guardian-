@@ -12,6 +12,10 @@ type UserSummary = {
   email: string;
   name: string;
   birthDate?: string | null;
+  gender?: string | null;
+  zipCode?: string | null;
+  address?: string | null;
+  detailAddress?: string | null;
   profileImageUrl?: string | null;
 };
 
@@ -21,6 +25,10 @@ export default function ClientProfileEditPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [birthDate, setBirthDate] = useState("");
+  const [gender, setGender] = useState("");
+  const [zipCode, setZipCode] = useState("");
+  const [address, setAddress] = useState("");
+  const [detailAddress, setDetailAddress] = useState("");
   const [profileImageUrl, setProfileImageUrl] = useState<string>(DEFAULT_PROFILE_IMG);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -68,6 +76,10 @@ export default function ClientProfileEditPage() {
         setName(data.name ?? "");
         setEmail(data.email ?? "");
         setBirthDate(data.birthDate ?? "");
+        setGender(data.gender ?? "");
+        setZipCode(data.zipCode ?? "");
+        setAddress(data.address ?? "");
+        setDetailAddress(data.detailAddress ?? "");
         setProfileImageUrl(resolveProfileImageUrl(data.profileImageUrl) || DEFAULT_PROFILE_IMG);
       } catch (e: any) {
         setError(e instanceof Error ? e.message : "내 정보를 불러오지 못했습니다.");
@@ -114,6 +126,10 @@ export default function ClientProfileEditPage() {
         body: JSON.stringify({
           name: name.trim(),
           birthDate: birthDate || null,
+          gender: gender || null,
+          zipCode: zipCode || null,
+          address: address || null,
+          detailAddress: detailAddress || null,
           profileImageUrl: profileImageUrl || DEFAULT_PROFILE_IMG,
           status: null,
         }),
@@ -145,6 +161,10 @@ export default function ClientProfileEditPage() {
         body: JSON.stringify({
           name: name.trim(),
           birthDate: birthDate || null,
+          gender: gender || null,
+          zipCode: zipCode || null,
+          address: address || null,
+          detailAddress: detailAddress || null,
           profileImageUrl: DEFAULT_PROFILE_IMG,
           status: null,
         }),
@@ -388,6 +408,57 @@ export default function ClientProfileEditPage() {
           onChange={(e) => setName(e.target.value)}
           className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
           placeholder="이름을 입력하세요"
+        />
+      </label>
+      <label className="flex flex-col gap-2 text-sm text-slate-700">
+        <span>생년월일</span>
+        <input
+          type="date"
+          value={birthDate}
+          onChange={(e) => setBirthDate(e.target.value)}
+          className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+          placeholder="YYYY-MM-DD"
+        />
+      </label>
+      <label className="flex flex-col gap-2 text-sm text-slate-700">
+        <span>성별</span>
+        <select
+          value={gender}
+          onChange={(e) => setGender(e.target.value)}
+          className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+        >
+          <option value="">선택해주세요</option>
+          <option value="MALE">남성</option>
+          <option value="FEMALE">여성</option>
+        </select>
+      </label>
+      <div className="grid gap-3 sm:grid-cols-3">
+        <label className="flex flex-col gap-2 text-sm text-slate-700 sm:col-span-1">
+          <span>우편번호</span>
+          <input
+            value={zipCode}
+            onChange={(e) => setZipCode(e.target.value)}
+            className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+            placeholder="우편번호"
+          />
+        </label>
+        <label className="flex flex-col gap-2 text-sm text-slate-700 sm:col-span-2">
+          <span>주소</span>
+          <input
+            value={address}
+            onChange={(e) => setAddress(e.target.value)}
+            className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+            placeholder="주소"
+          />
+        </label>
+      </div>
+      <label className="flex flex-col gap-2 text-sm text-slate-700">
+        <span>상세 주소</span>
+        <input
+          value={detailAddress}
+          onChange={(e) => setDetailAddress(e.target.value)}
+          className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+          placeholder="동/호 등"
         />
       </label>
       <label className="flex flex-col gap-2 text-sm text-slate-700">

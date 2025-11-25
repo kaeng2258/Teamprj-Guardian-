@@ -1,6 +1,7 @@
 "use client";
 import MyChatRooms from "@/components/MyChatRooms";
 import { InlineDrugSearch } from "@/components/InlineDrugSearch";
+import { resolveProfileImageUrl } from "@/lib/image";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -185,6 +186,7 @@ export default function ClientMyPage() {
   const [emergencyMessage, setEmergencyMessage] = useState<
     Record<number, { type: "success" | "error"; text: string } | undefined>
   >({});
+  const defaultProfileImage = resolveProfileImageUrl("/image/픽토그램.png") || "/image/픽토그램.png";
 
   const pushCapable = useMemo(
     () => supportsPushApi && pushServiceEnabled && Boolean(vapidPublicKey),
@@ -211,7 +213,7 @@ export default function ClientMyPage() {
       email: storedEmail,
       userId,
       name: "",
-      profileImageUrl: "",
+      profileImageUrl: defaultProfileImage,
     });
 
     if (userId) {
@@ -225,7 +227,9 @@ export default function ClientMyPage() {
           setClient((prev) => ({
             ...prev,
             name: data.name ?? "",
-            profileImageUrl: data.profileImageUrl ?? prev.profileImageUrl ?? "",
+            profileImageUrl:
+              resolveProfileImageUrl(data.profileImageUrl) ||
+              defaultProfileImage,
           }));
         } catch (error) {
           // ignore profile fetch errors
@@ -1025,7 +1029,9 @@ export default function ClientMyPage() {
       const data: UserSummary = await response.json();
       setClient((prev) => ({
         ...prev,
-        profileImageUrl: data.profileImageUrl ?? prev.profileImageUrl ?? "",
+        profileImageUrl:
+          resolveProfileImageUrl(data.profileImageUrl) ||
+          defaultProfileImage,
       }));
       setAvatarMessage("프로필 이미지가 업데이트되었습니다.");
     } catch (error) {

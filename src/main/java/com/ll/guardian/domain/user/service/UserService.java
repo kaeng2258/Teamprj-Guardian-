@@ -10,6 +10,8 @@ import com.ll.guardian.domain.user.dto.UserUpdateRequest;
 import com.ll.guardian.domain.user.entity.User;
 import com.ll.guardian.domain.user.repository.UserRepository;
 import com.ll.guardian.global.exception.GuardianException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -28,10 +30,13 @@ import org.springframework.web.multipart.MultipartFile;
 @Transactional
 public class UserService {
 
+    private static final Logger log = LoggerFactory.getLogger(UserService.class);
+
     private final UserRepository userRepository;
     private final ClientProfileRepository clientProfileRepository;
     private final PasswordEncoder passwordEncoder;
-    private final Path profileImageDir = Paths.get("uploads", "profile-images");
+    private final Path profileImageDir = Paths.get("uploads", "profile-images").toAbsolutePath();
+    private static final long MAX_PROFILE_IMAGE_SIZE = 20L * 1024 * 1024; // 20MB
 
     public UserService(
             UserRepository userRepository,
@@ -136,8 +141,8 @@ public class UserService {
         if (contentType == null || !contentType.startsWith("image/")) {
             throw new GuardianException(HttpStatus.BAD_REQUEST, "이미지 파일만 업로드할 수 있습니다.");
         }
-        if (file.getSize() > 5 * 1024 * 1024) {
-            throw new GuardianException(HttpStatus.BAD_REQUEST, "이미지는 5MB 이하만 업로드할 수 있습니다.");
+        if (file.getSize() > MAX_PROFILE_IMAGE_SIZE) {
+            throw new GuardianException(HttpStatus.BAD_REQUEST, "이미지는 20MB 이하만 업로드할 수 있습니다.");
         }
 
         try {
@@ -145,7 +150,9 @@ public class UserService {
             String extension = resolveExtension(Objects.requireNonNullElse(file.getOriginalFilename(), ""));
             String filename = UUID.randomUUID() + extension;
             Path target = profileImageDir.resolve(filename);
-            file.transferTo(target.toFile());
+            try (var inputStream = file.getInputStream()) {
+                Files.copy(inputStream, target, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            }
 
             String url = "/files/profile-images/" + filename;
             User user = getUser(userId);
@@ -160,6 +167,7 @@ public class UserService {
                     user.getStatus(),
                     user.getProfileImageUrl());
         } catch (IOException e) {
+            log.error("Failed to store profile image at {}: {}", profileImageDir, e.getMessage(), e);
             throw new GuardianException(HttpStatus.INTERNAL_SERVER_ERROR, "프로필 이미지를 저장하지 못했습니다.");
         }
     }

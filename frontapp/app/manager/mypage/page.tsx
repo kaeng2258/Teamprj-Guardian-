@@ -2,6 +2,7 @@
 import MyChatRooms from "@/components/MyChatRooms";
 import { InlineDrugSearch } from "@/components/InlineDrugSearch";
 import { DrugDetailModal } from "@/components/DrugDetailModal";
+import { resolveProfileImageUrl } from "@/lib/image";
 import { useRouter } from "next/navigation";
 
 import {
@@ -358,6 +359,7 @@ export default function ManagerMyPage() {
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [avatarError, setAvatarError] = useState("");
   const [avatarMessage, setAvatarMessage] = useState("");
+  const defaultProfileImage = resolveProfileImageUrl("/image/픽토그램.png") || "/image/픽토그램.png";
   const updatePlanForm = (
     clientId: number,
     updater: (current: PlanFormState) => PlanFormState
@@ -441,7 +443,7 @@ export default function ManagerMyPage() {
       email: storedEmail,
       userId,
       name: "",
-      profileImageUrl: "",
+      profileImageUrl: defaultProfileImage,
     });
     if (userId) {
       (async () => {
@@ -454,7 +456,9 @@ export default function ManagerMyPage() {
           setManager((prev) => ({
             ...prev,
             name: data.name ?? "",
-            profileImageUrl: data.profileImageUrl ?? prev.profileImageUrl ?? "",
+            profileImageUrl:
+              resolveProfileImageUrl(data.profileImageUrl) ||
+              defaultProfileImage,
           }));
         } catch (error) {
           // ignore profile fetch errors
@@ -620,7 +624,9 @@ export default function ManagerMyPage() {
       const data: UserSummary & { profileImageUrl?: string | null } = await response.json();
       setManager((prev) => ({
         ...prev,
-        profileImageUrl: data.profileImageUrl ?? prev.profileImageUrl ?? "",
+        profileImageUrl:
+          resolveProfileImageUrl(data.profileImageUrl) ||
+          defaultProfileImage,
       }));
       setAvatarMessage("프로필 이미지가 업데이트되었습니다.");
     } catch (error) {

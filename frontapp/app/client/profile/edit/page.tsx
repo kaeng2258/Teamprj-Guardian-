@@ -1,9 +1,11 @@
 "use client";
 
+import { resolveProfileImageUrl } from "@/lib/image";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "";
+const DEFAULT_PROFILE_IMG = "/image/픽토그램.png";
 
 type UserSummary = {
   id: number;
@@ -17,7 +19,7 @@ export default function ClientProfileEditPage() {
   const [user, setUser] = useState<UserSummary | null>(null);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [profileImageUrl, setProfileImageUrl] = useState<string>("");
+  const [profileImageUrl, setProfileImageUrl] = useState<string>(DEFAULT_PROFILE_IMG);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -28,6 +30,7 @@ export default function ClientProfileEditPage() {
   const [pushStatus, setPushStatus] = useState<"idle" | "requesting" | "error">("idle");
   const [pushMessage, setPushMessage] = useState("");
   const [pushEnabled, setPushEnabled] = useState(false);
+  const [logoutMessage, setLogoutMessage] = useState("");
 
   const avatarInitial = useMemo(() => {
     if (name && name.trim().length > 0) return name.trim().slice(0, 1).toUpperCase();
@@ -60,7 +63,7 @@ export default function ClientProfileEditPage() {
         setUser(data);
         setName(data.name ?? "");
         setEmail(data.email ?? "");
-        setProfileImageUrl(data.profileImageUrl ?? "");
+        setProfileImageUrl(resolveProfileImageUrl(data.profileImageUrl) || DEFAULT_PROFILE_IMG);
       } catch (e: any) {
         setError(e instanceof Error ? e.message : "내 정보를 불러오지 못했습니다.");
       } finally {
@@ -103,7 +106,7 @@ export default function ClientProfileEditPage() {
       const res = await fetch(`${API_BASE_URL}/api/users/${user.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), profileImageUrl, status: null }),
+        body: JSON.stringify({ name: name.trim(), profileImageUrl: profileImageUrl || DEFAULT_PROFILE_IMG, status: null }),
       });
       if (!res.ok) {
         const text = await res.text();
@@ -111,10 +114,36 @@ export default function ClientProfileEditPage() {
       }
       const data: UserSummary = await res.json();
       setUser(data);
-      setProfileImageUrl(data.profileImageUrl ?? "");
+      setProfileImageUrl(resolveProfileImageUrl(data.profileImageUrl) || DEFAULT_PROFILE_IMG);
       setMessage("개인정보가 저장되었습니다.");
     } catch (e: any) {
       setError(e instanceof Error ? e.message : "저장에 실패했습니다.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleResetImage = async () => {
+    if (!user) return;
+    setSaving(true);
+    setError("");
+    setMessage("");
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/users/${user.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: name.trim(), profileImageUrl: DEFAULT_PROFILE_IMG, status: null }),
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || "기본 이미지로 변경에 실패했습니다.");
+      }
+      const data: UserSummary = await res.json();
+      setUser(data);
+      setProfileImageUrl(resolveProfileImageUrl(data.profileImageUrl) || DEFAULT_PROFILE_IMG);
+      setMessage("기본 이미지로 변경되었습니다.");
+    } catch (e: any) {
+      setError(e instanceof Error ? e.message : "기본 이미지로 변경에 실패했습니다.");
     } finally {
       setSaving(false);
     }
@@ -141,7 +170,7 @@ export default function ClientProfileEditPage() {
         throw new Error(text || "이미지 업로드 실패");
       }
       const data: UserSummary = await res.json();
-      setProfileImageUrl(data.profileImageUrl ?? "");
+      setProfileImageUrl(resolveProfileImageUrl(data.profileImageUrl) || DEFAULT_PROFILE_IMG);
       setMessage("프로필 이미지가 업데이트되었습니다.");
     } catch (e: any) {
       setError(e instanceof Error ? e.message : "이미지 업로드 실패");
@@ -279,6 +308,14 @@ export default function ClientProfileEditPage() {
                 Img
               </label>
             </div>
+            <button
+              className="rounded-md border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+              type="button"
+              onClick={() => void handleResetImage()}
+              disabled={saving || !user}
+            >
+              기본 이미지로 변경
+            </button>
             <div>
               <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">개인정보 수정</h1>
               <p className="text-sm text-slate-600">이름과 프로필 이미지를 변경할 수 있습니다.</p>

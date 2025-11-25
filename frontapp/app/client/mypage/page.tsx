@@ -187,6 +187,7 @@ export default function ClientMyPage() {
     Record<number, { type: "success" | "error"; text: string } | undefined>
   >({});
   const defaultProfileImage = resolveProfileImageUrl("/image/픽토그램.png") || "/image/픽토그램.png";
+  const logoImage = resolveProfileImageUrl("/image/logo.png") || "/image/logo.png";
 
   const pushCapable = useMemo(
     () => supportsPushApi && pushServiceEnabled && Boolean(vapidPublicKey),
@@ -1096,12 +1097,24 @@ export default function ClientMyPage() {
                 </button>
               </div>
               <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
-                <p className="text-2xl font-semibold uppercase tracking-wide text-indigo-600 sm:text-3xl">
-                  Client
-                </p>
-                <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">
-                  {client.name ? `${client.name}님` : "클라이언트 마이페이지"}
-                </h1>
+                <div className="flex items-center gap-2">
+                  <img
+                    src={logoImage}
+                    alt="Guardian 로고"
+                    className="h-6 w-auto sm:h-7"
+                  />
+                  <span className="text-sm font-semibold uppercase tracking-[0.12em] text-slate-600 sm:text-base">
+                    GUARDIAN
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <p className="text-2xl font-semibold uppercase tracking-wide text-indigo-600 sm:text-3xl">
+                    Client
+                  </p>
+                  <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">
+                    {client.name ? `${client.name}님` : "클라이언트 마이페이지"}
+                  </h1>
+                </div>
               </div>
             </div>
             <button

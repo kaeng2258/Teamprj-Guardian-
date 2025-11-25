@@ -124,12 +124,17 @@ export default function MyChatRooms({
   }, [threads, role]);
 
   return (
-    <section className="flex flex-col gap-4 rounded-xl border border-sky-200 bg-sky-50/70 p-6">
-      <div>
-        <h2 className="text-xl font-semibold text-slate-900">내 채팅방</h2>
-        <p className="mt-1 text-sm text-emerald-800">
-          현재 배정된 클라이언트와의 채팅방입니다.
-        </p>
+    <section className="flex flex-col gap-4 rounded-2xl border border-sky-200 bg-gradient-to-br from-sky-50 via-white to-emerald-50/70 p-6 shadow-sm">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-bold text-slate-900">내 채팅방</h2>
+          <p className="mt-1 text-sm text-slate-600">
+            현재 배정된 클라이언트와의 대화를 한눈에 확인하세요.
+          </p>
+        </div>
+        <div className="hidden rounded-full border border-sky-200 bg-white px-3 py-1 text-xs font-semibold text-sky-700 sm:block">
+          실시간
+        </div>
       </div>
 
       {loading && (
@@ -170,19 +175,20 @@ export default function MyChatRooms({
           return (
             <li
               key={roomId}
-              className="rounded-lg border border-sky-100 bg-white p-3 shadow-sm transition hover:border-sky-300 hover:shadow-md"
+              className="group rounded-2xl border border-sky-100 bg-white p-3 shadow-sm transition hover:-translate-y-0.5 hover:border-sky-300 hover:shadow-lg"
             >
-              <Link href={`/chat/${roomId}`} className="flex flex-col gap-1">
+              <Link href={`/chat/${roomId}`} className="flex flex-col gap-2">
                 <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full border border-sky-100 bg-sky-50 text-sm font-semibold text-sky-700">
+                  <div className="flex items-center gap-3">
+                    <span className="relative inline-flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full border border-sky-100 bg-sky-50 text-sm font-semibold text-sky-700 shadow-inner">
                       <img
                         src={avatar}
                         alt={`${displayName} 프로필`}
                         className="h-full w-full object-cover"
                       />
+                      <span className="pointer-events-none absolute inset-0 rounded-full ring-1 ring-white/80 ring-offset-1" />
                     </span>
-                    <div>
+                    <div className="flex flex-col">
                       <p className="text-sm font-semibold text-slate-900">
                         {displayName}
                       </p>
@@ -191,21 +197,23 @@ export default function MyChatRooms({
                       </p>
                     </div>
                   </div>
-                  {lastTime && (
-                    <small className="text-xs text-slate-500">
-                      {new Date(lastTime).toLocaleString()}
-                    </small>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {unread && (
+                      <span className="inline-flex min-w-[20px] items-center justify-center rounded-full bg-sky-500 px-1.5 py-0.5 text-[10px] font-semibold text-white shadow-sm">
+                        NEW
+                      </span>
+                    )}
+                    {lastTime && (
+                      <small className="text-[11px] text-slate-500">
+                        {new Date(lastTime).toLocaleString()}
+                      </small>
+                    )}
+                  </div>
                 </div>
-                <div className="mt-1 flex items-center justify-between gap-2">
-                  <p className="line-clamp-1 text-xs text-slate-600">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="line-clamp-1 text-[13px] text-slate-700">
                     {lastSnippet || "최근 메시지가 없습니다."}
                   </p>
-                  {unread && (
-                    <span className="inline-flex min-w-[18px] items-center justify-center rounded-full bg-sky-500 px-1.5 py-0.5 text-[10px] font-semibold text-white">
-                      NEW
-                    </span>
-                  )}
                 </div>
               </Link>
             </li>

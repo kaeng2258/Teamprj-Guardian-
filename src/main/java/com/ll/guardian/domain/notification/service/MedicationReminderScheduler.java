@@ -11,6 +11,7 @@ import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -144,8 +145,24 @@ public class MedicationReminderScheduler {
         return Arrays.stream(alarm.getDaysOfWeek().split(","))
                 .map(value -> value.trim().toUpperCase(Locale.ROOT))
                 .filter(StringUtils::hasText)
-                .map(DayOfWeek::valueOf)
-                .anyMatch(day -> day == target);
+                .anyMatch(token -> switch (token) {
+                    case "ALL" -> true;
+                    case "WEEKDAY" -> EnumSet.of(
+                                    DayOfWeek.MONDAY,
+                                    DayOfWeek.TUESDAY,
+                                    DayOfWeek.WEDNESDAY,
+                                    DayOfWeek.THURSDAY,
+                                    DayOfWeek.FRIDAY)
+                            .contains(target);
+                    case "WEEKEND" -> EnumSet.of(DayOfWeek.SATURDAY, DayOfWeek.SUNDAY).contains(target);
+                    default -> {
+                        try {
+                            yield DayOfWeek.valueOf(token) == target;
+                        } catch (IllegalArgumentException ignored) {
+                            yield false;
+                        }
+                    }
+                });
     }
 
     private ZoneId resolveZoneId(WebPushProperties properties) {

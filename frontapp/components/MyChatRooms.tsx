@@ -2,9 +2,10 @@
 "use client";
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
+import { resolveProfileImageUrl } from "@/lib/image";
 
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8081";
+  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "";
 
 type ChatThread = {
   roomId: number;
@@ -12,6 +13,8 @@ type ChatThread = {
   managerId: number;
   clientName?: string | null;
   managerName?: string | null;
+  clientProfileImageUrl?: string | null;
+  managerProfileImageUrl?: string | null;
   lastMessageSnippet?: string | null;
   lastMessageAt?: string | null;
   readByClient?: boolean;
@@ -34,6 +37,14 @@ export default function MyChatRooms({
   const [threads, setThreads] = useState<ChatThread[]>([]);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [profileImages, setProfileImages] = useState<Record<number, string>>({});
+  const defaultProfileImage =
+    resolveProfileImageUrl("/image/픽토그램.png") || "/image/픽토그램.png";
+
+  const getProfileImage = (url?: string | null) =>
+    url && typeof url === "string" && url.trim().length > 0
+      ? resolveProfileImageUrl(url) || defaultProfileImage
+      : defaultProfileImage;
 
   useEffect(() => {
     const effectiveUserId =
@@ -86,13 +97,44 @@ export default function MyChatRooms({
     };
   }, [role, userId, managerProfileId, refreshToken]);
 
+  useEffect(() => {
+    // 다른 참여자의 프로필 이미지를 추가로 로드
+    const loadProfileImages = async () => {
+      const targets = threads
+        .map((t) => (role === "MANAGER" ? t.clientId : t.managerId))
+        .filter((id) => id && !profileImages[id]);
+      if (targets.length === 0) return;
+
+      for (const id of targets) {
+        try {
+          const res = await fetch(`${API_BASE_URL}/api/users/${id}`);
+          if (!res.ok) continue;
+          const detail: { profileImageUrl?: string | null } = await res.json();
+          setProfileImages((prev) => ({
+            ...prev,
+            [id]: getProfileImage(detail.profileImageUrl),
+          }));
+        } catch {
+          // ignore fetch errors
+        }
+      }
+    };
+    void loadProfileImages();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [threads, role]);
+
   return (
-    <section className="flex flex-col gap-4 rounded-xl border border-sky-200 bg-sky-50/70 p-6">
-      <div>
-        <h2 className="text-xl font-semibold text-slate-900">내 채팅방</h2>
-        <p className="mt-1 text-sm text-emerald-800">
-          현재 배정된 클라이언트와의 채팅방입니다.
-        </p>
+    <section className="flex flex-col gap-4 rounded-2xl border border-sky-200 bg-gradient-to-br from-sky-50 via-white to-emerald-50/70 p-6 shadow-sm">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-bold text-slate-900">내 채팅방</h2>
+          <p className="mt-1 text-sm text-slate-600">
+            현재 배정된 클라이언트와의 대화를 한눈에 확인하세요.
+          </p>
+        </div>
+        <div className="hidden rounded-full border border-sky-200 bg-white px-3 py-1 text-xs font-semibold text-sky-700 sm:block">
+          실시간
+        </div>
       </div>
 
       {loading && (
@@ -117,6 +159,11 @@ export default function MyChatRooms({
           const displayName = otherName && otherName.trim().length > 0
             ? otherName
             : "이름 미등록";
+          const otherId = role === "MANAGER" ? t.clientId : t.managerId;
+          const avatar =
+            role === "MANAGER"
+              ? getProfileImage(profileImages[otherId] ?? t.clientProfileImageUrl)
+              : getProfileImage(profileImages[otherId] ?? t.managerProfileImageUrl);
 
           const lastTime = t.lastMessageAt ?? undefined;
           const lastSnippet = t.lastMessageSnippet ?? "";
@@ -128,15 +175,20 @@ export default function MyChatRooms({
           return (
             <li
               key={roomId}
-              className="rounded-lg border border-sky-100 bg-white p-3 shadow-sm transition hover:border-sky-300 hover:shadow-md"
+              className="group rounded-2xl border border-sky-100 bg-white p-3 shadow-sm transition hover:-translate-y-0.5 hover:border-sky-300 hover:shadow-lg"
             >
-              <Link href={`/chat/${roomId}`} className="flex flex-col gap-1">
+              <Link href={`/chat/${roomId}`} className="flex flex-col gap-2">
                 <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-sky-100 text-sm font-semibold text-sky-700">
-                      {displayName.charAt(0)}
+                  <div className="flex items-center gap-3">
+                    <span className="relative inline-flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full border border-sky-100 bg-sky-50 text-sm font-semibold text-sky-700 shadow-inner">
+                      <img
+                        src={avatar}
+                        alt={`${displayName} 프로필`}
+                        className="h-full w-full object-cover"
+                      />
+                      <span className="pointer-events-none absolute inset-0 rounded-full ring-1 ring-white/80 ring-offset-1" />
                     </span>
-                    <div>
+                    <div className="flex flex-col">
                       <p className="text-sm font-semibold text-slate-900">
                         {displayName}
                       </p>
@@ -145,21 +197,23 @@ export default function MyChatRooms({
                       </p>
                     </div>
                   </div>
-                  {lastTime && (
-                    <small className="text-xs text-slate-500">
-                      {new Date(lastTime).toLocaleString()}
-                    </small>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {unread && (
+                      <span className="inline-flex min-w-[20px] items-center justify-center rounded-full bg-sky-500 px-1.5 py-0.5 text-[10px] font-semibold text-white shadow-sm">
+                        NEW
+                      </span>
+                    )}
+                    {lastTime && (
+                      <small className="text-[11px] text-slate-500">
+                        {new Date(lastTime).toLocaleString()}
+                      </small>
+                    )}
+                  </div>
                 </div>
-                <div className="mt-1 flex items-center justify-between gap-2">
-                  <p className="line-clamp-1 text-xs text-slate-600">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="line-clamp-1 text-[13px] text-slate-700">
                     {lastSnippet || "최근 메시지가 없습니다."}
                   </p>
-                  {unread && (
-                    <span className="inline-flex min-w-[18px] items-center justify-center rounded-full bg-sky-500 px-1.5 py-0.5 text-[10px] font-semibold text-white">
-                      NEW
-                    </span>
-                  )}
                 </div>
               </Link>
             </li>

@@ -37,6 +37,12 @@ public class ClientProfile extends BaseTimeEntity {
     @Column(name = "address", nullable = false, length = 255)
     private String address;
 
+    @Column(name = "detail_address", length = 255)
+    private String detailAddress;
+
+    @Column(name = "zip_code", length = 20)
+    private String zipCode;
+
     @Column(name = "age", nullable = false)
     private Integer age;
 
@@ -46,8 +52,16 @@ public class ClientProfile extends BaseTimeEntity {
     @Column(name = "medication_cycle", nullable = false, length = 255)
     private String medicationCycle;
 
-    public void updateProfile(String address, Integer age, String medicalNotes, String medicationCycle) {
+    public void updateProfile(
+            String address,
+            String detailAddress,
+            String zipCode,
+            Integer age,
+            String medicalNotes,
+            String medicationCycle) {
         this.address = address;
+        this.detailAddress = detailAddress;
+        this.zipCode = zipCode;
         this.age = age;
         this.medicalNotes = medicalNotes;
         this.medicationCycle = medicationCycle;

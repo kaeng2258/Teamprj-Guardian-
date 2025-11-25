@@ -12,6 +12,10 @@ type UserSummary = {
   email: string;
   name: string;
   birthDate?: string | null;
+  gender?: string | null;
+  zipCode?: string | null;
+  address?: string | null;
+  detailAddress?: string | null;
   profileImageUrl?: string | null;
 };
 
@@ -26,6 +30,10 @@ export default function ManagerProfileEditPage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [birthDate, setBirthDate] = useState("");
+  const [gender, setGender] = useState("");
+  const [zipCode, setZipCode] = useState("");
+  const [address, setAddress] = useState("");
+  const [detailAddress, setDetailAddress] = useState("");
   const [supportsPushApi, setSupportsPushApi] = useState(false);
   const [pushServiceEnabled, setPushServiceEnabled] = useState(false);
   const [vapidPublicKey, setVapidPublicKey] = useState("");
@@ -67,6 +75,10 @@ export default function ManagerProfileEditPage() {
         setName(data.name ?? "");
         setEmail(data.email ?? "");
         setBirthDate(data.birthDate ?? "");
+        setGender(data.gender ?? "");
+        setZipCode(data.zipCode ?? "");
+        setAddress(data.address ?? "");
+        setDetailAddress(data.detailAddress ?? "");
         setProfileImageUrl(resolveProfileImageUrl(data.profileImageUrl) || DEFAULT_PROFILE_IMG);
       } catch (e: any) {
         setError(e instanceof Error ? e.message : "내 정보를 불러오지 못했습니다.");
@@ -93,6 +105,10 @@ export default function ManagerProfileEditPage() {
         body: JSON.stringify({
           name: name.trim(),
           birthDate: birthDate || null,
+          gender: gender || null,
+          zipCode: zipCode || null,
+          address: address || null,
+          detailAddress: detailAddress || null,
           profileImageUrl: profileImageUrl || DEFAULT_PROFILE_IMG,
           status: null,
         }),
@@ -124,6 +140,10 @@ export default function ManagerProfileEditPage() {
         body: JSON.stringify({
           name: name.trim(),
           birthDate: birthDate || null,
+          gender: gender || null,
+          zipCode: zipCode || null,
+          address: address || null,
+          detailAddress: detailAddress || null,
           profileImageUrl: DEFAULT_PROFILE_IMG,
           status: null,
         }),

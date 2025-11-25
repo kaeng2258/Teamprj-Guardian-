@@ -54,30 +54,34 @@ public class UserService {
 
         userRepository
                 .findByEmail(request.email())
-                .ifPresent(user -> {
-                    throw new GuardianException(HttpStatus.CONFLICT, "이미 가입된 이메일입니다.");
-                });
+                .ifPresent(
+                        user -> {
+                            throw new GuardianException(HttpStatus.CONFLICT, "이미 가입된 이메일입니다.");
+                        });
 
         UserStatus initialStatus = resolveInitialStatus(request.role());
-        User user = User.builder()
-                .email(request.email())
-                .password(passwordEncoder.encode(request.password()))
-                .name(request.name())
-                .birthDate(request.birthDate())
-                .role(request.role())
-                .status(initialStatus)
-                .build();
+        User user =
+                User.builder()
+                        .email(request.email())
+                        .password(passwordEncoder.encode(request.password()))
+                        .name(request.name())
+                        .birthDate(request.birthDate())
+                        .role(request.role())
+                        .status(initialStatus)
+                        .build();
 
         User saved = userRepository.save(user);
 
         if (request.role() == UserRole.CLIENT) {
-            String fullAddress = buildFullAddress(request);
-            ClientProfile profile = ClientProfile.builder()
-                    .client(saved)
-                    .address(fullAddress)
-                    .age(0)
-                    .medicationCycle("미등록")
-                    .build();
+            ClientProfile profile =
+                    ClientProfile.builder()
+                            .client(saved)
+                            .address(request.address())
+                            .detailAddress(request.detailAddress())
+                            .zipCode(request.zipCode())
+                            .age(0)
+                            .medicationCycle("미등록")
+                            .build();
             clientProfileRepository.save(profile);
         }
 
@@ -88,12 +92,36 @@ public class UserService {
                 saved.getBirthDate(),
                 saved.getRole(),
                 saved.getStatus(),
-                saved.getProfileImageUrl());
+                saved.getProfileImageUrl(),
+                request.address(),
+                request.detailAddress(),
+                request.zipCode());
     }
 
     public UserResponse updateUser(Long userId, UserUpdateRequest request) {
         User user = getUser(userId);
         user.updateProfile(request.name(), request.profileImageUrl(), request.status());
+
+        if (user.getRole() == UserRole.CLIENT) {
+            ClientProfile profile =
+                    clientProfileRepository
+                            .findByClientId(userId)
+                            .orElse(null);
+            if (profile != null) {
+                return new UserResponse(
+                        user.getId(),
+                        user.getEmail(),
+                        user.getName(),
+                        user.getBirthDate(),
+                        user.getRole(),
+                        user.getStatus(),
+                        user.getProfileImageUrl(),
+                        profile.getAddress(),
+                        profile.getDetailAddress(),
+                        profile.getZipCode());
+            }
+        }
+
         return new UserResponse(
                 user.getId(),
                 user.getEmail(),
@@ -101,15 +129,16 @@ public class UserService {
                 user.getBirthDate(),
                 user.getRole(),
                 user.getStatus(),
-                user.getProfileImageUrl());
+                user.getProfileImageUrl(),
+                null,
+                null,
+                null);
     }
 
     public void deleteUser(Long userId) {
         User user = getUser(userId);
         if (user.getRole() == UserRole.CLIENT) {
-            clientProfileRepository
-                    .findByClientId(user.getId())
-                    .ifPresent(clientProfileRepository::delete);
+            clientProfileRepository.findByClientId(user.getId()).ifPresent(clientProfileRepository::delete);
         }
         userRepository.delete(user);
     }
@@ -117,6 +146,37 @@ public class UserService {
     @Transactional(readOnly = true)
     public UserResponse findUser(Long userId) {
         User user = getUser(userId);
+
+        if (user.getRole() == UserRole.CLIENT) {
+            return clientProfileRepository
+                    .findByClientId(userId)
+                    .map(
+                            profile ->
+                                    new UserResponse(
+                                            user.getId(),
+                                            user.getEmail(),
+                                            user.getName(),
+                                            user.getBirthDate(),
+                                            user.getRole(),
+                                            user.getStatus(),
+                                            user.getProfileImageUrl(),
+                                            profile.getAddress(),
+                                            profile.getDetailAddress(),
+                                            profile.getZipCode()))
+                    .orElse(
+                            new UserResponse(
+                                    user.getId(),
+                                    user.getEmail(),
+                                    user.getName(),
+                                    user.getBirthDate(),
+                                    user.getRole(),
+                                    user.getStatus(),
+                                    user.getProfileImageUrl(),
+                                    null,
+                                    null,
+                                    null));
+        }
+
         return new UserResponse(
                 user.getId(),
                 user.getEmail(),
@@ -124,7 +184,10 @@ public class UserService {
                 user.getBirthDate(),
                 user.getRole(),
                 user.getStatus(),
-                user.getProfileImageUrl());
+                user.getProfileImageUrl(),
+                null,
+                null,
+                null);
     }
 
     @Transactional(readOnly = true)
@@ -147,7 +210,8 @@ public class UserService {
 
         try {
             Files.createDirectories(profileImageDir);
-            String extension = resolveExtension(Objects.requireNonNullElse(file.getOriginalFilename(), ""));
+            String extension =
+                    resolveExtension(Objects.requireNonNullElse(file.getOriginalFilename(), ""));
             String filename = UUID.randomUUID() + extension;
             Path target = profileImageDir.resolve(filename);
             try (var inputStream = file.getInputStream()) {
@@ -158,6 +222,26 @@ public class UserService {
             User user = getUser(userId);
             user.updateProfile(user.getName(), url, null);
 
+            if (user.getRole() == UserRole.CLIENT) {
+                ClientProfile profile =
+                        clientProfileRepository
+                                .findByClientId(userId)
+                                .orElse(null);
+                if (profile != null) {
+                    return new UserResponse(
+                            user.getId(),
+                            user.getEmail(),
+                            user.getName(),
+                            user.getBirthDate(),
+                            user.getRole(),
+                            user.getStatus(),
+                            user.getProfileImageUrl(),
+                            profile.getAddress(),
+                            profile.getDetailAddress(),
+                            profile.getZipCode());
+                }
+            }
+
             return new UserResponse(
                     user.getId(),
                     user.getEmail(),
@@ -165,7 +249,10 @@ public class UserService {
                     user.getBirthDate(),
                     user.getRole(),
                     user.getStatus(),
-                    user.getProfileImageUrl());
+                    user.getProfileImageUrl(),
+                    null,
+                    null,
+                    null);
         } catch (IOException e) {
             log.error("Failed to store profile image at {}: {}", profileImageDir, e.getMessage(), e);
             throw new GuardianException(HttpStatus.INTERNAL_SERVER_ERROR, "프로필 이미지를 저장하지 못했습니다.");
@@ -183,20 +270,6 @@ public class UserService {
             return UserStatus.WAITING_MATCH;
         }
         return UserStatus.ACTIVE;
-    }
-
-    private String buildFullAddress(UserRegistrationRequest request) {
-        StringBuilder builder = new StringBuilder();
-        if (request.zipCode() != null && !request.zipCode().isBlank()) {
-            builder.append("[").append(request.zipCode()).append("] ");
-        }
-        if (request.address() != null) {
-            builder.append(request.address().trim());
-        }
-        if (request.detailAddress() != null && !request.detailAddress().isBlank()) {
-            builder.append(" ").append(request.detailAddress().trim());
-        }
-        return builder.toString().trim();
     }
 
     private String resolveExtension(String original) {

@@ -11,4 +11,7 @@ public record UserResponse(
         LocalDate birthDate,
         UserRole role,
         UserStatus status,
-        String profileImageUrl) {}
+        String profileImageUrl,
+        String address,
+        String detailAddress,
+        String zipCode) {}

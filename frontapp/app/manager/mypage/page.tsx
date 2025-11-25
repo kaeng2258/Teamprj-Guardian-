@@ -36,6 +36,8 @@ type ManagerClientSummary = {
   clientName: string;
   email?: string | null;
   address?: string | null;
+  detailAddress?: string | null;
+  zipCode?: string | null;
   birthDate?: string | null;
   gender?: string | null;
   age?: number | null;
@@ -48,6 +50,8 @@ type ManagerClientSummary = {
 type ClientDetail = {
   email?: string | null;
   address?: string | null;
+  detailAddress?: string | null;
+  zipCode?: string | null;
   birthDate?: string | null;
   gender?: string | null;
   age?: number | null;
@@ -105,6 +109,7 @@ type ManagerClientSearchResult = {
   email: string;
   status: string;
   address?: string | null;
+  detailAddress?: string | null;
   age?: number | null;
   birthDate?: string | null;
   gender?: string | null;
@@ -383,6 +388,17 @@ export default function ManagerMyPage() {
     url && url.trim().length > 0
       ? resolveProfileImageUrl(url) || defaultProfileImage
       : defaultProfileImage;
+  const formatAddress = (addr?: string | null, detail?: string | null) => {
+    const base = addr?.trim() ?? "";
+    const sub = detail?.trim() ?? "";
+    if (base && sub) return `${base} ${sub}`;
+    return base || sub || "미등록";
+  };
+  const authHeaders = () => {
+    if (typeof window === "undefined") return {};
+    const token = window.localStorage.getItem("accessToken");
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  };
   const InfoChip = ({
     label,
     value,
@@ -593,17 +609,75 @@ export default function ManagerMyPage() {
       }
 
       const data: ManagerDashboardResponse = await response.json();
+      const normalizedClients = data.clients.map((client) => ({
+        ...client,
+        latestMedicationLogs: [...(client.latestMedicationLogs ?? [])].sort(
+          (a, b) =>
+            new Date(b.logTimestamp).getTime() -
+            new Date(a.logTimestamp).getTime()
+        ),
+      }));
+
+      const mergedClients: ManagerClientSummary[] = await Promise.all(
+        normalizedClients.map(async (client) => {
+          try {
+            const res = await fetch(`${API_BASE_URL}/api/users/${client.clientId}`, {
+              credentials: "include",
+              headers: {
+                "Content-Type": "application/json",
+                ...authHeaders(),
+              },
+            });
+            if (!res.ok) return client;
+            const detail: ClientDetail = await res.json();
+            const birthDate = detail.birthDate ?? client.birthDate ?? null;
+            const computedAge = computeInternationalAge(birthDate);
+            return {
+              ...client,
+              email: detail.email ?? client.email,
+              birthDate,
+              gender: detail.gender ?? client.gender,
+              address: detail.address ?? client.address,
+              detailAddress: detail.detailAddress ?? client.detailAddress,
+              zipCode: detail.zipCode ?? client.zipCode,
+              profileImageUrl: detail.profileImageUrl ?? client.profileImageUrl,
+              age:
+                typeof detail.age === "number" && detail.age > 0
+                  ? detail.age
+                  : typeof client.age === "number" && client.age > 0
+                  ? client.age
+                  : typeof computedAge === "number"
+                  ? computedAge
+                  : null,
+            };
+          } catch {
+            return client;
+          }
+        })
+      );
+
+      setClientDetails((prev) => {
+        const next = { ...prev };
+        mergedClients.forEach((c) => {
+          next[c.clientId] = {
+            email: c.email,
+            address: c.address,
+            detailAddress: c.detailAddress,
+            zipCode: c.zipCode,
+            birthDate: c.birthDate,
+            gender: c.gender,
+            age: c.age,
+            profileImageUrl: c.profileImageUrl,
+          };
+        });
+        return next;
+      });
+
       const normalized: ManagerDashboardResponse = {
         ...data,
-        clients: data.clients.map((client) => ({
-          ...client,
-          latestMedicationLogs: [...(client.latestMedicationLogs ?? [])].sort(
-            (a, b) =>
-              new Date(b.logTimestamp).getTime() -
-              new Date(a.logTimestamp).getTime()
-          ),
-        })),
+        clients: mergedClients,
       };
+
       setDashboard(normalized);
       setManagerProfileId(data.managerId ?? null);
       const clients = normalized.clients;
@@ -937,9 +1011,23 @@ export default function ManagerMyPage() {
 
   useEffect(() => {
     const loadClientDetail = async (clientId: number) => {
-      if (clientDetails[clientId]) return;
+      const existing = clientDetails[clientId];
+      const needsMore =
+        !existing ||
+        !existing.address ||
+        !existing.detailAddress ||
+        !existing.profileImageUrl ||
+        !existing.gender ||
+        !existing.birthDate;
+      if (!needsMore) return;
       try {
-        const res = await fetch(`${API_BASE_URL}/api/users/${clientId}`);
+        const res = await fetch(`${API_BASE_URL}/api/users/${clientId}`, {
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+            ...authHeaders(),
+          },
+        });
         if (!res.ok) return;
         const detail: ClientDetail = await res.json();
         setClientDetails((prev) => ({
@@ -1217,26 +1305,50 @@ const WeeklyDayCard = ({
 
       const detailedResults = await Promise.all(
         enriched.map(async (item) => {
-          if (item.birthDate || (typeof item.age === "number" && item.age > 0)) {
+          const needsDetail =
+            !item.birthDate ||
+            !(typeof item.age === "number" && item.age > 0) ||
+            !item.address ||
+            !item.detailAddress ||
+            !item.profileImageUrl ||
+            !item.gender;
+          if (!needsDetail) {
             return item;
           }
           try {
-            const detailRes = await fetch(`${API_BASE_URL}/api/users/${item.clientId}`);
+            const detailRes = await fetch(`${API_BASE_URL}/api/users/${item.clientId}`, {
+              credentials: "include",
+              headers: {
+                "Content-Type": "application/json",
+                ...authHeaders(),
+              },
+            });
             if (!detailRes.ok) return item;
-            const detail: { birthDate?: string | null; age?: number | null; gender?: string | null } =
-              await detailRes.json();
-            const birthDate = detail.birthDate ?? null;
+            const detail: {
+              birthDate?: string | null;
+              age?: number | null;
+              gender?: string | null;
+              address?: string | null;
+              profileImageUrl?: string | null;
+              detailAddress?: string | null;
+            } = await detailRes.json();
+            const birthDate = detail.birthDate ?? item.birthDate ?? null;
             const computedAge = computeInternationalAge(birthDate);
             return {
               ...item,
               birthDate,
               gender: detail.gender ?? item.gender ?? null,
+              address: detail.address ?? item.address ?? null,
+              detailAddress: detail.detailAddress ?? item.detailAddress ?? null,
+              profileImageUrl: detail.profileImageUrl ?? item.profileImageUrl ?? null,
               age:
                 typeof detail.age === "number" && detail.age > 0
                   ? detail.age
+                  : typeof item.age === "number" && item.age > 0
+                  ? item.age
                   : typeof computedAge === "number"
                   ? computedAge
-                  : item.age,
+                  : null,
             };
           } catch {
             return item;
@@ -3082,10 +3194,7 @@ const WeeklyDayCard = ({
                   buttonLabel = "배정 불가";
                 }
 
-                const addressDisplay =
-                  result.address && result.address.trim().length > 0
-                    ? result.address
-                    : "미등록";
+                const addressDisplay = formatAddress(result.address, result.detailAddress);
                 const computedAge =
                   typeof result.age === "number" && result.age > 0
                     ? result.age
@@ -3479,72 +3588,73 @@ const WeeklyDayCard = ({
                 </svg>
               </button>
               <div className="modal-scroll max-h-[90vh] overflow-y-auto p-4 sm:p-6">
-                <div className="pr-2 sm:pr-4">
-                  <div className="pr-8">
-                    <div className="flex flex-col gap-4 rounded-2xl border border-slate-100 bg-slate-50/80 p-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
-                      <div className="flex items-center gap-4">
-                        <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl border-2 border-indigo-100 bg-white text-xl font-semibold text-indigo-700 shadow-sm sm:h-20 sm:w-20">
-                          <img
-                            src={getProfileImage(
-                              selectedClientDetail?.profileImageUrl ?? selectedClient.profileImageUrl
-                            )}
-                            alt={`${selectedClient.clientName} 프로필`}
-                            className="h-full w-full object-cover"
-                          />
-                        </div>
-                        <div className="flex flex-col gap-1">
-                          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-indigo-600">
-                            복약 관리
-                          </p>
-                          <h3 className="text-xl font-bold text-slate-900">
-                            {selectedClient.clientName} 님
-                          </h3>
-                          <p className="text-sm text-slate-500">
-                            복약 일정 {selectedClient.medicationPlans.length}건 · 최근 확인{" "}
-                            {selectedClient.latestMedicationLogs.length}건
-                          </p>
-                        </div>
-                      </div>
-                      <div className="grid w-full grid-cols-2 gap-2 sm:max-w-md">
-                        <InfoChip label="나이" value={(() => {
-                          const age =
-                            typeof selectedClientDetail?.age === "number" && selectedClientDetail.age > 0
-                              ? selectedClientDetail.age
-                              : typeof selectedClient.age === "number" && selectedClient.age > 0
-                              ? selectedClient.age
-                              : computeInternationalAge(
-                                  selectedClientDetail?.birthDate ?? selectedClient.birthDate
-                                );
-                          return typeof age === "number" ? `${age}세` : "미등록";
-                        })()} />
-                        <InfoChip
-                          label="성별"
-                          value={
-                            selectedClientDetail?.gender &&
-                            selectedClientDetail.gender.trim().length > 0
-                              ? selectedClientDetail.gender
-                              : selectedClient.gender ?? "미등록"
-                          }
-                        />
-                        <InfoChip
-                          label="이메일"
-                          value={
-                            selectedClientDetail?.email && selectedClientDetail.email.trim().length > 0
-                              ? selectedClientDetail.email
-                              : selectedClient.email ?? "미등록"
-                          }
-                          truncate
-                        />
-                        <InfoChip
-                          label="주소"
-                          value={
-                            selectedClientDetail?.address && selectedClientDetail.address.trim().length > 0
-                              ? selectedClientDetail.address
-                              : selectedClient.address ?? "미등록"
-                          }
-                          truncate
+                <div className="space-y-4 pr-2 sm:pr-4">
+                  <div className="grid gap-4 rounded-2xl border border-slate-100 bg-slate-50/80 p-4 sm:grid-cols-[240px,1fr] sm:items-center sm:gap-6">
+                    <div className="flex items-center gap-4 sm:gap-5">
+                      <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl border-2 border-indigo-100 bg-white text-xl font-semibold text-indigo-700 shadow-sm sm:h-20 sm:w-20">
+                        <img
+                          src={getProfileImage(
+                            selectedClientDetail?.profileImageUrl ?? selectedClient.profileImageUrl
+                          )}
+                          alt={`${selectedClient.clientName} 프로필`}
+                          className="h-full w-full object-cover"
                         />
                       </div>
+                      <div className="flex flex-col gap-1">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-indigo-600">
+                          복약 관리
+                        </p>
+                        <h3 className="text-xl font-bold text-slate-900">
+                          {selectedClient.clientName} 님
+                        </h3>
+                        <p className="text-sm text-slate-500">
+                          복약 일정 {selectedClient.medicationPlans.length}건 · 최근 확인{" "}
+                          {selectedClient.latestMedicationLogs.length}건
+                        </p>
+                      </div>
+                    </div>
+                    <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2">
+                      <InfoChip label="나이" value={(() => {
+                        const age =
+                          typeof selectedClientDetail?.age === "number" && selectedClientDetail.age > 0
+                            ? selectedClientDetail.age
+                            : typeof selectedClient.age === "number" && selectedClient.age > 0
+                            ? selectedClient.age
+                            : computeInternationalAge(
+                                selectedClientDetail?.birthDate ?? selectedClient.birthDate
+                              );
+                        return typeof age === "number" ? `${age}세` : "미등록";
+                      })()} />
+                      <InfoChip
+                        label="성별"
+                        value={
+                          selectedClientDetail?.gender &&
+                          selectedClientDetail.gender.trim().length > 0
+                            ? selectedClientDetail.gender
+                            : selectedClient.gender ?? "미등록"
+                        }
+                      />
+                      <InfoChip
+                        label="이메일"
+                        value={
+                          selectedClientDetail?.email && selectedClientDetail.email.trim().length > 0
+                            ? selectedClientDetail.email
+                            : selectedClient.email ?? "미등록"
+                        }
+                        truncate
+                      />
+                      <InfoChip
+                        label="주소"
+                        value={
+                          selectedClientDetail
+                            ? formatAddress(
+                                selectedClientDetail.address ?? selectedClient.address,
+                                selectedClientDetail.detailAddress ?? selectedClient.detailAddress
+                              )
+                            : "불러오는 중..."
+                        }
+                        truncate
+                      />
                     </div>
                   </div>
                   {renderClientDetailSections(selectedClient, {

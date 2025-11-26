@@ -226,7 +226,7 @@ const managerQuickActions: Array<{
   {
     value: "client",
     label: "복약 관리",
-    description: "이용자 배정 및 복약 일정",
+    description: "배정 및 복약 일정",
     accent: "bg-indigo-600",
   },
   {
@@ -2953,30 +2953,26 @@ const WeeklyDayCard = ({
                     <button
                       key={action.value}
                       type="button"
-                    onClick={() => setActivePanel(action.value)}
-                    className={`group flex flex-1 min-w-0 flex-col gap-2 rounded-2xl border px-4 py-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg md:h-full ${
-                      isActive
-                        ? "border-indigo-500 bg-indigo-100/70 ring-2 ring-indigo-300/70 dark:border-indigo-400 dark:bg-indigo-900/40 dark:ring-indigo-500/40"
-                        : "border-slate-200 bg-white hover:border-indigo-300 hover:ring-1 hover:ring-indigo-200 dark:border-slate-700 dark:bg-slate-800"
-                    }`}
-                  >
-                    <span
-                      className={`inline-flex h-10 w-10 items-center justify-center rounded-xl text-[0.8rem] font-bold shadow-inner transition ${
+                      onClick={() => setActivePanel(action.value)}
+                      className={`group flex flex-1 min-w-0 flex-col gap-1 rounded-2xl border px-3 py-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow sm:px-4 ${
                         isActive
-                          ? "bg-indigo-600 text-white"
-                          : `${action.accent} text-white/90 dark:bg-indigo-500/80`
+                          ? "border-indigo-500 bg-indigo-50"
+                          : "border-slate-200 bg-white hover:border-indigo-300"
                       }`}
                     >
-                      {action.label.slice(0, 1)}
-                    </span>
-                    <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                      {action.label}
-                    </span>
-                    <span className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">
-                      {action.description}
-                    </span>
-                  </button>
-                );
+                      <span
+                        className={`inline-flex h-8 w-8 items-center justify-center rounded-full text-[0.7rem] font-semibold text-white ${action.accent}`}
+                      >
+                        {action.label.slice(0, 1)}
+                      </span>
+                      <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                        {action.label}
+                      </span>
+                      <span className="text-xs text-slate-500 dark:text-slate-400">
+                        {action.description}
+                      </span>
+                    </button>
+                  );
                 })}
               </div>
             </div>
@@ -3035,12 +3031,12 @@ const WeeklyDayCard = ({
                         <p className="text-sm text-slate-600 dark:text-slate-300">{activeStat.detail}</p>
                       </div>
                       <button
-                        className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600 transition hover:border-indigo-300 hover:text-indigo-700 dark:border-slate-600 dark:text-slate-200"
+                        className="text-xs font-semibold text-slate-500 transition hover:text-slate-700 dark:text-slate-300"
                         onClick={() => setActiveStat(null)}
                         type="button"
                         aria-label="상세 닫기"
                       >
-                        ✕
+                        닫기 ✕
                       </button>
                     </div>
 
@@ -3110,7 +3106,9 @@ const WeeklyDayCard = ({
                                     }}
                                     role="button"
                                   >
-                                    <span className="mt-1 inline-block h-2 w-2 rounded-full bg-indigo-400" />
+                                    <span className="mt-0.5 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-indigo-100 px-2 text-[10px] font-bold text-indigo-700">
+                                      {(alertPage[managerAlertTab] ?? 0) * PAGE_SIZE + idx + 1}
+                                    </span>
                                     <span className="leading-relaxed">{item}</span>
                                   </li>
                                 );
@@ -3709,19 +3707,9 @@ const WeeklyDayCard = ({
               <button
                 type="button"
                 onClick={closeClientModal}
-                className="absolute right-4 top-4 z-10 rounded-full border border-slate-200 bg-white/90 p-2 text-slate-500 transition hover:border-slate-300 hover:text-slate-700"
+                className="absolute right-4 top-4 z-10 text-sm font-semibold text-slate-500 transition hover:text-slate-700"
               >
-                <span className="sr-only">창 닫기</span>
-                <svg
-                  aria-hidden="true"
-                  className="h-4 w-4"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth={2}
-                  viewBox="0 0 24 24"
-                >
-                  <path d="M6 6l12 12M18 6l-12 12" strokeLinecap="round" />
-                </svg>
+                닫기 ✕
               </button>
               <div className="modal-scroll max-h-[90vh] overflow-y-auto p-4 sm:p-6">
                 <div className="space-y-4 pr-2 sm:pr-4">

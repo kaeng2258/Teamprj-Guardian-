@@ -6,6 +6,28 @@ import { useRouter } from "next/navigation";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "";
 const DEFAULT_PROFILE_IMG = "/image/픽토그램.png";
+type ThemeMode = "light" | "dark";
+type TextSizeMode = "normal" | "large";
+type DaumPostcodeData = {
+  zonecode: string;
+  roadAddress: string;
+  jibunAddress: string;
+};
+declare global {
+  interface Window {
+    daum?: {
+      Postcode: new (options: { oncomplete: (data: DaumPostcodeData) => void }) => void;
+    };
+  }
+}
+const normalizeBirthDate = (value?: string | null) => {
+  if (!value) return "";
+  if (value.length >= 10) {
+    if (value.includes("T")) return value.split("T")[0];
+    if (value.includes(" ")) return value.split(" ")[0];
+  }
+  return value;
+};
 
 type UserSummary = {
   id: number;
@@ -42,6 +64,8 @@ export default function ClientProfileEditPage() {
   const [pushEnabled, setPushEnabled] = useState(false);
   const [logoutMessage, setLogoutMessage] = useState("");
   const [imageMenuOpen, setImageMenuOpen] = useState(false);
+  const [theme, setTheme] = useState<ThemeMode>("light");
+  const [textSize, setTextSize] = useState<TextSizeMode>("normal");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const avatarInitial = useMemo(() => {
@@ -75,9 +99,9 @@ export default function ClientProfileEditPage() {
         setUser(data);
         setName(data.name ?? "");
         setEmail(data.email ?? "");
-        setBirthDate(data.birthDate ?? "");
+        setBirthDate(normalizeBirthDate(data.birthDate));
         setGender(data.gender ?? "");
-        setZipCode(data.zipCode ?? "");
+        setZipCode(data.zipCode ? String(data.zipCode) : "");
         setAddress(data.address ?? "");
         setDetailAddress(data.detailAddress ?? "");
         setProfileImageUrl(resolveProfileImageUrl(data.profileImageUrl) || DEFAULT_PROFILE_IMG);
@@ -89,6 +113,64 @@ export default function ClientProfileEditPage() {
     };
     void load();
   }, [router]);
+
+  const applyTheme = useCallback((mode: ThemeMode) => {
+    setTheme(mode);
+    if (typeof document !== "undefined") {
+      const root = document.documentElement;
+      if (mode === "dark") root.classList.add("dark");
+      else root.classList.remove("dark");
+    }
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("theme", mode);
+    }
+  }, []);
+
+  const applyTextSize = useCallback((mode: TextSizeMode) => {
+    setTextSize(mode);
+    if (typeof document !== "undefined") {
+      const root = document.documentElement;
+      const body = document.body;
+      if (mode === "large") {
+        root.classList.add("large-text");
+        body?.classList.add("large-text");
+      } else {
+        root.classList.remove("large-text");
+        body?.classList.remove("large-text");
+      }
+    }
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("textSize", mode === "large" ? "large" : "normal");
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const saved =
+      (typeof window !== "undefined" && window.localStorage.getItem("theme")) as ThemeMode | null;
+    const savedText =
+      (typeof window !== "undefined" && window.localStorage.getItem("textSize")) as
+        | "large"
+        | "normal"
+        | null;
+    const prefersDark =
+      typeof window !== "undefined" &&
+      window.matchMedia &&
+      window.matchMedia("(prefers-color-scheme: dark)").matches;
+    const initial = saved ?? (prefersDark ? "dark" : "light");
+    applyTheme(initial);
+    applyTextSize(savedText === "large" ? "large" : "normal");
+  }, [applyTheme, applyTextSize]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (document.getElementById("daum-postcode-script")) return;
+    const script = document.createElement("script");
+    script.id = "daum-postcode-script";
+    script.src = "https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js";
+    script.async = true;
+    document.body.appendChild(script);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -141,12 +223,27 @@ export default function ClientProfileEditPage() {
       const data: UserSummary = await res.json();
       setUser(data);
       setProfileImageUrl(resolveProfileImageUrl(data.profileImageUrl) || DEFAULT_PROFILE_IMG);
+      setBirthDate(normalizeBirthDate(data.birthDate));
       setMessage("개인정보가 저장되었습니다.");
     } catch (e: any) {
       setError(e instanceof Error ? e.message : "저장에 실패했습니다.");
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleAddressSearch = () => {
+    if (typeof window === "undefined" || !window.daum?.Postcode) {
+      alert("주소 검색 스크립트를 불러오는 중입니다. 잠시 후 다시 시도해주세요.");
+      return;
+    }
+    new window.daum.Postcode({
+      oncomplete: (data: DaumPostcodeData) => {
+        setZipCode(data.zonecode ?? "");
+        const fullAddress = data.roadAddress || data.jibunAddress || "";
+        setAddress(fullAddress);
+      },
+    }).open();
   };
 
   const handleResetImage = async () => {
@@ -315,6 +412,14 @@ export default function ClientProfileEditPage() {
     await handleEnablePush();
   }, [handleEnablePush, pushEnabled]);
 
+  const toggleTheme = () => {
+    applyTheme(theme === "dark" ? "light" : "dark");
+  };
+
+  const toggleTextSize = () => {
+    applyTextSize(textSize === "large" ? "normal" : "large");
+  };
+
   if (loading) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-slate-50">
@@ -326,8 +431,8 @@ export default function ClientProfileEditPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 px-3 py-6 sm:px-6 sm:py-10">
-      <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 rounded-3xl bg-white p-4 shadow-lg sm:p-8">
+    <div className="min-h-screen bg-slate-50 px-3 py-6 dark:bg-slate-900 sm:px-6 sm:py-10">
+      <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 rounded-3xl bg-white p-4 shadow-lg dark:bg-slate-800 dark:text-slate-100 sm:p-8">
         <header className="flex flex-col gap-4 border-b border-slate-200 pb-5">
           <div className="flex items-start gap-4 sm:gap-6">
             <div className="relative">
@@ -410,16 +515,18 @@ export default function ClientProfileEditPage() {
           placeholder="이름을 입력하세요"
         />
       </label>
-      <label className="flex flex-col gap-2 text-sm text-slate-700">
-        <span>생년월일</span>
-        <input
-          type="date"
-          value={birthDate}
-          onChange={(e) => setBirthDate(e.target.value)}
-          className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-          placeholder="YYYY-MM-DD"
-        />
-      </label>
+          <label className="flex flex-col gap-2 text-sm text-slate-700">
+            <span>생년월일</span>
+            <input
+              type="date"
+              value={birthDate}
+              onChange={(e) => setBirthDate(e.target.value)}
+              className={`rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none ${
+                birthDate ? "text-slate-900" : "text-slate-400"
+              }`}
+              placeholder="YYYY-MM-DD"
+            />
+          </label>
       <label className="flex flex-col gap-2 text-sm text-slate-700">
         <span>성별</span>
         <select
@@ -451,6 +558,15 @@ export default function ClientProfileEditPage() {
             placeholder="주소"
           />
         </label>
+        <div className="sm:col-span-3">
+          <button
+            type="button"
+            onClick={handleAddressSearch}
+            className="rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-indigo-400 hover:text-indigo-900"
+          >
+            주소 검색 (다음)
+          </button>
+        </div>
       </div>
       <label className="flex flex-col gap-2 text-sm text-slate-700">
         <span>상세 주소</span>
@@ -461,44 +577,104 @@ export default function ClientProfileEditPage() {
           placeholder="동/호 등"
         />
       </label>
+      <p className="text-xs text-slate-500">
+        현재 저장된 주소: {zipCode || "미등록"} / {address || "미등록"} {detailAddress || ""}
+      </p>
       <label className="flex flex-col gap-2 text-sm text-slate-700">
         <span>생년월일</span>
         <input
           type="date"
           value={birthDate}
           onChange={(e) => setBirthDate(e.target.value)}
-          className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+          className={`rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none ${
+            birthDate ? "text-slate-900" : "text-slate-400"
+          }`}
           placeholder="YYYY-MM-DD"
         />
       </label>
-          <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-            <div>
-              <p className="text-sm font-semibold text-slate-800">모바일 푸시 알림</p>
-              <p className="text-xs text-slate-500">브라우저 푸시를 활성화하여 비상 알림을 받아보세요.</p>
-              {pushMessage && (
-                <p className={`mt-1 text-xs ${pushStatus === "error" ? "text-rose-600" : "text-emerald-600"}`}>
-                  {pushMessage}
-                </p>
-              )}
-            </div>
-            <button
-              type="button"
-              onClick={() => void handleTogglePush()}
-              disabled={pushStatus === "requesting"}
-              className={`relative inline-flex h-7 w-14 items-center rounded-full border transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${
-                pushEnabled ? "border-indigo-500 bg-indigo-600" : "border-slate-200 bg-slate-200"
-              } ${pushStatus === "requesting" ? "opacity-60" : "hover:shadow-sm"}`}
-              aria-pressed={pushEnabled}
-              aria-label="모바일 푸시 알림 설정"
-            >
-              <span
-                className={`absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow transition ${
-                  pushEnabled ? "translate-x-7 bg-indigo-50" : "translate-x-0"
-                }`}
-              />
-              <span className="sr-only">{pushEnabled ? "푸시 켜짐" : "푸시 꺼짐"}</span>
-            </button>
-          </div>
+      <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+        <div>
+          <p className="text-sm font-semibold text-slate-800">모바일 푸시 알림</p>
+          <p className="text-xs text-slate-500">브라우저 푸시를 활성화하여 비상 알림을 받아보세요.</p>
+          {pushMessage && (
+            <p className={`mt-1 text-xs ${pushStatus === "error" ? "text-rose-600" : "text-emerald-600"}`}>
+              {pushMessage}
+            </p>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={() => void handleTogglePush()}
+          disabled={pushStatus === "requesting"}
+          className={`relative inline-flex h-7 w-14 items-center rounded-full border transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${
+            pushEnabled ? "border-indigo-500 bg-indigo-600" : "border-slate-200 bg-slate-200"
+          } ${pushStatus === "requesting" ? "opacity-60" : "hover:shadow-sm"}`}
+          aria-pressed={pushEnabled}
+          aria-label="모바일 푸시 알림 설정"
+        >
+          <span
+            className={`absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow transition ${
+              pushEnabled ? "translate-x-7 bg-indigo-50" : "translate-x-0"
+            }`}
+          />
+          <span className="sr-only">{pushEnabled ? "푸시 켜짐" : "푸시 꺼짐"}</span>
+        </button>
+      </div>
+      <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+        <div>
+          <p className="text-sm font-semibold text-slate-800">다크 모드</p>
+          <p className="text-xs text-slate-500">
+            인터페이스 색상을 {theme === "dark" ? "밝게" : "어둡게"} 전환합니다.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={toggleTheme}
+          className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-semibold transition ${
+            theme === "dark"
+              ? "border-slate-700 bg-slate-800 text-slate-100"
+              : "border-slate-300 bg-white text-slate-700"
+          }`}
+        >
+          {theme === "dark" ? "다크 모드 ON" : "라이트 모드 ON"}
+        </button>
+      </div>
+      <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+        <div>
+          <p className="text-sm font-semibold text-slate-800">큰 글씨 모드</p>
+          <p className="text-xs text-slate-500">가독성을 위해 텍스트 크기를 확대합니다.</p>
+        </div>
+        <button
+          type="button"
+          onClick={toggleTextSize}
+          className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-semibold transition ${
+            textSize === "large"
+              ? "border-indigo-500 bg-indigo-600 text-white"
+              : "border-slate-300 bg-white text-slate-700"
+          }`}
+        >
+          {textSize === "large" ? "큰 글씨 ON" : "기본 글씨"}
+        </button>
+      </div>
+      <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+        <div>
+          <p className="text-sm font-semibold text-slate-800">다크 모드</p>
+          <p className="text-xs text-slate-500">
+            인터페이스 색상을 {theme === "dark" ? "밝게" : "어둡게"} 전환합니다.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={toggleTheme}
+          className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-semibold transition ${
+            theme === "dark"
+              ? "border-slate-700 bg-slate-800 text-slate-100"
+              : "border-slate-300 bg-white text-slate-700"
+          }`}
+        >
+          {theme === "dark" ? "다크 모드 ON" : "라이트 모드 ON"}
+        </button>
+      </div>
         </div>
 
         {(message || error) && (

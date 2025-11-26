@@ -2988,140 +2988,167 @@ const WeeklyDayCard = ({
                 ))}
               </div>
               {activeStat && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4 py-6 backdrop-blur-sm">
-                  <div className="w-full max-w-lg rounded-2xl border border-indigo-100 bg-white p-5 shadow-xl">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-xs font-semibold uppercase tracking-wide text-indigo-700">
-                          {activeStat.badge}
+                <div className="fixed inset-0 z-50 flex items-start justify-center px-4 py-8 sm:py-10">
+                  <div
+                    className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+                    onClick={() => setActiveStat(null)}
+                    role="presentation"
+                  />
+                  <div className="relative w-full max-w-2xl rounded-2xl border border-slate-200 bg-white shadow-2xl">
+                    <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-5 py-4 sm:px-6">
+                      <div className="space-y-1">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-indigo-600">
+                          관리 현황
                         </p>
-                        <h3 className="text-lg font-semibold text-slate-900">{activeStat.label}</h3>
+                        <h3 className="text-xl font-bold text-slate-900 sm:text-2xl">
+                          {activeStat.label}
+                        </h3>
+                        <p className="text-sm text-slate-600">{activeStat.detail}</p>
                       </div>
                       <button
-                        className="text-xs font-semibold text-slate-500 hover:text-slate-700"
+                        className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600 transition hover:border-indigo-300 hover:text-indigo-700"
                         onClick={() => setActiveStat(null)}
                         type="button"
                         aria-label="상세 닫기"
                       >
-                        닫기 ✕
+                        ✕
                       </button>
                     </div>
-                    <p className="mt-3 text-sm text-slate-700 leading-relaxed">{activeStat.detail}</p>
-                    {activeStat.key === "alert" ? (
-                      <>
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          {[
-                            { key: "overdue", label: "미복약", count: overdueAlerts.length },
-                            { key: "chat", label: "메시지", count: chatAlerts.length },
-                            { key: "emergency", label: "긴급 호출", count: emergencyAlerts.length },
-                          ].map((tab) => (
-                            <button
-                              key={tab.key}
-                              type="button"
-                              onClick={() => setManagerAlertTab(tab.key as AlertTab)}
-                              className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
-                                managerAlertTab === tab.key
-                                  ? "border-indigo-500 bg-indigo-50 text-indigo-700"
-                                  : "border-slate-200 bg-white text-slate-600 hover:border-indigo-300"
-                              }`}
-                            >
-                              {tab.label} ({tab.count})
-                            </button>
-                          ))}
-                        </div>
-                        <div className="mt-3 max-h-64 overflow-y-auto rounded-lg bg-slate-50 p-3 text-sm text-slate-700">
-                          <ul className="space-y-2">
-                            {pagedAlerts.map((item, idx) => {
-                              const absoluteIdx = (alertPage[managerAlertTab] ?? 0) * PAGE_SIZE + idx;
+
+                    <div className="space-y-3 p-5 sm:p-6">
+                      {activeStat.key === "alert" ? (
+                        <>
+                          <div className="flex flex-wrap gap-2">
+                            {[
+                              { key: "overdue", label: "미복약", count: overdueAlerts.length },
+                              { key: "chat", label: "메시지", count: chatAlerts.length },
+                              { key: "emergency", label: "긴급 호출", count: emergencyAlerts.length },
+                            ].map((tab) => {
+                              const active = managerAlertTab === tab.key;
                               return (
-                                <li
-                                  key={`${managerAlertTab}-item-${idx}`}
-                                  className="flex items-start gap-2"
-                                  onClick={() => {
-                                    if (managerAlertTab === "chat" && chatAlerts[absoluteIdx]) {
-                                      const target = chatAlerts[absoluteIdx];
-                                      setClientModalClientId(null);
-                                      setActivePanel("chat");
-                                      setTimeout(() => {
-                                        const el = document.querySelector(`[data-room-id='${target.roomId}']`);
-                                        if (el instanceof HTMLElement) {
-                                          el.scrollIntoView({ behavior: "smooth", block: "center" });
-                                        }
-                                      }, 100);
-                                    }
-                                    if (managerAlertTab === "emergency") {
-                                      const label = item;
-                                      const roomId = label.match(/room (\\d+)/i)?.[1];
-                                      if (roomId) {
+                                <button
+                                  key={tab.key}
+                                  type="button"
+                                  onClick={() => setManagerAlertTab(tab.key as AlertTab)}
+                                  className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                                    active
+                                      ? "border-indigo-500 bg-indigo-50 text-indigo-700"
+                                      : "border-slate-200 bg-white text-slate-600 hover:border-indigo-300"
+                                  }`}
+                                >
+                                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-indigo-700">
+                                    {tab.count}
+                                  </span>
+                                  {tab.label}
+                                </button>
+                              );
+                            })}
+                          </div>
+                          <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3">
+                            <ul className="space-y-2">
+                              {pagedAlerts.map((item, idx) => {
+                                const absoluteIdx = (alertPage[managerAlertTab] ?? 0) * PAGE_SIZE + idx;
+                                return (
+                                  <li
+                                    key={`${managerAlertTab}-item-${idx}`}
+                                    className="flex items-start gap-2 rounded-lg bg-white px-3 py-2 text-sm text-slate-800 shadow-sm transition hover:-translate-y-0.5 hover:shadow"
+                                    onClick={() => {
+                                      if (managerAlertTab === "chat" && chatAlerts[absoluteIdx]) {
+                                        const target = chatAlerts[absoluteIdx];
                                         setClientModalClientId(null);
                                         setActivePanel("chat");
                                         setTimeout(() => {
-                                          const el = document.querySelector(`[data-room-id='${roomId}']`);
+                                          const el = document.querySelector(`[data-room-id='${target.roomId}']`);
                                           if (el instanceof HTMLElement) {
                                             el.scrollIntoView({ behavior: "smooth", block: "center" });
                                           }
                                         }, 100);
                                       }
+                                      if (managerAlertTab === "emergency") {
+                                        const label = item;
+                                        const roomId = label.match(/room (\\d+)/i)?.[1];
+                                        if (roomId) {
+                                          setClientModalClientId(null);
+                                          setActivePanel("chat");
+                                          setTimeout(() => {
+                                            const el = document.querySelector(`[data-room-id='${roomId}']`);
+                                            if (el instanceof HTMLElement) {
+                                              el.scrollIntoView({ behavior: "smooth", block: "center" });
+                                            }
+                                          }, 100);
+                                        }
+                                      }
+                                    }}
+                                    role="button"
+                                  >
+                                    <span className="mt-1 inline-block h-2 w-2 rounded-full bg-indigo-400" />
+                                    <span className="leading-relaxed">{item}</span>
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                            {totalPages > 1 && (
+                              <div className="mt-3 flex items-center justify-between text-xs text-slate-600">
+                                <span>
+                                  페이지 {(alertPage[managerAlertTab] ?? 0) + 1} / {totalPages}
+                                </span>
+                                <div className="flex gap-2">
+                                  <button
+                                    type="button"
+                                    className="rounded-md border border-slate-200 px-3 py-1 transition hover:border-indigo-300 hover:text-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                    disabled={(alertPage[managerAlertTab] ?? 0) === 0}
+                                    onClick={() =>
+                                      setAlertPage((prev) => ({
+                                        ...prev,
+                                        [managerAlertTab]: Math.max(0, (prev[managerAlertTab] ?? 0) - 1),
+                                      }))
                                     }
-                                  }}
-                                  role="button"
+                                  >
+                                    이전
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="rounded-md border border-slate-200 px-3 py-1 transition hover:border-indigo-300 hover:text-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                    disabled={(alertPage[managerAlertTab] ?? 0) >= totalPages - 1}
+                                    onClick={() =>
+                                      setAlertPage((prev) => ({
+                                        ...prev,
+                                        [managerAlertTab]: Math.min(
+                                          totalPages - 1,
+                                          (prev[managerAlertTab] ?? 0) + 1,
+                                        ),
+                                      }))
+                                    }
+                                  >
+                                    다음
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </>
+                      ) : (
+                        activeStat.items &&
+                        activeStat.items.length > 0 && (
+                          <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3">
+                            <p className="text-sm font-semibold text-slate-800">주요 항목 {activeStat.items.length}건</p>
+                            <ul className="mt-2 space-y-2">
+                              {activeStat.items.map((item, idx) => (
+                                <li
+                                  key={`${activeStat.key}-item-${idx}`}
+                                  className="flex items-start gap-2 rounded-lg bg-white px-3 py-2 text-sm text-slate-800 shadow-sm"
                                 >
-                                  <span className="mt-0.5 inline-block h-2 w-2 rounded-full bg-indigo-400" />
+                                  <span className="mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-indigo-100 text-[11px] font-semibold text-indigo-700">
+                                    {idx + 1}
+                                  </span>
                                   <span className="leading-relaxed">{item}</span>
                                 </li>
-                              );
-                            })}
-                          </ul>
-                        </div>
-                        {totalPages > 1 && (
-                          <div className="mt-2 flex items-center justify-between text-xs text-slate-600">
-                            <span>
-                              페이지 { (alertPage[managerAlertTab] ?? 0) + 1 } / {totalPages}
-                            </span>
-                            <div className="flex gap-2">
-                              <button
-                                type="button"
-                                className="rounded-md border border-slate-200 px-2 py-1 hover:border-indigo-300"
-                                disabled={(alertPage[managerAlertTab] ?? 0) === 0}
-                                onClick={() =>
-                                  setAlertPage((prev) => ({
-                                    ...prev,
-                                    [managerAlertTab]: Math.max(0, (prev[managerAlertTab] ?? 0) - 1),
-                                  }))
-                                }
-                              >
-                                이전
-                              </button>
-                              <button
-                                type="button"
-                                className="rounded-md border border-slate-200 px-2 py-1 hover:border-indigo-300"
-                                disabled={(alertPage[managerAlertTab] ?? 0) >= totalPages - 1}
-                                onClick={() =>
-                                  setAlertPage((prev) => ({
-                                    ...prev,
-                                    [managerAlertTab]: Math.min(totalPages - 1, (prev[managerAlertTab] ?? 0) + 1),
-                                  }))
-                                }
-                              >
-                                다음
-                              </button>
-                            </div>
+                              ))}
+                            </ul>
                           </div>
-                        )}
-                      </>
-                    ) : (
-                      activeStat.items &&
-                      activeStat.items.length > 0 && (
-                        <ul className="mt-3 space-y-2 rounded-lg bg-slate-50 p-3 text-sm text-slate-700">
-                          {activeStat.items.map((item, idx) => (
-                            <li key={`${activeStat.key}-item-${idx}`} className="flex items-start gap-2">
-                              <span className="mt-0.5 inline-block h-2 w-2 rounded-full bg-indigo-400" />
-                              <span className="leading-relaxed">{item}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      )
-                    )}
+                        )
+                      )}
+                    </div>
                   </div>
                 </div>
               )}

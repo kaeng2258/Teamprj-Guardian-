@@ -39,11 +39,13 @@ type ThreadInfo = {
   lastMessageAt?: string | null;
 };
 
-const buildKey = (m: ChatMessage) =>
-  (m.id && `id:${m.id}`) ||
-  (m.sentAt && `sent:${m.sentAt}`) ||
-  (m.createdAt && `created:${m.createdAt}`) ||
-  `${m.senderId}|${m.content}`;
+const buildKey = (m: ChatMessage) => {
+  if (m.id != null) return `id:${m.id}`;
+
+  const ts = m.sentAt ?? m.createdAt ?? "";
+  return `${m.roomId}:${m.senderId}:${ts}:${m.content}`;
+};
+
 
 // --------- 컴포넌트 ---------
 export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
@@ -135,44 +137,48 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
     onMessage: onMessageHandler,
   });
 
-  // 2초 폴링 (백업용)
-  useEffect(() => {
-    if (!roomId) return;
+// 2초 폴링 (백업용)
+useEffect(() => {
+  if (!roomId) return;
 
-    let cancelled = false;
+  // ✅ STOMP 가 정상 연결된 상태라면 폴링 사용 안 함
+  if (connected) return;
 
-    const fetchOnce = async () => {
-      try {
-        const res = await fetch(
-          `${API_BASE_URL}/api/chat/rooms/${roomId}/messages`
-        );
-        if (!res.ok) return;
-        const data = await res.json();
-        const list: ChatMessage[] = data.messages ?? [];
+  let cancelled = false;
 
-        const added: ChatMessage[] = [];
-        for (const m of list) {
-          const key = buildKey(m);
-          if (!seen.current.has(key)) {
-            seen.current.add(key);
-            added.push(m);
-          }
+  const fetchOnce = async () => {
+    try {
+      const res = await fetch(
+        `${API_BASE_URL}/api/chat/rooms/${roomId}/messages`
+      );
+      if (!res.ok) return;
+      const data = await res.json();
+      const list: ChatMessage[] = data.messages ?? [];
+
+      const added: ChatMessage[] = [];
+      for (const m of list) {
+        const key = buildKey(m);
+        if (!seen.current.has(key)) {
+          seen.current.add(key);
+          added.push(m);
         }
-        if (!cancelled && added.length > 0) {
-          setMessages((prev) => [...prev, ...added]);
-        }
-      } catch {
-        // 무시
       }
-    };
+      if (!cancelled && added.length > 0) {
+        setMessages((prev) => [...prev, ...added]);
+      }
+    } catch {
+      // 무시
+    }
+  };
 
-    void fetchOnce();
-    const timer = setInterval(fetchOnce, 2000);
-    return () => {
-      cancelled = true;
-      clearInterval(timer);
-    };
-  }, [roomId]);
+  void fetchOnce();
+  const timer = setInterval(fetchOnce, 2000);
+  return () => {
+    cancelled = true;
+    clearInterval(timer);
+  };
+}, [roomId, connected]); // ✅ connected를 deps에 추가
+
 
   const resolveName = (senderId: number, fallback?: string) => {
     if (thread) {

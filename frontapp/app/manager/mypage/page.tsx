@@ -2945,42 +2945,46 @@ const WeeklyDayCard = ({
               {avatarError || avatarMessage}
             </p>
           )}
-          <div className="flex flex-col gap-3">
-            <div className="flex gap-3 pb-2 sm:grid sm:grid-cols-3 sm:gap-3 sm:pb-0">
-              {managerQuickActions.map((action) => {
-                const isActive = activePanel === action.value;
-                return (
-                  <button
-                    key={action.value}
-                    type="button"
+            <div className="flex flex-col gap-3">
+              <div className="flex gap-3 pb-2 sm:grid sm:grid-cols-3 sm:gap-3 sm:pb-0">
+                {managerQuickActions.map((action) => {
+                  const isActive = activePanel === action.value;
+                  return (
+                    <button
+                      key={action.value}
+                      type="button"
                     onClick={() => setActivePanel(action.value)}
-                    className={`group flex flex-1 min-w-0 flex-col gap-1 rounded-2xl border px-3 py-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow md:h-full sm:px-4 ${
+                    className={`group flex flex-1 min-w-0 flex-col gap-2 rounded-2xl border px-4 py-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg md:h-full ${
                       isActive
-                        ? "border-indigo-500 bg-indigo-50/80"
-                        : "border-slate-200 bg-white hover:border-indigo-300"
+                        ? "border-indigo-500 bg-indigo-100/70 ring-2 ring-indigo-300/70 dark:border-indigo-400 dark:bg-indigo-900/40 dark:ring-indigo-500/40"
+                        : "border-slate-200 bg-white hover:border-indigo-300 hover:ring-1 hover:ring-indigo-200 dark:border-slate-700 dark:bg-slate-800"
                     }`}
                   >
                     <span
-                      className={`inline-flex h-8 w-8 items-center justify-center rounded-full text-[0.7rem] font-semibold text-white ${action.accent}`}
+                      className={`inline-flex h-10 w-10 items-center justify-center rounded-xl text-[0.8rem] font-bold shadow-inner transition ${
+                        isActive
+                          ? "bg-indigo-600 text-white"
+                          : `${action.accent} text-white/90 dark:bg-indigo-500/80`
+                      }`}
                     >
                       {action.label.slice(0, 1)}
                     </span>
-                    <span className="text-sm font-semibold text-slate-900">
+                    <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">
                       {action.label}
                     </span>
-                    <span className="text-[11px] leading-tight text-slate-500">
+                    <span className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">
                       {action.description}
                     </span>
                   </button>
                 );
-              })}
+                })}
+              </div>
             </div>
-          </div>
         </header>
 
         {activePanel === "client" && (
           <>
-            <section className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-indigo-50 p-4 sm:p-6">
+            <section className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-indigo-50 p-4 sm:p-6 dark:border-slate-700 dark:from-slate-800 dark:via-slate-900 dark:to-slate-800">
               <div className="flex flex-col gap-2 border-b border-slate-200 pb-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <h2 className="text-lg font-semibold text-slate-900 sm:text-xl">관리 현황</h2>
@@ -2988,8 +2992,8 @@ const WeeklyDayCard = ({
                     복약 일정, 미처리 알림, 담당 인원을 한눈에 확인하세요.
                   </p>
                 </div>
-                <div className="flex items-center gap-2 rounded-full bg-white px-3 py-1 text-xs font-semibold text-indigo-700 shadow-sm">
-                  <span className="h-2 w-2 rounded-full bg-indigo-500" />
+                <div className="flex items-center gap-2 rounded-full bg-white px-3 py-1 text-xs font-semibold text-indigo-700 shadow-sm dark:bg-slate-800 dark:text-indigo-100 dark:border dark:border-slate-700">
+                  <span className="h-2 w-2 rounded-full bg-indigo-500 dark:bg-indigo-300" />
                   실시간 업데이트
                 </div>
               </div>
@@ -3019,19 +3023,19 @@ const WeeklyDayCard = ({
                     onClick={() => setActiveStat(null)}
                     role="presentation"
                   />
-                  <div className="relative w-full max-w-2xl rounded-2xl border border-slate-200 bg-white shadow-2xl">
-                    <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-5 py-4 sm:px-6">
+                  <div className="relative w-full max-w-2xl rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-800">
+                    <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-5 py-4 dark:border-slate-700 sm:px-6">
                       <div className="space-y-1">
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-indigo-600">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-indigo-600 dark:text-indigo-200">
                           관리 현황
                         </p>
-                        <h3 className="text-xl font-bold text-slate-900 sm:text-2xl">
+                        <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100 sm:text-2xl">
                           {activeStat.label}
                         </h3>
-                        <p className="text-sm text-slate-600">{activeStat.detail}</p>
+                        <p className="text-sm text-slate-600 dark:text-slate-300">{activeStat.detail}</p>
                       </div>
                       <button
-                        className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600 transition hover:border-indigo-300 hover:text-indigo-700"
+                        className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600 transition hover:border-indigo-300 hover:text-indigo-700 dark:border-slate-600 dark:text-slate-200"
                         onClick={() => setActiveStat(null)}
                         type="button"
                         aria-label="상세 닫기"

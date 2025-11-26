@@ -4,6 +4,7 @@ import { InlineDrugSearch } from "@/components/InlineDrugSearch";
 import { DrugDetailModal } from "@/components/DrugDetailModal";
 import { resolveProfileImageUrl } from "@/lib/image";
 import { useRouter } from "next/navigation";
+import { ChatClientPicker } from "@/components/ChatClientPicker";
 
 import {
   ChangeEvent,
@@ -382,6 +383,8 @@ export default function ManagerMyPage() {
   const [avatarError, setAvatarError] = useState("");
   const [avatarMessage, setAvatarMessage] = useState("");
   const [clientDetails, setClientDetails] = useState<Record<number, ClientDetail>>({});
+  const [chatRefreshToken, setChatRefreshToken] = useState(0);
+  const [chatView, setChatView] = useState<"rooms" | "search">("rooms");
   const defaultProfileImage = resolveProfileImageUrl("/image/픽토그램.png") || "/image/픽토그램.png";
   const logoImage = resolveProfileImageUrl("/image/logo.png") || "/image/logo.png";
   const getProfileImage = (url?: string | null) =>
@@ -3599,12 +3602,54 @@ const WeeklyDayCard = ({
       )}
 
       {activePanel === "chat" && (
-        <section>
-          <MyChatRooms
-            role="MANAGER"
-            userId={manager.userId}
-            managerProfileId={managerProfileId}
-          />
+        <section className="space-y-4">
+          <div className="flex gap-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+            <button
+              type="button"
+              onClick={() => setChatView("rooms")}
+              className={`flex-1 rounded-lg px-3 py-2 text-sm font-semibold transition ${
+                chatView === "rooms"
+                  ? "bg-indigo-600 text-white shadow"
+                  : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+              }`}
+            >
+              채팅방 보기
+            </button>
+            <button
+              type="button"
+              onClick={() => setChatView("search")}
+              className={`flex-1 rounded-lg px-3 py-2 text-sm font-semibold transition ${
+                chatView === "search"
+                  ? "bg-indigo-600 text-white shadow"
+                  : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+              }`}
+            >
+              클라이언트 찾기
+            </button>
+          </div>
+
+          {chatView === "search" ? (
+            <ChatClientPicker
+              managerId={managerProfileId ?? manager.userId}
+              assignedClients={(dashboard?.clients ?? []).map((c) => ({
+                clientId: c.clientId,
+                name: c.clientName,
+                email: c.email,
+                profileImageUrl: c.profileImageUrl,
+              }))}
+              onChatCreated={() => {
+                setChatRefreshToken((prev) => prev + 1);
+                setChatView("rooms");
+              }}
+            />
+          ) : (
+            <MyChatRooms
+              role="MANAGER"
+              userId={manager.userId}
+              managerProfileId={managerProfileId}
+              refreshToken={chatRefreshToken}
+            />
+          )}
         </section>
       )}
       </main>

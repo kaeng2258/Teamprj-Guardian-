@@ -34,24 +34,39 @@ export default function MyChatRooms({
   managerProfileId,
   refreshToken,
 }: MyChatRoomsProps) {
+  const effectiveUserId =
+    role === "MANAGER" ? managerProfileId ?? userId ?? null : userId ?? null;
   const [threads, setThreads] = useState<ChatThread[]>([]);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [profileImages, setProfileImages] = useState<Record<number, string>>({});
   const [leaving, setLeaving] = useState<number | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [bookmarked, setBookmarked] = useState<number[]>([]);
   const defaultProfileImage =
     resolveProfileImageUrl("/image/픽토그램.png") || "/image/픽토그램.png";
+  const bookmarkKey = effectiveUserId
+    ? `guardian.bookmarkedRooms.${role}.${effectiveUserId}`
+    : null;
 
   const getProfileImage = (url?: string | null) =>
     url && typeof url === "string" && url.trim().length > 0
       ? resolveProfileImageUrl(url) || defaultProfileImage
       : defaultProfileImage;
 
-  useEffect(() => {
-    const effectiveUserId =
-      role === "MANAGER" ? managerProfileId ?? userId ?? null : userId ?? null;
+  const sortThreads = (list: ChatThread[], marks: number[]) => {
+    const star = new Set(marks);
+    return [...list].sort((a, b) => {
+      const aStar = star.has(a.roomId) ? 1 : 0;
+      const bStar = star.has(b.roomId) ? 1 : 0;
+      if (aStar !== bStar) return bStar - aStar;
+      const aTime = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0;
+      const bTime = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : 0;
+      return bTime - aTime;
+    });
+  };
 
+  useEffect(() => {
     if (!effectiveUserId) return;
 
     let active = true;
@@ -78,7 +93,7 @@ export default function MyChatRooms({
             ? data.filter((t) => t.managerId === effectiveUserId)
             : data.filter((t) => t.clientId === effectiveUserId);
 
-        setThreads(filtered);
+        setThreads(sortThreads(filtered, bookmarked));
       } catch (e: any) {
         if (!active) return;
         setErr(
@@ -97,7 +112,7 @@ export default function MyChatRooms({
     return () => {
       active = false;
     };
-  }, [role, userId, managerProfileId, refreshToken]);
+  }, [role, userId, managerProfileId, refreshToken, effectiveUserId, bookmarked]);
 
   useEffect(() => {
     // 다른 참여자의 프로필 이미지를 추가로 로드
@@ -125,8 +140,34 @@ export default function MyChatRooms({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [threads, role]);
 
-  const effectiveUserId =
-    role === "MANAGER" ? managerProfileId ?? userId ?? null : userId ?? null;
+  useEffect(() => {
+    if (!bookmarkKey) return;
+    try {
+      const raw = window.localStorage.getItem(bookmarkKey);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          const cleaned = parsed
+            .map((id) => Number(id))
+            .filter((id) => Number.isFinite(id) && id > 0);
+          setBookmarked(cleaned);
+          setThreads((prev) => sortThreads(prev, cleaned));
+        }
+      }
+    } catch {
+      // ignore parse error
+    }
+  }, [bookmarkKey]);
+
+  useEffect(() => {
+    if (!bookmarkKey) return;
+    try {
+      window.localStorage.setItem(bookmarkKey, JSON.stringify(bookmarked));
+    } catch {
+      // ignore storage error
+    }
+    setThreads((prev) => sortThreads(prev, bookmarked));
+  }, [bookmarkKey, bookmarked]);
 
   const handleLeaveRoom = async (roomId: number) => {
     if (!effectiveUserId) {
@@ -152,6 +193,16 @@ export default function MyChatRooms({
     } finally {
       setLeaving(null);
     }
+  };
+
+  const toggleBookmark = (roomId: number) => {
+    setBookmarked((prev) => {
+      const next = prev.includes(roomId)
+        ? prev.filter((id) => id !== roomId)
+        : [...prev, roomId];
+      setThreads((current) => sortThreads(current, next));
+      return next;
+    });
   };
 
   return (
@@ -226,6 +277,22 @@ export default function MyChatRooms({
                         NEW
                       </span>
                     )}
+                    <button
+                      type="button"
+                      className={`inline-flex h-7 w-7 items-center justify-center rounded-full border text-[13px] font-bold transition ${
+                        bookmarked.includes(roomId)
+                          ? "border-amber-300 bg-amber-100 text-amber-600"
+                          : "border-slate-200 bg-white text-slate-400 hover:border-amber-200 hover:text-amber-500"
+                      }`}
+                      aria-label={bookmarked.includes(roomId) ? "북마크 해제" : "북마크 추가"}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        toggleBookmark(roomId);
+                      }}
+                    >
+                      ★
+                    </button>
                     {lastTime && (
                       <small className="text-[11px] text-slate-500">
                         {new Date(lastTime).toLocaleString()}

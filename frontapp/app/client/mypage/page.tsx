@@ -783,7 +783,7 @@ export default function ClientMyPage() {
       case "chat":
         return chatAlerts;
       case "emergency":
-        return emergencyError ? [emergencyError] : emergencyAlerts.length > 0 ? emergencyAlerts : ["알림이 없습니다."];
+        return emergencyError ? [emergencyError] : emergencyAlerts.length > 0 ? emergencyAlerts : [];
       default:
         return [];
     }
@@ -794,6 +794,20 @@ export default function ClientMyPage() {
     const start = page * PAGE_SIZE;
     return currentAlerts.slice(start, start + PAGE_SIZE);
   }, [alertPage, alertTab, currentAlerts]);
+  const hasAlerts = currentAlerts.length > 0;
+  const alertEmptyText = useMemo(() => {
+    if (alertsAcknowledged) return "모든 알림을 확인했습니다.";
+    switch (alertTab) {
+      case "overdue":
+        return "미복약 알림이 없습니다.";
+      case "chat":
+        return "미읽 메세지 알림이 없습니다.";
+      case "emergency":
+        return emergencyError || "긴급 알림이 없습니다.";
+      default:
+        return "알림이 없습니다.";
+    }
+  }, [alertTab, alertsAcknowledged, emergencyError]);
 
   const handleAcknowledgeAlerts = useCallback(() => {
     setAlertsAcknowledged(true);
@@ -1269,21 +1283,27 @@ export default function ClientMyPage() {
                         ))}
                       </div>
                       <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3">
-                        <ul className="space-y-2">
-                          {pagedAlerts.map((item, idx) => (
-                            <li
-                              key={`${alertTab}-item-${idx}`}
-                              className="flex items-start gap-2 rounded-lg bg-white px-3 py-2 text-sm text-slate-800 shadow-sm transition hover:-translate-y-0.5 hover:shadow"
-                            >
-                              <span className="mt-0.5 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-indigo-100 px-2 text-[10px] font-bold text-indigo-700">
-                                {(alertPage[alertTab] ?? 0) * PAGE_SIZE + idx + 1}
-                              </span>
-                              <span className="leading-relaxed">{item}</span>
-                            </li>
-                          ))}
-                        </ul>
+                        {hasAlerts ? (
+                          <ul className="space-y-2">
+                            {pagedAlerts.map((item, idx) => (
+                              <li
+                                key={`${alertTab}-item-${idx}`}
+                                className="flex items-start gap-2 rounded-lg bg-white px-3 py-2 text-sm text-slate-800 shadow-sm transition hover:-translate-y-0.5 hover:shadow"
+                              >
+                                <span className="mt-0.5 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-indigo-100 px-2 text-[10px] font-bold text-indigo-700">
+                                  {(alertPage[alertTab] ?? 0) * PAGE_SIZE + idx + 1}
+                                </span>
+                                <span className="leading-relaxed">{item}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <div className="flex items-center justify-center rounded-lg bg-white px-3 py-3 text-sm text-slate-500">
+                            알림이 없습니다.
+                          </div>
+                        )}
                       </div>
-                      {totalPages > 1 && (
+                      {hasAlerts && totalPages > 1 && (
                         <div className="flex items-center justify-between text-xs text-slate-600">
                           <span>
                             페이지 { (alertPage[alertTab] ?? 0) + 1 } / {totalPages}

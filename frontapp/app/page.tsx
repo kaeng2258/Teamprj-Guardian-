@@ -438,7 +438,9 @@ export default function Home() {
                 <span className="text-sm text-gray-600">생년월일</span>
                 <input
                   aria-label="생년월일"
-                  className="rounded-md border border-gray-300 px-3 py-2 focus:border-black focus:outline-none"
+                  className={`rounded-md border border-gray-300 px-3 py-2 focus:border-black focus:outline-none ${
+                    registerBirthDate ? "text-black" : "text-gray-400"
+                  }`}
                   onChange={(event) => setRegisterBirthDate(event.target.value)}
                   placeholder="YYYY-MM-DD"
                   required
@@ -450,14 +452,16 @@ export default function Home() {
                 <span className="text-sm text-gray-600">성별</span>
                 <select
                   aria-label="성별"
-                  className="rounded-md border border-gray-300 px-3 py-2 focus:border-black focus:outline-none"
+                  className={`rounded-md border border-gray-300 px-3 py-2 focus:border-black focus:outline-none ${registerGender ? "text-black" : "text-gray-400"}`}
                   value={registerGender}
                   onChange={(event) => setRegisterGender(event.target.value)}
                   required
                 >
-                  <option value="">선택해주세요</option>
-                  <option value="MALE">남성</option>
-                  <option value="FEMALE">여성</option>
+                  <option value="" className="text-gray-400">
+                    선택해주세요
+                  </option>
+                  <option value="MALE" className="text-black">남성</option>
+                  <option value="FEMALE" className="text-black">여성</option>
                 </select>
               </label>
               <label className="flex flex-col gap-1">
@@ -534,17 +538,17 @@ export default function Home() {
                 <span className="text-sm text-gray-600">가입 유형</span>
                 <select
                   aria-label="가입 유형"
-                  className="rounded-md border border-gray-300 px-3 py-2 focus:border-black focus:outline-none"
+                  className={`rounded-md border border-gray-300 px-3 py-2 focus:border-black focus:outline-none ${registerRole ? "text-black" : "text-gray-400"}`}
                   onChange={(event) =>
                     setRegisterRole(event.target.value as RegisterRoleValue)
                   }
                   value={registerRole}
                 >
-                  <option disabled value="">
+                  <option disabled value="" className="text-gray-400">
                     회원 유형을 선택하세요
                   </option>
                   {Object.entries(roleLabels).map(([value, label]) => (
-                    <option key={value} value={value}>
+                    <option key={value} value={value} className="text-black">
                       {label}
                     </option>
                   ))}

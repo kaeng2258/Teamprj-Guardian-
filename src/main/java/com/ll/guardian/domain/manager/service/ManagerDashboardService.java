@@ -73,7 +73,9 @@ public class ManagerDashboardService {
         Map<Long, List<EmergencyAlert>> emergencyMap = matches.stream()
                 .collect(Collectors.toMap(
                         match -> match.getClient().getId(),
-                        match -> emergencyAlertRepository.findByClientId(match.getClient().getId())));
+                        match -> emergencyAlertRepository.findByClientId(match.getClient().getId()).stream()
+                                .filter(alert -> alert.getStatus() == EmergencyAlertStatus.PENDING)
+                                .toList()));
 
         List<ManagerClientSummary> clients = matches.stream()
                 .map(match -> new ManagerClientSummary(

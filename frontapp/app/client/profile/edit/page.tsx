@@ -6,6 +6,29 @@ import { useRouter } from "next/navigation";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "";
 const DEFAULT_PROFILE_IMG = "/image/픽토그램.png";
+type ThemeMode = "light" | "dark";
+type TextSizeMode = "normal" | "large";
+type IconProps = { className?: string };
+type DaumPostcodeData = {
+  zonecode: string;
+  roadAddress: string;
+  jibunAddress: string;
+};
+declare global {
+  interface Window {
+    daum?: {
+      Postcode: new (options: { oncomplete: (data: DaumPostcodeData) => void }) => void;
+    };
+  }
+}
+const normalizeBirthDate = (value?: string | null) => {
+  if (!value) return "";
+  if (value.length >= 10) {
+    if (value.includes("T")) return value.split("T")[0];
+    if (value.includes(" ")) return value.split(" ")[0];
+  }
+  return value;
+};
 
 type UserSummary = {
   id: number;
@@ -19,29 +42,81 @@ type UserSummary = {
   profileImageUrl?: string | null;
 };
 
+const BellIcon = ({ className = "h-4 w-4" }: IconProps) => (
+  <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true">
+    <path
+      d="M6 9a6 6 0 1112 0v3.5l1.4 2.8a1 1 0 01-.9 1.5H5.5a1 1 0 01-.9-1.5L6 12.5V9z"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <path d="M10 18a2 2 0 004 0" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+  </svg>
+);
+
+const ThemeIcon = ({ mode, className = "h-4 w-4" }: { mode: ThemeMode; className?: string }) =>
+  mode === "dark" ? (
+    <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true">
+      <path
+        d="M21 12.8A9 9 0 1111.2 3a7 7 0 109.8 9.8z"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  ) : (
+    <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true">
+      <circle cx="12" cy="12" r="4" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M12 2v2M12 20v2M4 12H2M22 12h-2M5 5l-1.4-1.4M20.4 20.4 19 19M5 19l-1.4 1.4M20.4 3.6 19 5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  );
+
+const TextSizeIcon = ({ large, className = "h-4 w-4" }: { large: boolean; className?: string }) => (
+  <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true">
+    <path
+      d="M4.5 17h7M8 17V7M8 7H4.8M8 7h3.2"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <path
+      d="M14.5 15h5M17 15V9.5M17 9.5h-2.3M17 9.5h2.3"
+      stroke="currentColor"
+      strokeWidth={large ? "2" : "1.4"}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      opacity={large ? 1 : 0.9}
+    />
+  </svg>
+);
+
 export default function ClientProfileEditPage() {
   const router = useRouter();
   const [user, setUser] = useState<UserSummary | null>(null);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [birthDate, setBirthDate] = useState("");
-  const [gender, setGender] = useState("");
-  const [zipCode, setZipCode] = useState("");
-  const [address, setAddress] = useState("");
-  const [detailAddress, setDetailAddress] = useState("");
   const [profileImageUrl, setProfileImageUrl] = useState<string>(DEFAULT_PROFILE_IMG);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [birthDate, setBirthDate] = useState("");
+  const [gender, setGender] = useState("");
+  const [zipCode, setZipCode] = useState("");
+  const [address, setAddress] = useState("");
+  const [detailAddress, setDetailAddress] = useState("");
   const [supportsPushApi, setSupportsPushApi] = useState(false);
   const [pushServiceEnabled, setPushServiceEnabled] = useState(false);
   const [vapidPublicKey, setVapidPublicKey] = useState("");
   const [pushStatus, setPushStatus] = useState<"idle" | "requesting" | "error">("idle");
   const [pushMessage, setPushMessage] = useState("");
   const [pushEnabled, setPushEnabled] = useState(false);
-  const [logoutMessage, setLogoutMessage] = useState("");
   const [imageMenuOpen, setImageMenuOpen] = useState(false);
+  const [theme, setTheme] = useState<ThemeMode>("light");
+  const [textSize, setTextSize] = useState<TextSizeMode>("normal");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const avatarInitial = useMemo(() => {
@@ -75,9 +150,9 @@ export default function ClientProfileEditPage() {
         setUser(data);
         setName(data.name ?? "");
         setEmail(data.email ?? "");
-        setBirthDate(data.birthDate ?? "");
+        setBirthDate(normalizeBirthDate(data.birthDate));
         setGender(data.gender ?? "");
-        setZipCode(data.zipCode ?? "");
+        setZipCode(data.zipCode ? String(data.zipCode) : "");
         setAddress(data.address ?? "");
         setDetailAddress(data.detailAddress ?? "");
         setProfileImageUrl(resolveProfileImageUrl(data.profileImageUrl) || DEFAULT_PROFILE_IMG);
@@ -90,25 +165,77 @@ export default function ClientProfileEditPage() {
     void load();
   }, [router]);
 
-  useEffect(() => {
-    let cancelled = false;
-    const fetchConfig = async () => {
-      try {
-        const res = await fetch(`${API_BASE_URL}/api/push/config`);
-        if (!res.ok) return;
-        const data: { enabled?: boolean; publicKey?: string } = await res.json();
-        if (cancelled) return;
-        setPushServiceEnabled(Boolean(data.enabled));
-        setVapidPublicKey(data.publicKey ?? "");
-      } catch {
-        // ignore
-      }
-    };
-    void fetchConfig();
-    return () => {
-      cancelled = true;
-    };
+  const applyTheme = useCallback((mode: ThemeMode) => {
+    setTheme(mode);
+    if (typeof document !== "undefined") {
+      const root = document.documentElement;
+      if (mode === "dark") root.classList.add("dark");
+      else root.classList.remove("dark");
+    }
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("theme", mode);
+    }
   }, []);
+
+  const applyTextSize = useCallback((mode: TextSizeMode) => {
+    setTextSize(mode);
+    if (typeof document !== "undefined") {
+      const root = document.documentElement;
+      const body = document.body;
+      if (mode === "large") {
+        root.classList.add("large-text");
+        body?.classList.add("large-text");
+      } else {
+        root.classList.remove("large-text");
+        body?.classList.remove("large-text");
+      }
+    }
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("textSize", mode === "large" ? "large" : "normal");
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const saved =
+      (typeof window !== "undefined" && window.localStorage.getItem("theme")) as ThemeMode | null;
+    const savedText =
+      (typeof window !== "undefined" && window.localStorage.getItem("textSize")) as
+        | "large"
+        | "normal"
+        | null;
+    const prefersDark =
+      typeof window !== "undefined" &&
+      window.matchMedia &&
+      window.matchMedia("(prefers-color-scheme: dark)").matches;
+    const initial = saved ?? (prefersDark ? "dark" : "light");
+    applyTheme(initial);
+    applyTextSize(savedText === "large" ? "large" : "normal");
+  }, [applyTheme, applyTextSize]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (document.getElementById("daum-postcode-script")) return;
+    const script = document.createElement("script");
+    script.id = "daum-postcode-script";
+    script.src = "https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js";
+    script.async = true;
+    document.body.appendChild(script);
+  }, []);
+
+  const handleAddressSearch = () => {
+    if (typeof window === "undefined" || !window.daum?.Postcode) {
+      alert("주소 검색 스크립트를 불러오는 중입니다. 잠시 후 다시 시도해주세요.");
+      return;
+    }
+    new window.daum.Postcode({
+      oncomplete: (data: DaumPostcodeData) => {
+        setZipCode(data.zonecode ?? "");
+        const fullAddress = data.roadAddress || data.jibunAddress || "";
+        setAddress(fullAddress);
+      },
+    }).open();
+  };
 
   const handleSave = async () => {
     if (!user) return;
@@ -141,6 +268,7 @@ export default function ClientProfileEditPage() {
       const data: UserSummary = await res.json();
       setUser(data);
       setProfileImageUrl(resolveProfileImageUrl(data.profileImageUrl) || DEFAULT_PROFILE_IMG);
+      setBirthDate(normalizeBirthDate(data.birthDate));
       setMessage("개인정보가 저장되었습니다.");
     } catch (e: any) {
       setError(e instanceof Error ? e.message : "저장에 실패했습니다.");
@@ -215,10 +343,31 @@ export default function ClientProfileEditPage() {
   };
 
   useEffect(() => {
+    let cancelled = false;
+    const fetchConfig = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/push/config`);
+        if (!res.ok) return;
+        const data: { enabled?: boolean; publicKey?: string } = await res.json();
+        if (cancelled) return;
+        setPushServiceEnabled(Boolean(data.enabled));
+        setVapidPublicKey(data.publicKey ?? "");
+      } catch {
+        // ignore
+      }
+    };
+    void fetchConfig();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
     const checkExistingSubscription = async () => {
       if (typeof window === "undefined" || !supportsPushApi) return;
       try {
-        const reg = (await navigator.serviceWorker.getRegistration()) ?? (await navigator.serviceWorker.ready);
+        const reg =
+          (await navigator.serviceWorker.getRegistration()) ?? (await navigator.serviceWorker.ready);
         const sub = await reg.pushManager.getSubscription();
         if (sub) {
           setPushEnabled(true);
@@ -315,6 +464,14 @@ export default function ClientProfileEditPage() {
     await handleEnablePush();
   }, [handleEnablePush, pushEnabled]);
 
+  const toggleTheme = () => {
+    applyTheme(theme === "dark" ? "light" : "dark");
+  };
+
+  const toggleTextSize = () => {
+    applyTextSize(textSize === "large" ? "normal" : "large");
+  };
+
   if (loading) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-slate-50">
@@ -326,9 +483,9 @@ export default function ClientProfileEditPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 px-3 py-6 sm:px-6 sm:py-10">
-      <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 rounded-3xl bg-white p-4 shadow-lg sm:p-8">
-        <header className="flex flex-col gap-4 border-b border-slate-200 pb-5">
+    <div className="min-h-screen bg-slate-50 px-3 py-6 dark:bg-slate-900 sm:px-6 sm:py-10">
+      <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 rounded-3xl bg-white p-4 shadow-lg dark:bg-slate-800 dark:text-slate-100 sm:p-8">
+        <header className="flex flex-col gap-4 border-b border-slate-200 pb-4">
           <div className="flex items-start gap-4 sm:gap-6">
             <div className="relative">
               <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border-2 border-indigo-200 bg-indigo-50 text-lg font-semibold text-indigo-700">
@@ -385,7 +542,7 @@ export default function ClientProfileEditPage() {
             <div className="flex flex-col gap-1">
               <p className="text-sm font-semibold uppercase tracking-[0.08em] text-indigo-600">Client</p>
               <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">
-                {client.name ? `${client.name}님` : "클라이언트 마이페이지"}
+                {user?.name ? `${user.name}님` : "클라이언트 마이페이지"}
               </h1>
               <p className="text-sm text-slate-600">이름과 프로필 이미지를 변경할 수 있습니다.</p>
             </div>
@@ -393,112 +550,252 @@ export default function ClientProfileEditPage() {
         </header>
 
         <div className="space-y-4">
-      <label className="flex flex-col gap-2 text-sm text-slate-700">
-        <span>이메일</span>
-        <input
-          value={email}
-          readOnly
-              className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-500"
-            />
-          </label>
-      <label className="flex flex-col gap-2 text-sm text-slate-700">
-        <span>이름</span>
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-          placeholder="이름을 입력하세요"
-        />
-      </label>
-      <label className="flex flex-col gap-2 text-sm text-slate-700">
-        <span>생년월일</span>
-        <input
-          type="date"
-          value={birthDate}
-          onChange={(e) => setBirthDate(e.target.value)}
-          className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-          placeholder="YYYY-MM-DD"
-        />
-      </label>
-      <label className="flex flex-col gap-2 text-sm text-slate-700">
-        <span>성별</span>
-        <select
-          value={gender}
-          onChange={(e) => setGender(e.target.value)}
-          className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-        >
-          <option value="">선택해주세요</option>
-          <option value="MALE">남성</option>
-          <option value="FEMALE">여성</option>
-        </select>
-      </label>
-      <div className="grid gap-3 sm:grid-cols-3">
-        <label className="flex flex-col gap-2 text-sm text-slate-700 sm:col-span-1">
-          <span>우편번호</span>
-          <input
-            value={zipCode}
-            onChange={(e) => setZipCode(e.target.value)}
-            className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-            placeholder="우편번호"
-          />
-        </label>
-        <label className="flex flex-col gap-2 text-sm text-slate-700 sm:col-span-2">
-          <span>주소</span>
-          <input
-            value={address}
-            onChange={(e) => setAddress(e.target.value)}
-            className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-            placeholder="주소"
-          />
-        </label>
-      </div>
-      <label className="flex flex-col gap-2 text-sm text-slate-700">
-        <span>상세 주소</span>
-        <input
-          value={detailAddress}
-          onChange={(e) => setDetailAddress(e.target.value)}
-          className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-          placeholder="동/호 등"
-        />
-      </label>
-      <label className="flex flex-col gap-2 text-sm text-slate-700">
-        <span>생년월일</span>
-        <input
-          type="date"
-          value={birthDate}
-          onChange={(e) => setBirthDate(e.target.value)}
-          className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-          placeholder="YYYY-MM-DD"
-        />
-      </label>
-          <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-            <div>
-              <p className="text-sm font-semibold text-slate-800">모바일 푸시 알림</p>
-              <p className="text-xs text-slate-500">브라우저 푸시를 활성화하여 비상 알림을 받아보세요.</p>
-              {pushMessage && (
-                <p className={`mt-1 text-xs ${pushStatus === "error" ? "text-rose-600" : "text-emerald-600"}`}>
-                  {pushMessage}
-                </p>
-              )}
+          <section className="rounded-2xl border border-slate-200 bg-white/80 p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+            <div className="flex items-center justify-between pb-3">
+              <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">기본 정보</h2>
+              <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">계정</span>
             </div>
-            <button
-              type="button"
-              onClick={() => void handleTogglePush()}
-              disabled={pushStatus === "requesting"}
-              className={`relative inline-flex h-7 w-14 items-center rounded-full border transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${
-                pushEnabled ? "border-indigo-500 bg-indigo-600" : "border-slate-200 bg-slate-200"
-              } ${pushStatus === "requesting" ? "opacity-60" : "hover:shadow-sm"}`}
-              aria-pressed={pushEnabled}
-              aria-label="모바일 푸시 알림 설정"
-            >
-              <span
-                className={`absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow transition ${
-                  pushEnabled ? "translate-x-7 bg-indigo-50" : "translate-x-0"
-                }`}
-              />
-              <span className="sr-only">{pushEnabled ? "푸시 켜짐" : "푸시 꺼짐"}</span>
-            </button>
-          </div>
+            <div className="space-y-3">
+              <label className="flex flex-col gap-1 text-sm text-slate-700 dark:text-slate-200">
+                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">이메일</span>
+                <input
+                  value={email}
+                  readOnly
+                  className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-200"
+                />
+              </label>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="flex flex-col gap-1 text-sm text-slate-700 dark:text-slate-200">
+                  <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">이름</span>
+                  <input
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900/60"
+                    placeholder="이름을 입력하세요"
+                  />
+                </label>
+                <label className="flex flex-col gap-1 text-sm text-slate-700 dark:text-slate-200">
+                  <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">생년월일</span>
+                  <input
+                    type="date"
+                    value={birthDate}
+                    onChange={(e) => setBirthDate(e.target.value)}
+                    className={`rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none ${
+                      birthDate ? "text-slate-900" : "text-slate-400"
+                    } dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-100`}
+                    placeholder="YYYY-MM-DD"
+                  />
+                </label>
+              </div>
+              <label className="flex flex-col gap-1 text-sm text-slate-700 dark:text-slate-200">
+                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">성별</span>
+                <select
+                  value={gender}
+                  onChange={(e) => setGender(e.target.value)}
+                  className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900/60"
+                >
+                  <option value="">선택해주세요</option>
+                  <option value="MALE">남성</option>
+                  <option value="FEMALE">여성</option>
+                </select>
+              </label>
+            </div>
+          </section>
+
+          <section className="rounded-2xl border border-slate-200 bg-white/80 p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+            <div className="flex items-center justify-between pb-3">
+              <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">주소</h2>
+              <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">연락처</span>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <label className="flex flex-col gap-1 text-sm text-slate-700 dark:text-slate-200 sm:col-span-1">
+                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">우편번호</span>
+                <input
+                  value={zipCode}
+                  onChange={(e) => setZipCode(e.target.value)}
+                  className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900/60"
+                  placeholder="우편번호"
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-sm text-slate-700 dark:text-slate-200 sm:col-span-2">
+                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">주소</span>
+                <input
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900/60"
+                  placeholder="주소"
+                />
+              </label>
+              <div className="sm:col-span-3">
+                <button
+                  type="button"
+                  onClick={handleAddressSearch}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-indigo-400 hover:text-indigo-900 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-200"
+                >
+                  주소 검색 (다음)
+                </button>
+              </div>
+              <label className="flex flex-col gap-1 text-sm text-slate-700 dark:text-slate-200 sm:col-span-3">
+                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">상세 주소</span>
+                <input
+                  value={detailAddress}
+                  onChange={(e) => setDetailAddress(e.target.value)}
+                  className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900/60"
+                  placeholder="동/호 등"
+                />
+              </label>
+            </div>
+            <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+              현재 주소: {zipCode || "미등록"} / {address || "미등록"} {detailAddress || ""}
+            </p>
+          </section>
+
+          <section className="rounded-2xl border border-slate-200 bg-white/80 p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+            <div className="flex items-center justify-between pb-3">
+              <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">환경 설정</h2>
+              <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">보기·알림</span>
+            </div>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-700 dark:bg-slate-900/50">
+                <div>
+                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">모바일 푸시 알림</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">브라우저 푸시를 활성화하여 비상 알림을 받아보세요.</p>
+                  {pushMessage && (
+                    <p className={`mt-1 text-xs ${pushStatus === "error" ? "text-rose-500" : "text-emerald-400"}`}>
+                      {pushMessage}
+                    </p>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void handleTogglePush()}
+                  disabled={pushStatus === "requesting"}
+                  className={`relative inline-flex h-10 w-32 items-center justify-between rounded-full border px-3 text-[11px] font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${
+                    pushEnabled
+                      ? "border-indigo-500 bg-gradient-to-r from-indigo-500 to-violet-500 text-white shadow-sm"
+                      : "border-slate-200 bg-slate-200 text-slate-700 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
+                  } ${pushStatus === "requesting" ? "opacity-60" : "hover:shadow-sm"}`}
+                  aria-pressed={pushEnabled}
+                  aria-label="모바일 푸시 알림 설정"
+                >
+                  <span className="flex items-center gap-2">
+                    <span
+                      className={`flex h-7 w-7 items-center justify-center rounded-full bg-white/90 shadow-sm ${
+                        pushEnabled ? "text-indigo-600" : "text-slate-600"
+                      }`}
+                    >
+                      <BellIcon className="h-4 w-4" />
+                    </span>
+                    <span>{pushEnabled ? "알림 켜짐" : "알림 꺼짐"}</span>
+                  </span>
+                  <span className="relative flex h-6 w-14 items-center rounded-full border border-indigo-100 bg-white/90 text-[10px] font-bold uppercase tracking-wide text-indigo-600 shadow-inner">
+                    <span
+                      className={`absolute left-0 top-0 h-full w-full rounded-full bg-indigo-200/40 transition-opacity ${
+                        pushEnabled ? "opacity-100" : "opacity-0"
+                      }`}
+                      aria-hidden="true"
+                    />
+                    <span
+                      className={`relative inline-flex h-5 w-5 items-center justify-center rounded-full bg-indigo-500 text-white shadow transition-transform duration-200 ${
+                        pushEnabled ? "translate-x-[18px]" : "translate-x-0"
+                      }`}
+                    >
+                      {pushEnabled ? "On" : "Off"}
+                    </span>
+                  </span>
+                  <span className="sr-only">{pushEnabled ? "푸시 켜짐" : "푸시 꺼짐"}</span>
+                </button>
+              </div>
+              <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-700 dark:bg-slate-900/50">
+                <div>
+                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">다크 모드</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    인터페이스 색상을 {theme === "dark" ? "밝게" : "어둡게"} 전환합니다.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={toggleTheme}
+                  className={`relative inline-flex h-10 w-32 items-center justify-between rounded-full border px-3 text-[11px] font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${
+                    theme === "dark"
+                      ? "border-indigo-500 bg-gradient-to-r from-slate-800 to-indigo-600 text-white shadow-sm"
+                      : "border-slate-300 bg-slate-200 text-slate-700 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
+                  }`}
+                  aria-pressed={theme === "dark"}
+                  aria-label="다크 모드 토글"
+                >
+                  <span className="flex items-center gap-2">
+                    <span
+                      className={`flex h-7 w-7 items-center justify-center rounded-full bg-white/90 shadow-sm ${
+                        theme === "dark" ? "text-indigo-600" : "text-amber-500"
+                      }`}
+                    >
+                      <ThemeIcon mode={theme} className="h-4 w-4" />
+                    </span>
+                    <span>{theme === "dark" ? "다크 모드" : "라이트 모드"}</span>
+                  </span>
+                  <span className="relative flex h-6 w-14 items-center rounded-full border border-indigo-100 bg-white/90 text-[10px] font-bold uppercase tracking-wide text-indigo-600 shadow-inner">
+                    <span
+                      className={`absolute left-0 top-0 h-full w-full rounded-full bg-indigo-200/40 transition-opacity ${
+                        theme === "dark" ? "opacity-100" : "opacity-0"
+                      }`}
+                      aria-hidden="true"
+                    />
+                    <span
+                      className={`relative inline-flex h-5 w-5 items-center justify-center rounded-full bg-indigo-500 text-white shadow transition-transform duration-200 ${
+                        theme === "dark" ? "translate-x-[18px]" : "translate-x-0"
+                      }`}
+                    >
+                      {theme === "dark" ? "On" : "Off"}
+                    </span>
+                  </span>
+                </button>
+              </div>
+              <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-700 dark:bg-slate-900/50">
+                <div>
+                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">큰 글씨 모드</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">가독성을 위해 텍스트 크기를 확대합니다.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={toggleTextSize}
+                  className={`relative inline-flex h-10 w-32 items-center justify-between rounded-full border px-3 text-[11px] font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${
+                    textSize === "large"
+                      ? "border-indigo-500 bg-gradient-to-r from-indigo-500 to-blue-600 text-white shadow-sm"
+                      : "border-slate-300 bg-slate-200 text-slate-700 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
+                  }`}
+                  aria-pressed={textSize === "large"}
+                  aria-label="큰 글씨 모드 토글"
+                >
+                  <span className="flex items-center gap-2">
+                    <span
+                      className={`flex h-7 w-7 items-center justify-center rounded-full bg-white/90 shadow-sm ${
+                        textSize === "large" ? "text-indigo-600" : "text-slate-600"
+                      }`}
+                    >
+                      <TextSizeIcon large={textSize === "large"} className="h-4 w-4" />
+                    </span>
+                    <span>{textSize === "large" ? "큰 글씨" : "보통 글씨"}</span>
+                  </span>
+                  <span className="relative flex h-6 w-14 items-center rounded-full border border-indigo-100 bg-white/90 text-[10px] font-bold uppercase tracking-wide text-indigo-600 shadow-inner">
+                    <span
+                      className={`absolute left-0 top-0 h-full w-full rounded-full bg-indigo-200/40 transition-opacity ${
+                        textSize === "large" ? "opacity-100" : "opacity-0"
+                      }`}
+                      aria-hidden="true"
+                    />
+                    <span
+                      className={`relative inline-flex h-5 w-5 items-center justify-center rounded-full bg-indigo-500 text-white shadow transition-transform duration-200 ${
+                        textSize === "large" ? "translate-x-[18px]" : "translate-x-0"
+                      }`}
+                    >
+                      {textSize === "large" ? "On" : "Off"}
+                    </span>
+                  </span>
+                </button>
+              </div>
+            </div>
+          </section>
         </div>
 
         {(message || error) && (

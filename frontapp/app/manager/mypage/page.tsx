@@ -4,6 +4,7 @@ import { InlineDrugSearch } from "@/components/InlineDrugSearch";
 import { DrugDetailModal } from "@/components/DrugDetailModal";
 import { resolveProfileImageUrl } from "@/lib/image";
 import { useRouter } from "next/navigation";
+import { ChatClientPicker } from "@/components/ChatClientPicker";
 
 import {
   ChangeEvent,
@@ -225,7 +226,7 @@ const managerQuickActions: Array<{
   {
     value: "client",
     label: "복약 관리",
-    description: "이용자 배정 및 복약 일정",
+    description: "배정 및 복약 일정",
     accent: "bg-indigo-600",
   },
   {
@@ -241,6 +242,11 @@ const managerQuickActions: Array<{
     accent: "bg-sky-500",
   },
 ];
+
+const subtleActionButton =
+  "flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition hover:-translate-y-[1px] hover:border-indigo-200 hover:text-indigo-800 hover:shadow-sm disabled:cursor-not-allowed disabled:opacity-60";
+const primaryActionButton =
+  "flex items-center gap-2 rounded-full bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-[1px] hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-indigo-300";
 
 const allDays = [
   { value: "MONDAY", label: "월" },
@@ -382,6 +388,8 @@ export default function ManagerMyPage() {
   const [avatarError, setAvatarError] = useState("");
   const [avatarMessage, setAvatarMessage] = useState("");
   const [clientDetails, setClientDetails] = useState<Record<number, ClientDetail>>({});
+  const [chatRefreshToken, setChatRefreshToken] = useState(0);
+  const [chatView, setChatView] = useState<"rooms" | "search">("rooms");
   const defaultProfileImage = resolveProfileImageUrl("/image/픽토그램.png") || "/image/픽토그램.png";
   const logoImage = resolveProfileImageUrl("/image/logo.png") || "/image/logo.png";
   const getProfileImage = (url?: string | null) =>
@@ -580,9 +588,9 @@ export default function ManagerMyPage() {
     if (typeof window === "undefined") {
       return;
     }
-    if (!favoritesKey) return;
+    const key = favoritesKey ?? "managerFavoriteClients";
     try {
-      window.localStorage.setItem(favoritesKey, JSON.stringify(favoriteClientIds));
+      window.localStorage.setItem(key, JSON.stringify(favoriteClientIds));
     } catch {
       // ignore storage error
     }
@@ -771,10 +779,52 @@ export default function ManagerMyPage() {
     }
   };
 
+  const [activeStat, setActiveStat] = useState<(typeof managerStats)[number] | null>(null);
+  type AlertTab = "overdue" | "chat" | "emergency";
+  const [managerAlertTab, setManagerAlertTab] = useState<AlertTab>("overdue");
+  const [alertPage, setAlertPage] = useState<Record<AlertTab, number>>({
+    overdue: 0,
+    chat: 0,
+    emergency: 0,
+  });
+  const [managerAlertsAcknowledged, setManagerAlertsAcknowledged] = useState(false);
+  const PAGE_SIZE = 10;
+
+  const todayToken = useMemo(() => {
+    const tokens = ["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"];
+    return tokens[new Date().getDay()] ?? "ALL";
+  }, []);
+
+  const todayDateString = useMemo(() => new Date().toISOString().split("T")[0] ?? "", []);
+  const upcomingTodayPlans = useMemo(() => {
+    const now = new Date();
+    const list: Array<{ clientName: string; medicineName: string; time: string; planId: number }> = [];
+    (dashboard?.clients ?? []).forEach((client) => {
+      (client.medicationPlans ?? []).forEach((plan) => {
+        if (!plan.active) return;
+        const days = (plan.daysOfWeek ?? []).map((d) => d.toUpperCase());
+        const dueToday = days.includes("ALL") || days.includes(todayToken);
+        if (!dueToday) return;
+        const [h, m] = (plan.alarmTime ?? "").split(":");
+        const alarm = new Date(now);
+        alarm.setHours(Number(h) || 0, Number(m) || 0, 0, 0);
+        if (Number.isNaN(alarm.getTime())) return;
+        if (alarm.getTime() <= now.getTime()) return;
+        list.push({
+          clientName: client.clientName ?? "이용자",
+          medicineName: plan.medicineName ?? "약품",
+          time: plan.alarmTime?.slice(0, 5) ?? "",
+          planId: plan.id,
+        });
+      });
+    });
+    return list.sort((a, b) => a.time.localeCompare(b.time));
+  }, [dashboard, todayToken]);
+
   const managerStats = useMemo(() => {
     const total = dashboard?.clients.length ?? 0;
-    const pending = dashboard?.pendingMedicationCount ?? 0;
-    const alerts = dashboard?.activeAlertCount ?? 0;
+    const pendingToday = upcomingTodayPlans.length;
+    const alerts = managerAlertsAcknowledged ? 0 : dashboard?.activeAlertCount ?? 0;
     return [
       {
         key: "care",
@@ -794,19 +844,17 @@ export default function ManagerMyPage() {
       {
         key: "pending",
         label: "대기 중 복약 일정",
-        value: dashboardLoading && !dashboard ? "확인 중" : pending > 0 ? `${pending}건` : "모두 등록됨",
-        hint: pending > 0 ? "아직 등록되지 않은 일정이 있습니다." : "모든 이용자 일정이 등록되었습니다.",
+        value: dashboardLoading && !dashboard ? "확인 중" : `${pendingToday}건`,
+        hint: pendingToday > 0 ? "오늘 예정된 복약 일정이 있습니다." : "현재 시간 이후 예정된 일정이 없습니다.",
         accent: "bg-amber-100 text-amber-700",
         badge: "PLAN",
         detail:
-          pending > 0
-            ? "대기 중인 일정이 있습니다. 이용자와 상의 후 일정을 등록해 주세요."
-            : "모든 이용자 일정이 등록된 상태입니다.",
-        items: (dashboard?.clients ?? [])
-                .flatMap((c) => c.medicationPlans ?? [])
-                .filter((p) => p && p.active === false)
+          pendingToday > 0
+            ? "오늘 복약 시간이 아직 남은 이용자를 확인하고 대비하세요."
+            : "오늘 남은 복약 일정이 없습니다.",
+        items: upcomingTodayPlans
                 .slice(0, 5)
-                .map((p) => `비활성 일정 #${p.id ?? ""}`),
+                .map((p) => `${p.time} · ${p.clientName} / ${p.medicineName}`),
       },
       {
         key: "alert",
@@ -825,24 +873,7 @@ export default function ManagerMyPage() {
                 .map((a) => `알림 ${a.alertType ?? ""} / ${a.status ?? ""}`),
       },
     ];
-  }, [dashboard, dashboardLoading]);
-
-  const [activeStat, setActiveStat] = useState<(typeof managerStats)[number] | null>(null);
-  type AlertTab = "overdue" | "chat" | "emergency";
-  const [managerAlertTab, setManagerAlertTab] = useState<AlertTab>("overdue");
-  const [alertPage, setAlertPage] = useState<Record<AlertTab, number>>({
-    overdue: 0,
-    chat: 0,
-    emergency: 0,
-  });
-  const PAGE_SIZE = 10;
-
-  const todayToken = useMemo(() => {
-    const tokens = ["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"];
-    return tokens[new Date().getDay()] ?? "ALL";
-  }, []);
-
-  const todayDateString = useMemo(() => new Date().toISOString().split("T")[0] ?? "", []);
+  }, [dashboard, dashboardLoading, upcomingTodayPlans]);
 
   const emergencyAlerts = useMemo(
     () =>
@@ -916,23 +947,70 @@ export default function ManagerMyPage() {
   }, [manager.userId]);
 
   const currentAlerts = useMemo(() => {
+    if (managerAlertsAcknowledged) {
+      return [];
+    }
     switch (managerAlertTab) {
       case "overdue":
-        return overdueAlerts.length > 0 ? overdueAlerts : ["미복약 알림이 없습니다."];
+        return overdueAlerts;
       case "chat":
-        return chatAlerts.length > 0 ? chatAlerts.map((c) => c.label) : ["메시지가 없습니다."];
+        return chatAlerts.map((c) => c.label);
       case "emergency":
-        return emergencyAlerts.length > 0 ? emergencyAlerts : ["알림이 없습니다."];
+        return emergencyAlerts;
       default:
         return [];
     }
-  }, [managerAlertTab, overdueAlerts, chatAlerts, emergencyAlerts]);
+  }, [managerAlertTab, overdueAlerts, chatAlerts, emergencyAlerts, managerAlertsAcknowledged]);
 
   const pagedAlerts = useMemo(() => {
     const page = alertPage[managerAlertTab] ?? 0;
     const start = page * PAGE_SIZE;
     return currentAlerts.slice(start, start + PAGE_SIZE);
   }, [alertPage, managerAlertTab, currentAlerts]);
+  const managerHasAlerts = currentAlerts.length > 0;
+  const managerAlertEmptyText = useMemo(() => {
+    if (managerAlertsAcknowledged) return "모든 알림을 확인했습니다.";
+    switch (managerAlertTab) {
+      case "overdue":
+        return "미복약 알림이 없습니다.";
+      case "chat":
+        return "미읽 메시지가 없습니다.";
+      case "emergency":
+        return "긴급 알림이 없습니다.";
+      default:
+        return "알림이 없습니다.";
+    }
+  }, [managerAlertTab, managerAlertsAcknowledged]);
+
+  const [ackLoading, setAckLoading] = useState(false);
+  const effectiveOverdueCount = managerAlertsAcknowledged ? 0 : overdueAlerts.length;
+  const effectiveChatCount = managerAlertsAcknowledged ? 0 : chatAlerts.length;
+  const effectiveEmergencyCount = managerAlertsAcknowledged ? 0 : emergencyAlerts.length;
+  const totalPendingManagerAlerts = effectiveOverdueCount + effectiveChatCount + effectiveEmergencyCount;
+
+  const handleManagerAcknowledgeAlerts = useCallback(async () => {
+    if (!manager.userId) return;
+    setAckLoading(true);
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/emergency/alerts/acknowledge-all?managerId=${manager.userId}`,
+        { method: "POST" },
+      );
+      if (!response.ok) {
+        const message = await extractApiError(response, "알림을 확인 처리하지 못했습니다.");
+        throw new Error(message);
+      }
+      setManagerAlertsAcknowledged(true);
+      setAlertPage({ overdue: 0, chat: 0, emergency: 0 });
+      setChatAlerts([]);
+      await loadDashboard();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "알림을 확인 처리하지 못했습니다.";
+      setDashboardError(message);
+    } finally {
+      setAckLoading(false);
+    }
+  }, [manager.userId, loadDashboard]);
 
   const totalPages = useMemo(() => Math.max(1, Math.ceil(currentAlerts.length / PAGE_SIZE)), [currentAlerts.length]);
 
@@ -965,7 +1043,6 @@ export default function ManagerMyPage() {
   );
 
   const toggleFavorite = useCallback((clientId: number) => {
-    if (!manager.userId) return;
     setFavoriteClientIds((prev) => {
       const set = new Set(prev);
       if (set.has(clientId)) {
@@ -2135,12 +2212,22 @@ const WeeklyDayCard = ({
               </p>
             </div>
             <button
-              className="self-start rounded-full border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-700 transition hover:border-indigo-400 hover:text-indigo-800 disabled:cursor-not-allowed disabled:opacity-60"
+              className="flex items-center gap-2 self-start rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-[0_1px_2px_rgba(0,0,0,0.03)] transition hover:-translate-y-[1px] hover:border-indigo-200 hover:text-indigo-800 hover:shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
               disabled={summaryLoadingState}
               onClick={() => loadWeeklySummaryForClient(client.clientId)}
               type="button"
             >
-              {summaryLoadingState ? "갱신 중..." : "주간 현황 새로고침"}
+              <span
+                aria-hidden="true"
+                className={`inline-flex h-6 w-6 items-center justify-center rounded-full border text-[11px] ${
+                  summaryLoadingState
+                    ? "animate-spin border-indigo-100 bg-indigo-50 text-indigo-700"
+                    : "border-slate-200 bg-slate-100 text-slate-600"
+                }`}
+              >
+                ↻
+              </span>
+              <span>{summaryLoadingState ? "갱신 중..." : "주간 현황 새로고침"}</span>
             </button>
           </div>
           <div className="mt-4">
@@ -2216,34 +2303,75 @@ const WeeklyDayCard = ({
                           )} · ${plan.daysOfWeek.map(mapDayToLabel).join(", ")}`}
                         </p>
                       </div>
-                      <div className="flex gap-2">
+                      <div className="flex flex-wrap gap-2 sm:ml-auto sm:justify-end">
                         <button
-                          className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:border-slate-400 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
+                          className={subtleActionButton}
                           onClick={() => beginEditPlan(plan)}
                           type="button"
                         >
+                          <span
+                            aria-hidden="true"
+                            className="flex h-5 w-5 items-center justify-center rounded-full bg-indigo-50 text-[10px] text-indigo-700"
+                          >
+                            <svg
+                              className="h-3.5 w-3.5"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              viewBox="0 0 24 24"
+                            >
+                              <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25z" />
+                              <path d="M14.06 4.69l3.75 3.75" />
+                            </svg>
+                          </span>
                           수정
                         </button>
                         <button
-                          className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:border-slate-400 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
+                          className={`${subtleActionButton} hover:border-rose-200 hover:text-rose-700`}
                           disabled={deleteProcessing[plan.id] === "loading"}
                           onClick={() => handleDeletePlan(client.clientId, plan.id)}
                           type="button"
                         >
+                          <span
+                            aria-hidden="true"
+                            className="flex h-5 w-5 items-center justify-center rounded-full bg-rose-50 text-[10px] text-rose-700"
+                          >
+                            <svg
+                              className="h-3.5 w-3.5"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              viewBox="0 0 24 24"
+                            >
+                              <path d="M5 7h14" />
+                              <path d="M10 11v6" />
+                              <path d="M14 11v6" />
+                              <path d="M6 7l1-3h10l1 3" />
+                              <path d="M5 7h14l-1 14H6L5 7z" />
+                            </svg>
+                          </span>
                           {deleteProcessing[plan.id] === "loading"
                             ? "삭제 중..."
                             : "삭제"}
                         </button>
                       </div>
                     </div>
-                    <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
                       <p className="text-sm text-slate-600">
                         최근 확인:{" "}
                         {latestLog ? `${formatDateTime(latestLog.logTimestamp)}` : "기록 없음"}
                       </p>
-                      <div className="flex gap-2">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
                         <button
-                          className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:border-slate-400 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
+                          className={`${subtleActionButton} ${
+                            plan.active
+                              ? "border-emerald-200 bg-emerald-50 text-emerald-700 hover:border-emerald-300 hover:text-emerald-800"
+                              : ""
+                          }`}
                           onClick={() =>
                             handleUpdatePlan(client.clientId, plan.id, {
                               active: !plan.active,
@@ -2256,16 +2384,52 @@ const WeeklyDayCard = ({
                           }
                           type="button"
                         >
+                          <span
+                            aria-hidden="true"
+                            className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] ${
+                              plan.active
+                                ? "bg-emerald-100 text-emerald-700"
+                                : "bg-slate-100 text-slate-600"
+                            }`}
+                          >
+                            <svg
+                              className="h-3.5 w-3.5"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              viewBox="0 0 24 24"
+                            >
+                              <path d="M5 13l4 4L19 7" />
+                            </svg>
+                          </span>
                           {plan.active ? "비활성화" : "활성화"}
                         </button>
                         <button
-                          className="w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-indigo-300 sm:w-auto"
+                          className={`${primaryActionButton} w-full sm:w-auto`}
                           disabled={logProcessing[plan.id] === "loading"}
                           onClick={() => handleRecordMedication(client.clientId, plan)}
                           type="button"
                         >
-                          {logProcessing[plan.id] === "loading" ? "기록 중..." : "복약 확정"}
-                        </button>
+                          <span
+                            aria-hidden="true"
+                            className="flex h-5 w-5 items-center justify-center rounded-full bg-indigo-500 text-[10px] text-white"
+                          >
+                            <svg
+                              className="h-3.5 w-3.5"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              viewBox="0 0 24 24"
+                            >
+                              <path d="M5 12l5 5 9-9" />
+                            </svg>
+                          </span>
+                            {logProcessing[plan.id] === "loading" ? "기록 중..." : "복약 확정"}
+                          </button>
                       </div>
                     </div>
                     {editingPlanId === plan.id && editingForms[plan.id] && (
@@ -2355,9 +2519,9 @@ const WeeklyDayCard = ({
                             활성화
                           </label>
                         </div>
-                        <div className="flex gap-2">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
                           <button
-                            className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700"
+                            className={primaryActionButton}
                             type="button"
                             onClick={() =>
                               handleUpdatePlan(client.clientId, plan.id, {
@@ -2373,7 +2537,7 @@ const WeeklyDayCard = ({
                             수정 저장
                           </button>
                           <button
-                            className="rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-400"
+                            className={subtleActionButton}
                             type="button"
                             onClick={() => setEditingPlanId(null)}
                           >
@@ -2920,42 +3084,42 @@ const WeeklyDayCard = ({
               {avatarError || avatarMessage}
             </p>
           )}
-          <div className="flex flex-col gap-3">
-            <div className="flex gap-3 pb-2 sm:grid sm:grid-cols-3 sm:gap-3 sm:pb-0">
-              {managerQuickActions.map((action) => {
-                const isActive = activePanel === action.value;
-                return (
-                  <button
-                    key={action.value}
-                    type="button"
-                    onClick={() => setActivePanel(action.value)}
-                    className={`group flex flex-1 min-w-0 flex-col gap-1 rounded-2xl border px-3 py-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow md:h-full sm:px-4 ${
-                      isActive
-                        ? "border-indigo-500 bg-indigo-50/80"
-                        : "border-slate-200 bg-white hover:border-indigo-300"
-                    }`}
-                  >
-                    <span
-                      className={`inline-flex h-8 w-8 items-center justify-center rounded-full text-[0.7rem] font-semibold text-white ${action.accent}`}
+            <div className="flex flex-col gap-3">
+              <div className="flex gap-3 pb-2 sm:grid sm:grid-cols-3 sm:gap-3 sm:pb-0">
+                {managerQuickActions.map((action) => {
+                  const isActive = activePanel === action.value;
+                  return (
+                    <button
+                      key={action.value}
+                      type="button"
+                      onClick={() => setActivePanel(action.value)}
+                      className={`group flex flex-1 min-w-0 flex-col gap-1 rounded-2xl border px-3 py-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow sm:px-4 ${
+                        isActive
+                          ? "border-indigo-500 bg-indigo-50"
+                          : "border-slate-200 bg-white hover:border-indigo-300"
+                      }`}
                     >
-                      {action.label.slice(0, 1)}
-                    </span>
-                    <span className="text-sm font-semibold text-slate-900">
-                      {action.label}
-                    </span>
-                    <span className="text-[11px] leading-tight text-slate-500">
-                      {action.description}
-                    </span>
-                  </button>
-                );
-              })}
+                      <span
+                        className={`inline-flex h-8 w-8 items-center justify-center rounded-full text-[0.7rem] font-semibold text-white ${action.accent}`}
+                      >
+                        {action.label.slice(0, 1)}
+                      </span>
+                      <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                        {action.label}
+                      </span>
+                      <span className="text-xs text-slate-500 dark:text-slate-400">
+                        {action.description}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-          </div>
         </header>
 
         {activePanel === "client" && (
           <>
-            <section className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-indigo-50 p-4 sm:p-6">
+            <section className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-indigo-50 p-4 sm:p-6 dark:border-slate-700 dark:from-slate-800 dark:via-slate-900 dark:to-slate-800">
               <div className="flex flex-col gap-2 border-b border-slate-200 pb-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <h2 className="text-lg font-semibold text-slate-900 sm:text-xl">관리 현황</h2>
@@ -2963,11 +3127,7 @@ const WeeklyDayCard = ({
                     복약 일정, 미처리 알림, 담당 인원을 한눈에 확인하세요.
                   </p>
                 </div>
-                <div className="flex items-center gap-2 rounded-full bg-white px-3 py-1 text-xs font-semibold text-indigo-700 shadow-sm">
-                  <span className="h-2 w-2 rounded-full bg-indigo-500" />
-                  실시간 업데이트
-                </div>
-              </div>
+            </div>
               <div className="mt-4 grid gap-3 sm:grid-cols-3">
                 {managerStats.map((stat) => (
                   <button
@@ -2976,14 +3136,37 @@ const WeeklyDayCard = ({
                     onClick={() => setActiveStat(stat)}
                     className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-white/80 p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow"
                   >
-                    <div className="flex items-center justify-between">
-                      <p className="text-sm font-semibold text-slate-700">{stat.label}</p>
-                      <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${stat.accent}`}>
-                        {stat.badge}
-                      </span>
-                    </div>
-                    <p className="text-2xl font-bold text-slate-900">{stat.value}</p>
-                    <p className="text-xs text-slate-500 leading-relaxed">{stat.hint}</p>
+                    {(() => {
+                      const isAlert = stat.key === "alert";
+                      const pendingAlerts = managerAlertsAcknowledged ? 0 : totalPendingManagerAlerts;
+                      const value = isAlert
+                        ? pendingAlerts > 0
+                          ? `${pendingAlerts}건`
+                          : "없음"
+                        : stat.value;
+                      const hint = isAlert
+                        ? pendingAlerts > 0
+                          ? "즉시 확인이 필요합니다."
+                          : "미처리 알림이 없습니다."
+                        : stat.hint;
+                      const accent = isAlert
+                        ? pendingAlerts > 0
+                          ? "bg-rose-100 text-rose-700"
+                          : "bg-emerald-100 text-emerald-700"
+                        : stat.accent;
+                      return (
+                        <>
+                          <div className="flex items-center justify-between">
+                            <p className="text-sm font-semibold text-slate-700">{stat.label}</p>
+                            <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${accent}`}>
+                              {stat.badge}
+                            </span>
+                          </div>
+                          <p className="text-2xl font-bold text-slate-900">{value}</p>
+                          <p className="text-xs text-slate-500 leading-relaxed">{hint}</p>
+                        </>
+                      );
+                    })()}
                   </button>
                 ))}
               </div>
@@ -2994,100 +3177,118 @@ const WeeklyDayCard = ({
                     onClick={() => setActiveStat(null)}
                     role="presentation"
                   />
-                  <div className="relative w-full max-w-2xl rounded-2xl border border-slate-200 bg-white shadow-2xl">
-                    <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-5 py-4 sm:px-6">
+                  <div className="relative w-full max-w-2xl rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-800">
+                    <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-5 py-4 dark:border-slate-700 sm:px-6">
                       <div className="space-y-1">
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-indigo-600">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-indigo-600 dark:text-indigo-200">
                           관리 현황
                         </p>
-                        <h3 className="text-xl font-bold text-slate-900 sm:text-2xl">
+                        <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100 sm:text-2xl">
                           {activeStat.label}
                         </h3>
-                        <p className="text-sm text-slate-600">{activeStat.detail}</p>
+                        <p className="text-sm text-slate-600 dark:text-slate-300">{activeStat.detail}</p>
                       </div>
                       <button
-                        className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600 transition hover:border-indigo-300 hover:text-indigo-700"
+                        className="text-xs font-semibold text-slate-500 transition hover:text-slate-700 dark:text-slate-300"
                         onClick={() => setActiveStat(null)}
                         type="button"
                         aria-label="상세 닫기"
                       >
-                        ✕
+                        닫기 ✕
                       </button>
                     </div>
 
                     <div className="space-y-3 p-5 sm:p-6">
                       {activeStat.key === "alert" ? (
                         <>
-                          <div className="flex flex-wrap gap-2">
-                            {[
-                              { key: "overdue", label: "미복약", count: overdueAlerts.length },
-                              { key: "chat", label: "메시지", count: chatAlerts.length },
-                              { key: "emergency", label: "긴급 호출", count: emergencyAlerts.length },
-                            ].map((tab) => {
-                              const active = managerAlertTab === tab.key;
-                              return (
-                                <button
-                                  key={tab.key}
-                                  type="button"
-                                  onClick={() => setManagerAlertTab(tab.key as AlertTab)}
-                                  className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
-                                    active
-                                      ? "border-indigo-500 bg-indigo-50 text-indigo-700"
-                                      : "border-slate-200 bg-white text-slate-600 hover:border-indigo-300"
-                                  }`}
-                                >
-                                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-indigo-700">
-                                    {tab.count}
-                                  </span>
-                                  {tab.label}
-                                </button>
-                              );
-                            })}
+                          <div className="flex flex-wrap items-center gap-2">
+                            <div className="flex flex-wrap gap-2">
+                              {[
+                                { key: "overdue", label: "미복약", count: effectiveOverdueCount },
+                                { key: "chat", label: "메시지", count: effectiveChatCount },
+                                { key: "emergency", label: "긴급 호출", count: effectiveEmergencyCount },
+                              ].map((tab) => {
+                                const active = managerAlertTab === tab.key;
+                                return (
+                                  <button
+                                    key={tab.key}
+                                    type="button"
+                                    onClick={() => setManagerAlertTab(tab.key as AlertTab)}
+                                    className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                                      active
+                                        ? "border-indigo-500 bg-indigo-50 text-indigo-700"
+                                        : "border-slate-200 bg-white text-slate-600 hover:border-indigo-300"
+                                    }`}
+                                  >
+                                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-indigo-700">
+                                      {tab.count}
+                                    </span>
+                                    {tab.label}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                            <button
+                              type="button"
+                              className="ml-auto inline-flex h-10 items-center justify-center rounded-md border border-slate-200 px-3 text-xs font-semibold text-slate-700 transition hover:border-indigo-300 hover:text-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+                              disabled={ackLoading || managerAlertsAcknowledged || totalPendingManagerAlerts === 0}
+                              onClick={handleManagerAcknowledgeAlerts}
+                            >
+                              {ackLoading ? "처리 중..." : "전부 확인"}
+                            </button>
                           </div>
                           <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3">
-                            <ul className="space-y-2">
-                              {pagedAlerts.map((item, idx) => {
-                                const absoluteIdx = (alertPage[managerAlertTab] ?? 0) * PAGE_SIZE + idx;
-                                return (
-                                  <li
-                                    key={`${managerAlertTab}-item-${idx}`}
-                                    className="flex items-start gap-2 rounded-lg bg-white px-3 py-2 text-sm text-slate-800 shadow-sm transition hover:-translate-y-0.5 hover:shadow"
-                                    onClick={() => {
-                                      if (managerAlertTab === "chat" && chatAlerts[absoluteIdx]) {
-                                        const target = chatAlerts[absoluteIdx];
-                                        setClientModalClientId(null);
-                                        setActivePanel("chat");
-                                        setTimeout(() => {
-                                          const el = document.querySelector(`[data-room-id='${target.roomId}']`);
-                                          if (el instanceof HTMLElement) {
-                                            el.scrollIntoView({ behavior: "smooth", block: "center" });
-                                          }
-                                        }, 100);
-                                      }
-                                      if (managerAlertTab === "emergency") {
-                                        const label = item;
-                                        const roomId = label.match(/room (\\d+)/i)?.[1];
-                                        if (roomId) {
+                            {managerHasAlerts ? (
+                              <ul className="space-y-2">
+                                {pagedAlerts.map((item, idx) => {
+                                  const absoluteIdx = (alertPage[managerAlertTab] ?? 0) * PAGE_SIZE + idx;
+                                  return (
+                                    <li
+                                      key={`${managerAlertTab}-item-${idx}`}
+                                      className="flex items-start gap-2 rounded-lg bg-white px-3 py-2 text-sm text-slate-800 shadow-sm transition hover:-translate-y-0.5 hover:shadow"
+                                      onClick={() => {
+                                        if (managerAlertTab === "chat" && chatAlerts[absoluteIdx]) {
+                                          const target = chatAlerts[absoluteIdx];
                                           setClientModalClientId(null);
                                           setActivePanel("chat");
                                           setTimeout(() => {
-                                            const el = document.querySelector(`[data-room-id='${roomId}']`);
+                                            const el = document.querySelector(`[data-room-id='${target.roomId}']`);
                                             if (el instanceof HTMLElement) {
                                               el.scrollIntoView({ behavior: "smooth", block: "center" });
                                             }
                                           }, 100);
                                         }
-                                      }
-                                    }}
-                                    role="button"
-                                  >
-                                    <span className="mt-1 inline-block h-2 w-2 rounded-full bg-indigo-400" />
-                                    <span className="leading-relaxed">{item}</span>
-                                  </li>
-                                );
-                              })}
-                            </ul>
-                            {totalPages > 1 && (
+                                        if (managerAlertTab === "emergency") {
+                                          const label = item;
+                                          const roomId = label.match(/room (\\d+)/i)?.[1];
+                                          if (roomId) {
+                                            setClientModalClientId(null);
+                                            setActivePanel("chat");
+                                            setTimeout(() => {
+                                              const el = document.querySelector(`[data-room-id='${roomId}']`);
+                                              if (el instanceof HTMLElement) {
+                                                el.scrollIntoView({ behavior: "smooth", block: "center" });
+                                              }
+                                            }, 100);
+                                          }
+                                        }
+                                      }}
+                                      role="button"
+                                    >
+                                      <span className="mt-0.5 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-indigo-100 px-2 text-[10px] font-bold text-indigo-700">
+                                        {(alertPage[managerAlertTab] ?? 0) * PAGE_SIZE + idx + 1}
+                                      </span>
+                                      <span className="leading-relaxed">{item}</span>
+                                    </li>
+                                  );
+                                })}
+                              </ul>
+                            ) : (
+                              <div className="flex items-center justify-center rounded-lg bg-white px-3 py-3 text-sm text-slate-500">
+                                {managerAlertEmptyText}
+                              </div>
+                            )}
+                            {managerHasAlerts && totalPages > 1 && (
                               <div className="mt-3 flex items-center justify-between text-xs text-slate-600">
                                 <span>
                                   페이지 {(alertPage[managerAlertTab] ?? 0) + 1} / {totalPages}
@@ -3122,30 +3323,68 @@ const WeeklyDayCard = ({
                                   >
                                     다음
                                   </button>
+                                  </div>
                                 </div>
+                              )}
+                            </div>
+                          </>
+                        ) : (
+                        activeStat.key === "pending" ? (
+                          <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3">
+                            <div className="flex items-center justify-between">
+                              <p className="text-sm font-semibold text-slate-800">
+                                오늘 예정된 복약 (시간 전) {upcomingTodayPlans.length}건
+                              </p>
+                              <span className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
+                                pending
+                              </span>
+                            </div>
+                            {upcomingTodayPlans.length === 0 ? (
+                              <p className="mt-2 text-sm text-slate-600">현재 시간 이후에 예정된 복약 일정이 없습니다.</p>
+                            ) : (
+                              <div className="mt-3 divide-y divide-slate-100 overflow-hidden rounded-lg border border-white bg-white shadow-sm">
+                                {upcomingTodayPlans.map((item, idx) => (
+                                  <div
+                                    key={`upcoming-${item.planId}-${idx}`}
+                                    className="flex flex-col gap-2 px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
+                                  >
+                                    <div className="flex items-center gap-3">
+                                      <span className="flex h-10 w-14 items-center justify-center rounded-md bg-indigo-50 text-sm font-semibold text-indigo-700">
+                                        {item.time}
+                                      </span>
+                                      <div className="leading-tight">
+                                        <p className="text-sm font-semibold text-slate-900">{item.clientName}</p>
+                                        <p className="text-xs text-slate-600">{item.medicineName}</p>
+                                      </div>
+                                    </div>
+                                    <span className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 sm:justify-end">
+                                      예정 · 오늘
+                                    </span>
+                                  </div>
+                                ))}
                               </div>
                             )}
                           </div>
-                        </>
-                      ) : (
-                        activeStat.items &&
-                        activeStat.items.length > 0 && (
-                          <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3">
-                            <p className="text-sm font-semibold text-slate-800">주요 항목 {activeStat.items.length}건</p>
-                            <ul className="mt-2 space-y-2">
-                              {activeStat.items.map((item, idx) => (
-                                <li
-                                  key={`${activeStat.key}-item-${idx}`}
-                                  className="flex items-start gap-2 rounded-lg bg-white px-3 py-2 text-sm text-slate-800 shadow-sm"
-                                >
-                                  <span className="mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-indigo-100 text-[11px] font-semibold text-indigo-700">
-                                    {idx + 1}
-                                  </span>
-                                  <span className="leading-relaxed">{item}</span>
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
+                        ) : (
+                          activeStat.items &&
+                          activeStat.items.length > 0 && (
+                            <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3">
+                              <p className="text-sm font-semibold text-slate-800">주요 항목 {activeStat.items.length}건</p>
+                              <ul className="mt-2 space-y-2">
+                                {activeStat.items.map((item, idx) => (
+                                  <li
+                                    key={`${activeStat.key}-item-${idx}`}
+                                    className="flex items-start gap-2 rounded-lg bg-white px-3 py-2 text-sm text-slate-800 shadow-sm"
+                                  >
+                                    <span className="mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-indigo-100 text-[11px] font-semibold text-indigo-700">
+                                      {idx + 1}
+                                    </span>
+                                    <span className="leading-relaxed">{item}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )
                         )
                       )}
                     </div>
@@ -3539,12 +3778,54 @@ const WeeklyDayCard = ({
       )}
 
       {activePanel === "chat" && (
-        <section>
-          <MyChatRooms
-            role="MANAGER"
-            userId={manager.userId}
-            managerProfileId={managerProfileId}
-          />
+        <section className="space-y-4">
+          <div className="flex gap-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+            <button
+              type="button"
+              onClick={() => setChatView("rooms")}
+              className={`flex-1 rounded-lg px-3 py-2 text-sm font-semibold transition ${
+                chatView === "rooms"
+                  ? "bg-indigo-600 text-white shadow"
+                  : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+              }`}
+            >
+              채팅방 보기
+            </button>
+            <button
+              type="button"
+              onClick={() => setChatView("search")}
+              className={`flex-1 rounded-lg px-3 py-2 text-sm font-semibold transition ${
+                chatView === "search"
+                  ? "bg-indigo-600 text-white shadow"
+                  : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+              }`}
+            >
+              클라이언트 찾기
+            </button>
+          </div>
+
+          {chatView === "search" ? (
+            <ChatClientPicker
+              managerId={managerProfileId ?? manager.userId}
+              assignedClients={(dashboard?.clients ?? []).map((c) => ({
+                clientId: c.clientId,
+                name: c.clientName,
+                email: c.email,
+                profileImageUrl: c.profileImageUrl,
+              }))}
+              onChatCreated={() => {
+                setChatRefreshToken((prev) => prev + 1);
+                setChatView("rooms");
+              }}
+            />
+          ) : (
+            <MyChatRooms
+              role="MANAGER"
+              userId={manager.userId}
+              managerProfileId={managerProfileId}
+              refreshToken={chatRefreshToken}
+            />
+          )}
         </section>
       )}
       </main>
@@ -3600,19 +3881,9 @@ const WeeklyDayCard = ({
               <button
                 type="button"
                 onClick={closeClientModal}
-                className="absolute right-4 top-4 z-10 rounded-full border border-slate-200 bg-white/90 p-2 text-slate-500 transition hover:border-slate-300 hover:text-slate-700"
+                className="absolute right-4 top-4 z-10 text-sm font-semibold text-slate-500 transition hover:text-slate-700"
               >
-                <span className="sr-only">창 닫기</span>
-                <svg
-                  aria-hidden="true"
-                  className="h-4 w-4"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth={2}
-                  viewBox="0 0 24 24"
-                >
-                  <path d="M6 6l12 12M18 6l-12 12" strokeLinecap="round" />
-                </svg>
+                닫기 ✕
               </button>
               <div className="modal-scroll max-h-[90vh] overflow-y-auto p-4 sm:p-6">
                 <div className="space-y-4 pr-2 sm:pr-4">

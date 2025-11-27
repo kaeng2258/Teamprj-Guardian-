@@ -38,6 +38,8 @@ export default function MyChatRooms({
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [profileImages, setProfileImages] = useState<Record<number, string>>({});
+  const [leaving, setLeaving] = useState<number | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const defaultProfileImage =
     resolveProfileImageUrl("/image/픽토그램.png") || "/image/픽토그램.png";
 
@@ -123,6 +125,35 @@ export default function MyChatRooms({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [threads, role]);
 
+  const effectiveUserId =
+    role === "MANAGER" ? managerProfileId ?? userId ?? null : userId ?? null;
+
+  const handleLeaveRoom = async (roomId: number) => {
+    if (!effectiveUserId) {
+      setActionError("사용자 정보를 확인할 수 없습니다.");
+      return;
+    }
+    if (!window.confirm("이 채팅방에서 나가시겠습니까?")) return;
+    setLeaving(roomId);
+    setActionError(null);
+    try {
+      const res = await fetch(
+        `${API_BASE_URL}/api/chat/rooms/${roomId}?userId=${encodeURIComponent(
+          String(effectiveUserId),
+        )}`,
+        { method: "DELETE" },
+      );
+      if (!res.ok) {
+        throw new Error("채팅방에서 나갈 수 없습니다.");
+      }
+      setThreads((prev) => prev.filter((t) => t.roomId !== roomId));
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : "채팅방에서 나갈 수 없습니다.");
+    } finally {
+      setLeaving(null);
+    }
+  };
+
   return (
     <section className="flex flex-col gap-4 rounded-2xl border border-sky-200 bg-gradient-to-br from-sky-50 via-white to-emerald-50/70 p-6 shadow-sm dark:border-slate-700 dark:from-slate-800 dark:via-slate-900 dark:to-slate-800">
       <div className="flex items-center justify-between gap-3">
@@ -131,9 +162,6 @@ export default function MyChatRooms({
           <p className="mt-1 text-sm text-slate-600">
             현재 배정된 클라이언트와의 대화를 한눈에 확인하세요.
           </p>
-        </div>
-        <div className="hidden rounded-full border border-sky-200 bg-white px-3 py-1 text-xs font-semibold text-sky-700 sm:block">
-          실시간
         </div>
       </div>
 
@@ -186,16 +214,11 @@ export default function MyChatRooms({
                         alt={`${displayName} 프로필`}
                         className="h-full w-full object-cover"
                       />
-                      <span className="pointer-events-none absolute inset-0 rounded-full ring-1 ring-white/80 ring-offset-1" />
-                    </span>
-                    <div className="flex flex-col">
-                      <p className="text-sm font-semibold text-slate-900">
-                        {displayName}
-                      </p>
-                      <p className="text-xs text-slate-500">
-                        방 번호 #{roomId}
-                      </p>
-                    </div>
+                    <span className="pointer-events-none absolute inset-0 rounded-full ring-1 ring-white/80 ring-offset-1" />
+                  </span>
+                    <p className="text-sm font-semibold text-slate-900">
+                      {displayName}
+                    </p>
                   </div>
                   <div className="flex items-center gap-2">
                     {unread && (
@@ -214,12 +237,25 @@ export default function MyChatRooms({
                   <p className="line-clamp-1 text-[13px] text-slate-700">
                     {lastSnippet || "최근 메시지가 없습니다."}
                   </p>
+                  <button
+                    type="button"
+                    className="shrink-0 rounded-full border border-slate-200 px-3 py-1 text-[11px] font-semibold text-slate-600 transition hover:border-rose-300 hover:text-rose-600 disabled:cursor-not-allowed disabled:opacity-60"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      void handleLeaveRoom(roomId);
+                    }}
+                    disabled={leaving === roomId}
+                  >
+                    {leaving === roomId ? "나가는 중..." : "나가기"}
+                  </button>
                 </div>
               </Link>
             </li>
           );
         })}
       </ul>
+      {actionError && <p className="text-sm text-red-600">{actionError}</p>}
     </section>
   );
 }

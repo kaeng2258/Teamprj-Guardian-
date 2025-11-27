@@ -618,15 +618,21 @@ export default function ClientProfileEditPage() {
                   type="button"
                   onClick={() => void handleTogglePush()}
                   disabled={pushStatus === "requesting"}
-                  className={`relative inline-flex h-7 w-14 items-center rounded-full border transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${
-                    pushEnabled ? "border-indigo-500 bg-indigo-600" : "border-slate-200 bg-slate-200 dark:border-slate-600 dark:bg-slate-700"
+                  className={`relative inline-flex h-9 w-24 items-center justify-between rounded-full border px-2 text-xs font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${
+                    pushEnabled
+                      ? "border-indigo-500 bg-indigo-600 text-white"
+                      : "border-slate-200 bg-slate-200 text-slate-600 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200"
                   } ${pushStatus === "requesting" ? "opacity-60" : "hover:shadow-sm"}`}
                   aria-pressed={pushEnabled}
                   aria-label="모바일 푸시 알림 설정"
                 >
+                  <span className="flex items-center gap-1">
+                    <span aria-hidden="true">🔔</span>
+                    <span>{pushEnabled ? "ON" : "OFF"}</span>
+                  </span>
                   <span
-                    className={`absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow transition ${
-                      pushEnabled ? "translate-x-7 bg-indigo-50" : "translate-x-0"
+                    className={`absolute left-1 top-1 h-7 w-7 rounded-full bg-white shadow transition ${
+                      pushEnabled ? "translate-x-12 bg-indigo-50" : "translate-x-0"
                     }`}
                   />
                   <span className="sr-only">{pushEnabled ? "푸시 켜짐" : "푸시 꺼짐"}</span>
@@ -642,17 +648,21 @@ export default function ClientProfileEditPage() {
                 <button
                   type="button"
                   onClick={toggleTheme}
-                  className={`relative inline-flex h-7 w-14 items-center rounded-full border transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${
+                  className={`relative inline-flex h-9 w-24 items-center justify-between rounded-full border px-2 text-xs font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${
                     theme === "dark"
-                      ? "border-indigo-500 bg-indigo-600"
-                      : "border-slate-300 bg-slate-200 dark:border-slate-600 dark:bg-slate-700"
+                      ? "border-indigo-500 bg-indigo-600 text-white"
+                      : "border-slate-300 bg-slate-200 text-slate-600 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200"
                   }`}
                   aria-pressed={theme === "dark"}
                   aria-label="다크 모드 토글"
                 >
+                  <span className="flex items-center gap-1">
+                    <span aria-hidden="true">{theme === "dark" ? "🌙" : "☀️"}</span>
+                    <span>{theme === "dark" ? "Dark" : "Light"}</span>
+                  </span>
                   <span
-                    className={`absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow transition ${
-                      theme === "dark" ? "translate-x-7 bg-indigo-50" : "translate-x-0"
+                    className={`absolute left-1 top-1 h-7 w-7 rounded-full bg-white shadow transition ${
+                      theme === "dark" ? "translate-x-12 bg-indigo-50" : "translate-x-0"
                     }`}
                   />
                 </button>
@@ -665,17 +675,21 @@ export default function ClientProfileEditPage() {
                 <button
                   type="button"
                   onClick={toggleTextSize}
-                  className={`relative inline-flex h-7 w-14 items-center rounded-full border transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${
+                  className={`relative inline-flex h-9 w-24 items-center justify-between rounded-full border px-2 text-xs font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${
                     textSize === "large"
-                      ? "border-indigo-500 bg-indigo-600"
-                      : "border-slate-300 bg-slate-200 dark:border-slate-600 dark:bg-slate-700"
+                      ? "border-indigo-500 bg-indigo-600 text-white"
+                      : "border-slate-300 bg-slate-200 text-slate-600 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200"
                   }`}
                   aria-pressed={textSize === "large"}
                   aria-label="큰 글씨 모드 토글"
                 >
+                  <span className="flex items-center gap-1">
+                    <span aria-hidden="true">A</span>
+                    <span>{textSize === "large" ? "크게" : "보통"}</span>
+                  </span>
                   <span
-                    className={`absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow transition ${
-                      textSize === "large" ? "translate-x-7 bg-indigo-50" : "translate-x-0"
+                    className={`absolute left-1 top-1 h-7 w-7 rounded-full bg-white shadow transition ${
+                      textSize === "large" ? "translate-x-12 bg-indigo-50" : "translate-x-0"
                     }`}
                   />
                 </button>

@@ -50,6 +50,7 @@ const buildKey = (m: ChatMessage) => {
 // --------- 컴포넌트 ---------
 export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
   const router = useRouter();
+  const [resolvedMe, setResolvedMe] = useState(me);
   // ===== 채팅 관련 =====
   const [thread, setThread] = useState<ThreadInfo | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
@@ -82,6 +83,11 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
     seen.current = s;
   }, [initialMessages]);
 
+  // me prop이 변경되면 내부 상태도 동기화
+  useEffect(() => {
+    setResolvedMe(me);
+  }, [me]);
+
   // 채팅방 정보 로딩 (클라이언트/매니저 이름 포함)
   useEffect(() => {
     if (!roomId) return;
@@ -96,6 +102,44 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
       }
     })();
   }, [roomId]);
+
+  // 내 정보 보정: 로그인 정보나 스레드 정보로 id/name을 확보해 버튼이 비활성화되지 않도록 함
+  useEffect(() => {
+    if (!thread) return;
+    const storedId =
+      typeof window !== "undefined"
+        ? Number(window.localStorage.getItem("userId") ?? 0)
+        : 0;
+    const storedRole =
+      typeof window !== "undefined"
+        ? window.localStorage.getItem("userRole")
+        : null;
+    const storedName =
+      (typeof window !== "undefined" && window.localStorage.getItem("userName")) ||
+      (typeof window !== "undefined" && window.localStorage.getItem("userEmail")) ||
+      "";
+
+    const candidateId =
+      (storedId && Number.isFinite(storedId) ? storedId : 0) ||
+      (storedRole === "MANAGER" ? thread.managerId : 0) ||
+      (storedRole === "CLIENT" ? thread.clientId : 0);
+
+    if (candidateId && candidateId !== resolvedMe.id) {
+      const nameFromThread =
+        candidateId === thread.managerId
+          ? thread.managerName
+          : candidateId === thread.clientId
+          ? thread.clientName
+          : null;
+      const nextName =
+        nameFromThread && nameFromThread.trim().length > 0
+          ? nameFromThread
+          : storedName && storedName.trim().length > 0
+          ? storedName
+          : resolvedMe.name || `사용자#${candidateId}`;
+      setResolvedMe({ id: candidateId, name: nextName });
+    }
+  }, [thread, resolvedMe.id, resolvedMe.name]);
 
   // 프로필 이미지 보강 로딩
   useEffect(() => {
@@ -133,7 +177,7 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
 
   const { connected, sendMessage } = useStomp({
     roomId,
-    me,
+    me: resolvedMe,
     onMessage: onMessageHandler,
   });
 
@@ -193,8 +237,8 @@ useEffect(() => {
   };
 
   const displayMeName = useMemo(
-    () => resolveName(me.id, me.name),
-    [thread, me.id, me.name]
+    () => resolveName(resolvedMe.id, resolvedMe.name),
+    [thread, resolvedMe.id, resolvedMe.name]
   );
   const resolveAvatar = useCallback(
     (senderId: number) => {
@@ -215,7 +259,7 @@ useEffect(() => {
   const handleSend = (e: React.FormEvent) => {
     e.preventDefault();
     const text = input.trim();
-    if (!text || !me.id) return;
+    if (!text || !resolvedMe.id) return;
     setInput("");
     // 실제 메시지 추가는 STOMP/폴링에서만 처리 (중복 방지)
     sendMessage(text);

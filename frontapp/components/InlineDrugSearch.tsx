@@ -43,17 +43,11 @@ export function InlineDrugSearch() {
     <section className="flex flex-col gap-5 rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 via-white to-sky-50 p-6 shadow-sm dark:border-slate-700 dark:from-slate-800 dark:via-slate-900 dark:to-slate-800">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-emerald-700">
-            약품 검색
-          </p>
-          <h2 className="text-xl font-bold text-slate-900">e약은요 검색</h2>
+          <p className="text-xl font-bold text-slate-900">e약은요 검색</p>
           <p className="mt-1 text-sm text-slate-600">
             약품명·성분명을 입력하면 상세 정보를 빠르게 확인할 수 있습니다.
           </p>
         </div>
-        <span className="hidden rounded-full border border-emerald-100 bg-white px-3 py-1 text-[11px] font-semibold text-emerald-700 shadow-sm sm:inline-flex">
-          실시간 조회
-        </span>
       </div>
 
       {/* 검색폼 */}

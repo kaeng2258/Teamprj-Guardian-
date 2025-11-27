@@ -782,6 +782,7 @@ export default function ManagerMyPage() {
     chat: 0,
     emergency: 0,
   });
+  const [managerAlertsAcknowledged, setManagerAlertsAcknowledged] = useState(false);
   const PAGE_SIZE = 10;
 
   const todayToken = useMemo(() => {
@@ -818,7 +819,7 @@ export default function ManagerMyPage() {
   const managerStats = useMemo(() => {
     const total = dashboard?.clients.length ?? 0;
     const pendingToday = upcomingTodayPlans.length;
-    const alerts = dashboard?.activeAlertCount ?? 0;
+    const alerts = managerAlertsAcknowledged ? 0 : dashboard?.activeAlertCount ?? 0;
     return [
       {
         key: "care",
@@ -941,6 +942,9 @@ export default function ManagerMyPage() {
   }, [manager.userId]);
 
   const currentAlerts = useMemo(() => {
+    if (managerAlertsAcknowledged) {
+      return ["모든 알림을 확인했습니다."];
+    }
     switch (managerAlertTab) {
       case "overdue":
         return overdueAlerts.length > 0 ? overdueAlerts : ["미복약 알림이 없습니다."];
@@ -951,13 +955,43 @@ export default function ManagerMyPage() {
       default:
         return [];
     }
-  }, [managerAlertTab, overdueAlerts, chatAlerts, emergencyAlerts]);
+  }, [managerAlertTab, overdueAlerts, chatAlerts, emergencyAlerts, managerAlertsAcknowledged]);
 
   const pagedAlerts = useMemo(() => {
     const page = alertPage[managerAlertTab] ?? 0;
     const start = page * PAGE_SIZE;
     return currentAlerts.slice(start, start + PAGE_SIZE);
   }, [alertPage, managerAlertTab, currentAlerts]);
+
+  const [ackLoading, setAckLoading] = useState(false);
+  const effectiveOverdueCount = managerAlertsAcknowledged ? 0 : overdueAlerts.length;
+  const effectiveChatCount = managerAlertsAcknowledged ? 0 : chatAlerts.length;
+  const effectiveEmergencyCount = managerAlertsAcknowledged ? 0 : emergencyAlerts.length;
+  const totalPendingManagerAlerts = effectiveOverdueCount + effectiveChatCount + effectiveEmergencyCount;
+
+  const handleManagerAcknowledgeAlerts = useCallback(async () => {
+    if (!manager.userId) return;
+    setAckLoading(true);
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/emergency/alerts/acknowledge-all?managerId=${manager.userId}`,
+        { method: "POST" },
+      );
+      if (!response.ok) {
+        const message = await extractApiError(response, "알림을 확인 처리하지 못했습니다.");
+        throw new Error(message);
+      }
+      setManagerAlertsAcknowledged(true);
+      setAlertPage({ overdue: 0, chat: 0, emergency: 0 });
+      setChatAlerts([]);
+      await loadDashboard();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "알림을 확인 처리하지 못했습니다.";
+      setDashboardError(message);
+    } finally {
+      setAckLoading(false);
+    }
+  }, [manager.userId, loadDashboard]);
 
   const totalPages = useMemo(() => Math.max(1, Math.ceil(currentAlerts.length / PAGE_SIZE)), [currentAlerts.length]);
 
@@ -2988,11 +3022,7 @@ const WeeklyDayCard = ({
                     복약 일정, 미처리 알림, 담당 인원을 한눈에 확인하세요.
                   </p>
                 </div>
-                <div className="flex items-center gap-2 rounded-full bg-white px-3 py-1 text-xs font-semibold text-indigo-700 shadow-sm dark:bg-slate-800 dark:text-indigo-100 dark:border dark:border-slate-700">
-                  <span className="h-2 w-2 rounded-full bg-indigo-500 dark:bg-indigo-300" />
-                  실시간 업데이트
-                </div>
-              </div>
+            </div>
               <div className="mt-4 grid gap-3 sm:grid-cols-3">
                 {managerStats.map((stat) => (
                   <button
@@ -3043,31 +3073,41 @@ const WeeklyDayCard = ({
                     <div className="space-y-3 p-5 sm:p-6">
                       {activeStat.key === "alert" ? (
                         <>
-                          <div className="flex flex-wrap gap-2">
-                            {[
-                              { key: "overdue", label: "미복약", count: overdueAlerts.length },
-                              { key: "chat", label: "메시지", count: chatAlerts.length },
-                              { key: "emergency", label: "긴급 호출", count: emergencyAlerts.length },
-                            ].map((tab) => {
-                              const active = managerAlertTab === tab.key;
-                              return (
-                                <button
-                                  key={tab.key}
-                                  type="button"
-                                  onClick={() => setManagerAlertTab(tab.key as AlertTab)}
-                                  className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
-                                    active
-                                      ? "border-indigo-500 bg-indigo-50 text-indigo-700"
-                                      : "border-slate-200 bg-white text-slate-600 hover:border-indigo-300"
-                                  }`}
-                                >
-                                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-indigo-700">
-                                    {tab.count}
-                                  </span>
-                                  {tab.label}
-                                </button>
-                              );
-                            })}
+                          <div className="flex flex-wrap items-center gap-2">
+                            <div className="flex flex-wrap gap-2">
+                              {[
+                                { key: "overdue", label: "미복약", count: effectiveOverdueCount },
+                                { key: "chat", label: "메시지", count: effectiveChatCount },
+                                { key: "emergency", label: "긴급 호출", count: effectiveEmergencyCount },
+                              ].map((tab) => {
+                                const active = managerAlertTab === tab.key;
+                                return (
+                                  <button
+                                    key={tab.key}
+                                    type="button"
+                                    onClick={() => setManagerAlertTab(tab.key as AlertTab)}
+                                    className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                                      active
+                                        ? "border-indigo-500 bg-indigo-50 text-indigo-700"
+                                        : "border-slate-200 bg-white text-slate-600 hover:border-indigo-300"
+                                    }`}
+                                  >
+                                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-indigo-700">
+                                      {tab.count}
+                                    </span>
+                                    {tab.label}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                            <button
+                              type="button"
+                              className="ml-auto inline-flex h-10 items-center justify-center rounded-md border border-slate-200 px-3 text-xs font-semibold text-slate-700 transition hover:border-indigo-300 hover:text-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+                              disabled={ackLoading || managerAlertsAcknowledged || totalPendingManagerAlerts === 0}
+                              onClick={handleManagerAcknowledgeAlerts}
+                            >
+                              {ackLoading ? "처리 중..." : "전부 확인"}
+                            </button>
                           </div>
                           <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3">
                             <ul className="space-y-2">
@@ -3149,12 +3189,12 @@ const WeeklyDayCard = ({
                                   >
                                     다음
                                   </button>
+                                  </div>
                                 </div>
-                              </div>
-                            )}
-                          </div>
-                        </>
-                      ) : (
+                              )}
+                            </div>
+                          </>
+                        ) : (
                         activeStat.key === "pending" ? (
                           <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3">
                             <div className="flex items-center justify-between">

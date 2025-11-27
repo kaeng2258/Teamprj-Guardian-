@@ -714,6 +714,7 @@ export default function ClientMyPage() {
     chat: 0,
     emergency: 0,
   });
+  const [alertsAcknowledged, setAlertsAcknowledged] = useState(false);
   const PAGE_SIZE = 10;
   const [emergencyAlerts, setEmergencyAlerts] = useState<string[]>([]);
   const [emergencyLoaded, setEmergencyLoaded] = useState(false);
@@ -743,6 +744,11 @@ export default function ClientMyPage() {
     [],
   );
 
+  const effectiveOverdueCount = alertsAcknowledged ? 0 : overdueAlerts.length;
+  const effectiveChatCount = alertsAcknowledged ? 0 : chatAlerts.length;
+  const effectiveEmergencyCount = alertsAcknowledged ? 0 : emergencyAlerts.length;
+  const totalPendingAlerts = effectiveOverdueCount + effectiveChatCount + effectiveEmergencyCount;
+
   useEffect(() => {
     if (alertTab !== "emergency" || emergencyLoaded || !client.userId) return;
     const load = async () => {
@@ -768,6 +774,9 @@ export default function ClientMyPage() {
   }, [alertTab, emergencyLoaded, client.userId]);
 
   const currentAlerts = useMemo(() => {
+    if (alertsAcknowledged) {
+      return ["모든 알림을 확인했습니다."];
+    }
     switch (alertTab) {
       case "overdue":
         return overdueAlerts;
@@ -778,13 +787,18 @@ export default function ClientMyPage() {
       default:
         return [];
     }
-  }, [alertTab, overdueAlerts, chatAlerts, emergencyAlerts, emergencyError]);
+  }, [alertTab, overdueAlerts, chatAlerts, emergencyAlerts, emergencyError, alertsAcknowledged]);
 
   const pagedAlerts = useMemo(() => {
     const page = alertPage[alertTab] ?? 0;
     const start = page * PAGE_SIZE;
     return currentAlerts.slice(start, start + PAGE_SIZE);
   }, [alertPage, alertTab, currentAlerts]);
+
+  const handleAcknowledgeAlerts = useCallback(() => {
+    setAlertsAcknowledged(true);
+    setAlertPage({ overdue: 0, chat: 0, emergency: 0 });
+  }, []);
 
   const totalPages = useMemo(() => Math.max(1, Math.ceil(currentAlerts.length / PAGE_SIZE)), [currentAlerts.length]);
 
@@ -1233,9 +1247,9 @@ export default function ClientMyPage() {
                     <>
                       <div className="flex flex-wrap gap-2">
                         {[
-                          { key: "overdue", label: "미복약", count: overdueAlerts.length },
-                          { key: "chat", label: "미읽 메세지", count: chatAlerts.length },
-                          { key: "emergency", label: "긴급 호출", count: emergencyAlerts.length },
+                          { key: "overdue", label: "미복약", count: effectiveOverdueCount },
+                          { key: "chat", label: "미읽 메세지", count: effectiveChatCount },
+                          { key: "emergency", label: "긴급 호출", count: effectiveEmergencyCount },
                         ].map((tab) => (
                           <button
                             key={tab.key}
@@ -1304,16 +1318,26 @@ export default function ClientMyPage() {
                           </div>
                         </div>
                       )}
-                      {activeStat.actionLabel && (
+                      <div className="flex items-center justify-between pt-1">
                         <button
-                          className="mt-2 inline-flex h-11 items-center justify-center rounded-xl bg-indigo-600 px-4 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-400"
-                          disabled={activeStat.actionDisabled}
-                          onClick={handleStatAction}
+                          className="inline-flex h-10 items-center justify-center rounded-md border border-slate-200 px-3 text-xs font-semibold text-slate-700 transition hover:border-indigo-300 hover:text-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
                           type="button"
+                          disabled={alertsAcknowledged || totalPendingAlerts === 0}
+                          onClick={handleAcknowledgeAlerts}
                         >
-                          {activeStat.actionLabel}
+                          전부 확인
                         </button>
-                      )}
+                        {activeStat.actionLabel && (
+                          <button
+                            className="inline-flex h-11 items-center justify-center rounded-xl bg-indigo-600 px-4 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-400"
+                            disabled={activeStat.actionDisabled}
+                            onClick={handleStatAction}
+                            type="button"
+                          >
+                            {activeStat.actionLabel}
+                          </button>
+                        )}
+                      </div>
                     </>
                   ) : (
                     <>

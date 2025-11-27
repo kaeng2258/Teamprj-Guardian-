@@ -74,6 +74,17 @@ public class EmergencyAlertService {
         return EmergencyAlertResponse.from(alert);
     }
 
+    public List<EmergencyAlertResponse> acknowledgeAllPending(Long managerId) {
+        User manager = getUser(managerId);
+        LocalDateTime now = LocalDateTime.now();
+        return emergencyAlertRepository.findByStatus(EmergencyAlertStatus.PENDING).stream()
+                .map(alert -> {
+                    alert.markResolved(manager, now, EmergencyAlertStatus.ACKNOWLEDGED, alert.getMemo());
+                    return EmergencyAlertResponse.from(alert);
+                })
+                .collect(Collectors.toList());
+    }
+
     @Transactional(readOnly = true)
     public List<EmergencyAlertResponse> findByClient(Long clientId) {
         return emergencyAlertRepository.findByClientId(clientId).stream()
@@ -95,22 +106,24 @@ public class EmergencyAlertService {
     }
 
     private void notifyManagerViaChat(User client) {
-        careMatchRepository.findFirstByClientIdAndCurrentTrue(client.getId()).ifPresent(match -> {
-            Long managerId = match.getManager().getId();
-            try {
-                ChatRoom room = chatService.openOrGetRoom(client.getId(), managerId);
-                ChatMessageRequest req = new ChatMessageRequest(
-                        room.getId(),
-                        client.getId(),
-                        "긴급 호출이 접수되었습니다. 즉시 확인해주세요.",
-                        MessageType.NOTICE,
-                        null
-                );
-                ChatMessageResponse msg = chatService.sendMessage(req);
-                messagingTemplate.convertAndSend("/topic/room/" + room.getId(), msg);
-            } catch (Exception e) {
-                // 알림 실패는 전체 트랜잭션을 막지 않음
-            }
-        });
+        careMatchRepository.findFirstByClientIdAndCurrentTrue(client.getId())
+                .or(() -> careMatchRepository.findFirstByClientIdOrderByIdDesc(client.getId()))
+                .ifPresent(match -> {
+                    Long managerId = match.getManager().getId();
+                    try {
+                        ChatRoom room = chatService.openOrGetRoom(client.getId(), managerId);
+                        ChatMessageRequest req = new ChatMessageRequest(
+                                room.getId(),
+                                client.getId(),
+                                "긴급 호출이 접수되었습니다. 즉시 확인해주세요.",
+                                MessageType.NOTICE,
+                                null
+                        );
+                        ChatMessageResponse msg = chatService.sendMessage(req);
+                        messagingTemplate.convertAndSend("/topic/room/" + room.getId(), msg);
+                    } catch (Exception e) {
+                        // 알림 실패는 전체 트랜잭션을 막지 않음
+                    }
+                });
     }
 }

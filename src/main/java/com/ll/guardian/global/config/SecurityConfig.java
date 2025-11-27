@@ -32,6 +32,16 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .headers(headers -> headers.frameOptions(frame -> frame.disable()))
                 .authorizeHttpRequests(auth -> auth
+                        .requestMatchers(HttpMethod.POST, "/api/users").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/users/check-email").permitAll()
+                        .requestMatchers("/api/auth/login").permitAll()
+                        // ✅ 1) 관리자 API & 페이지는 ADMIN만
+                        .requestMatchers("/api/admin/**", "/admin/**")
+                        .hasRole("ADMIN")
+                        .requestMatchers("/api/manager/**","/manager/**")
+                        .hasRole("MANAGER")
+                        .requestMatchers("/api/client/**","/client/**")
+                        .hasRole("CLIENT")
                         .requestMatchers(
                                 "/api/chat/**",
                                 "/api/push/**",
@@ -49,7 +59,7 @@ public class SecurityConfig {
                                 "/search"
                         ).permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
-                        .anyRequest().permitAll()
+                        .anyRequest().authenticated()
                 )
                 .formLogin(form -> form.disable())
                 .httpBasic(basic -> basic.disable())

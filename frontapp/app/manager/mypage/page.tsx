@@ -243,6 +243,11 @@ const managerQuickActions: Array<{
   },
 ];
 
+const subtleActionButton =
+  "flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition hover:-translate-y-[1px] hover:border-indigo-200 hover:text-indigo-800 hover:shadow-sm disabled:cursor-not-allowed disabled:opacity-60";
+const primaryActionButton =
+  "flex items-center gap-2 rounded-full bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-[1px] hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-indigo-300";
+
 const allDays = [
   { value: "MONDAY", label: "월" },
   { value: "TUESDAY", label: "화" },
@@ -943,15 +948,15 @@ export default function ManagerMyPage() {
 
   const currentAlerts = useMemo(() => {
     if (managerAlertsAcknowledged) {
-      return ["모든 알림을 확인했습니다."];
+      return [];
     }
     switch (managerAlertTab) {
       case "overdue":
-        return overdueAlerts.length > 0 ? overdueAlerts : ["미복약 알림이 없습니다."];
+        return overdueAlerts;
       case "chat":
-        return chatAlerts.length > 0 ? chatAlerts.map((c) => c.label) : ["메시지가 없습니다."];
+        return chatAlerts.map((c) => c.label);
       case "emergency":
-        return emergencyAlerts.length > 0 ? emergencyAlerts : ["알림이 없습니다."];
+        return emergencyAlerts;
       default:
         return [];
     }
@@ -962,6 +967,20 @@ export default function ManagerMyPage() {
     const start = page * PAGE_SIZE;
     return currentAlerts.slice(start, start + PAGE_SIZE);
   }, [alertPage, managerAlertTab, currentAlerts]);
+  const managerHasAlerts = currentAlerts.length > 0;
+  const managerAlertEmptyText = useMemo(() => {
+    if (managerAlertsAcknowledged) return "모든 알림을 확인했습니다.";
+    switch (managerAlertTab) {
+      case "overdue":
+        return "미복약 알림이 없습니다.";
+      case "chat":
+        return "미읽 메시지가 없습니다.";
+      case "emergency":
+        return "긴급 알림이 없습니다.";
+      default:
+        return "알림이 없습니다.";
+    }
+  }, [managerAlertTab, managerAlertsAcknowledged]);
 
   const [ackLoading, setAckLoading] = useState(false);
   const effectiveOverdueCount = managerAlertsAcknowledged ? 0 : overdueAlerts.length;
@@ -2193,12 +2212,22 @@ const WeeklyDayCard = ({
               </p>
             </div>
             <button
-              className="self-start rounded-full border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-700 transition hover:border-indigo-400 hover:text-indigo-800 disabled:cursor-not-allowed disabled:opacity-60"
+              className="flex items-center gap-2 self-start rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-[0_1px_2px_rgba(0,0,0,0.03)] transition hover:-translate-y-[1px] hover:border-indigo-200 hover:text-indigo-800 hover:shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
               disabled={summaryLoadingState}
               onClick={() => loadWeeklySummaryForClient(client.clientId)}
               type="button"
             >
-              {summaryLoadingState ? "갱신 중..." : "주간 현황 새로고침"}
+              <span
+                aria-hidden="true"
+                className={`inline-flex h-6 w-6 items-center justify-center rounded-full border text-[11px] ${
+                  summaryLoadingState
+                    ? "animate-spin border-indigo-100 bg-indigo-50 text-indigo-700"
+                    : "border-slate-200 bg-slate-100 text-slate-600"
+                }`}
+              >
+                ↻
+              </span>
+              <span>{summaryLoadingState ? "갱신 중..." : "주간 현황 새로고침"}</span>
             </button>
           </div>
           <div className="mt-4">
@@ -2274,34 +2303,75 @@ const WeeklyDayCard = ({
                           )} · ${plan.daysOfWeek.map(mapDayToLabel).join(", ")}`}
                         </p>
                       </div>
-                      <div className="flex gap-2">
+                      <div className="flex flex-wrap gap-2 sm:ml-auto sm:justify-end">
                         <button
-                          className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:border-slate-400 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
+                          className={subtleActionButton}
                           onClick={() => beginEditPlan(plan)}
                           type="button"
                         >
+                          <span
+                            aria-hidden="true"
+                            className="flex h-5 w-5 items-center justify-center rounded-full bg-indigo-50 text-[10px] text-indigo-700"
+                          >
+                            <svg
+                              className="h-3.5 w-3.5"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              viewBox="0 0 24 24"
+                            >
+                              <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25z" />
+                              <path d="M14.06 4.69l3.75 3.75" />
+                            </svg>
+                          </span>
                           수정
                         </button>
                         <button
-                          className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:border-slate-400 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
+                          className={`${subtleActionButton} hover:border-rose-200 hover:text-rose-700`}
                           disabled={deleteProcessing[plan.id] === "loading"}
                           onClick={() => handleDeletePlan(client.clientId, plan.id)}
                           type="button"
                         >
+                          <span
+                            aria-hidden="true"
+                            className="flex h-5 w-5 items-center justify-center rounded-full bg-rose-50 text-[10px] text-rose-700"
+                          >
+                            <svg
+                              className="h-3.5 w-3.5"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              viewBox="0 0 24 24"
+                            >
+                              <path d="M5 7h14" />
+                              <path d="M10 11v6" />
+                              <path d="M14 11v6" />
+                              <path d="M6 7l1-3h10l1 3" />
+                              <path d="M5 7h14l-1 14H6L5 7z" />
+                            </svg>
+                          </span>
                           {deleteProcessing[plan.id] === "loading"
                             ? "삭제 중..."
                             : "삭제"}
                         </button>
                       </div>
                     </div>
-                    <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
                       <p className="text-sm text-slate-600">
                         최근 확인:{" "}
                         {latestLog ? `${formatDateTime(latestLog.logTimestamp)}` : "기록 없음"}
                       </p>
-                      <div className="flex gap-2">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
                         <button
-                          className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:border-slate-400 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
+                          className={`${subtleActionButton} ${
+                            plan.active
+                              ? "border-emerald-200 bg-emerald-50 text-emerald-700 hover:border-emerald-300 hover:text-emerald-800"
+                              : ""
+                          }`}
                           onClick={() =>
                             handleUpdatePlan(client.clientId, plan.id, {
                               active: !plan.active,
@@ -2314,16 +2384,52 @@ const WeeklyDayCard = ({
                           }
                           type="button"
                         >
+                          <span
+                            aria-hidden="true"
+                            className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] ${
+                              plan.active
+                                ? "bg-emerald-100 text-emerald-700"
+                                : "bg-slate-100 text-slate-600"
+                            }`}
+                          >
+                            <svg
+                              className="h-3.5 w-3.5"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              viewBox="0 0 24 24"
+                            >
+                              <path d="M5 13l4 4L19 7" />
+                            </svg>
+                          </span>
                           {plan.active ? "비활성화" : "활성화"}
                         </button>
                         <button
-                          className="w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-indigo-300 sm:w-auto"
+                          className={`${primaryActionButton} w-full sm:w-auto`}
                           disabled={logProcessing[plan.id] === "loading"}
                           onClick={() => handleRecordMedication(client.clientId, plan)}
                           type="button"
                         >
-                          {logProcessing[plan.id] === "loading" ? "기록 중..." : "복약 확정"}
-                        </button>
+                          <span
+                            aria-hidden="true"
+                            className="flex h-5 w-5 items-center justify-center rounded-full bg-indigo-500 text-[10px] text-white"
+                          >
+                            <svg
+                              className="h-3.5 w-3.5"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              viewBox="0 0 24 24"
+                            >
+                              <path d="M5 12l5 5 9-9" />
+                            </svg>
+                          </span>
+                            {logProcessing[plan.id] === "loading" ? "기록 중..." : "복약 확정"}
+                          </button>
                       </div>
                     </div>
                     {editingPlanId === plan.id && editingForms[plan.id] && (
@@ -2413,9 +2519,9 @@ const WeeklyDayCard = ({
                             활성화
                           </label>
                         </div>
-                        <div className="flex gap-2">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
                           <button
-                            className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700"
+                            className={primaryActionButton}
                             type="button"
                             onClick={() =>
                               handleUpdatePlan(client.clientId, plan.id, {
@@ -2431,7 +2537,7 @@ const WeeklyDayCard = ({
                             수정 저장
                           </button>
                           <button
-                            className="rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-400"
+                            className={subtleActionButton}
                             type="button"
                             onClick={() => setEditingPlanId(null)}
                           >
@@ -3030,14 +3136,37 @@ const WeeklyDayCard = ({
                     onClick={() => setActiveStat(stat)}
                     className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-white/80 p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow"
                   >
-                    <div className="flex items-center justify-between">
-                      <p className="text-sm font-semibold text-slate-700">{stat.label}</p>
-                      <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${stat.accent}`}>
-                        {stat.badge}
-                      </span>
-                    </div>
-                    <p className="text-2xl font-bold text-slate-900">{stat.value}</p>
-                    <p className="text-xs text-slate-500 leading-relaxed">{stat.hint}</p>
+                    {(() => {
+                      const isAlert = stat.key === "alert";
+                      const pendingAlerts = managerAlertsAcknowledged ? 0 : totalPendingManagerAlerts;
+                      const value = isAlert
+                        ? pendingAlerts > 0
+                          ? `${pendingAlerts}건`
+                          : "없음"
+                        : stat.value;
+                      const hint = isAlert
+                        ? pendingAlerts > 0
+                          ? "즉시 확인이 필요합니다."
+                          : "미처리 알림이 없습니다."
+                        : stat.hint;
+                      const accent = isAlert
+                        ? pendingAlerts > 0
+                          ? "bg-rose-100 text-rose-700"
+                          : "bg-emerald-100 text-emerald-700"
+                        : stat.accent;
+                      return (
+                        <>
+                          <div className="flex items-center justify-between">
+                            <p className="text-sm font-semibold text-slate-700">{stat.label}</p>
+                            <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${accent}`}>
+                              {stat.badge}
+                            </span>
+                          </div>
+                          <p className="text-2xl font-bold text-slate-900">{value}</p>
+                          <p className="text-xs text-slate-500 leading-relaxed">{hint}</p>
+                        </>
+                      );
+                    })()}
                   </button>
                 ))}
               </div>
@@ -3109,51 +3238,57 @@ const WeeklyDayCard = ({
                             </button>
                           </div>
                           <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3">
-                            <ul className="space-y-2">
-                              {pagedAlerts.map((item, idx) => {
-                                const absoluteIdx = (alertPage[managerAlertTab] ?? 0) * PAGE_SIZE + idx;
-                                return (
-                                  <li
-                                    key={`${managerAlertTab}-item-${idx}`}
-                                    className="flex items-start gap-2 rounded-lg bg-white px-3 py-2 text-sm text-slate-800 shadow-sm transition hover:-translate-y-0.5 hover:shadow"
-                                    onClick={() => {
-                                      if (managerAlertTab === "chat" && chatAlerts[absoluteIdx]) {
-                                        const target = chatAlerts[absoluteIdx];
-                                        setClientModalClientId(null);
-                                        setActivePanel("chat");
-                                        setTimeout(() => {
-                                          const el = document.querySelector(`[data-room-id='${target.roomId}']`);
-                                          if (el instanceof HTMLElement) {
-                                            el.scrollIntoView({ behavior: "smooth", block: "center" });
-                                          }
-                                        }, 100);
-                                      }
-                                      if (managerAlertTab === "emergency") {
-                                        const label = item;
-                                        const roomId = label.match(/room (\\d+)/i)?.[1];
-                                        if (roomId) {
+                            {managerHasAlerts ? (
+                              <ul className="space-y-2">
+                                {pagedAlerts.map((item, idx) => {
+                                  const absoluteIdx = (alertPage[managerAlertTab] ?? 0) * PAGE_SIZE + idx;
+                                  return (
+                                    <li
+                                      key={`${managerAlertTab}-item-${idx}`}
+                                      className="flex items-start gap-2 rounded-lg bg-white px-3 py-2 text-sm text-slate-800 shadow-sm transition hover:-translate-y-0.5 hover:shadow"
+                                      onClick={() => {
+                                        if (managerAlertTab === "chat" && chatAlerts[absoluteIdx]) {
+                                          const target = chatAlerts[absoluteIdx];
                                           setClientModalClientId(null);
                                           setActivePanel("chat");
                                           setTimeout(() => {
-                                            const el = document.querySelector(`[data-room-id='${roomId}']`);
+                                            const el = document.querySelector(`[data-room-id='${target.roomId}']`);
                                             if (el instanceof HTMLElement) {
                                               el.scrollIntoView({ behavior: "smooth", block: "center" });
                                             }
                                           }, 100);
                                         }
-                                      }
-                                    }}
-                                    role="button"
-                                  >
-                                    <span className="mt-0.5 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-indigo-100 px-2 text-[10px] font-bold text-indigo-700">
-                                      {(alertPage[managerAlertTab] ?? 0) * PAGE_SIZE + idx + 1}
-                                    </span>
-                                    <span className="leading-relaxed">{item}</span>
-                                  </li>
-                                );
-                              })}
-                            </ul>
-                            {totalPages > 1 && (
+                                        if (managerAlertTab === "emergency") {
+                                          const label = item;
+                                          const roomId = label.match(/room (\\d+)/i)?.[1];
+                                          if (roomId) {
+                                            setClientModalClientId(null);
+                                            setActivePanel("chat");
+                                            setTimeout(() => {
+                                              const el = document.querySelector(`[data-room-id='${roomId}']`);
+                                              if (el instanceof HTMLElement) {
+                                                el.scrollIntoView({ behavior: "smooth", block: "center" });
+                                              }
+                                            }, 100);
+                                          }
+                                        }
+                                      }}
+                                      role="button"
+                                    >
+                                      <span className="mt-0.5 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-indigo-100 px-2 text-[10px] font-bold text-indigo-700">
+                                        {(alertPage[managerAlertTab] ?? 0) * PAGE_SIZE + idx + 1}
+                                      </span>
+                                      <span className="leading-relaxed">{item}</span>
+                                    </li>
+                                  );
+                                })}
+                              </ul>
+                            ) : (
+                              <div className="flex items-center justify-center rounded-lg bg-white px-3 py-3 text-sm text-slate-500">
+                                {managerAlertEmptyText}
+                              </div>
+                            )}
+                            {managerHasAlerts && totalPages > 1 && (
                               <div className="mt-3 flex items-center justify-between text-xs text-slate-600">
                                 <span>
                                   페이지 {(alertPage[managerAlertTab] ?? 0) + 1} / {totalPages}

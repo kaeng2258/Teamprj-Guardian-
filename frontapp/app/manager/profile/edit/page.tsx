@@ -8,6 +8,7 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "";
 const DEFAULT_PROFILE_IMG = "/image/픽토그램.png";
 type ThemeMode = "light" | "dark";
 type TextSizeMode = "normal" | "large";
+type IconProps = { className?: string };
 type DaumPostcodeData = {
   zonecode: string;
   roadAddress: string;
@@ -40,6 +41,57 @@ type UserSummary = {
   detailAddress?: string | null;
   profileImageUrl?: string | null;
 };
+
+const BellIcon = ({ className = "h-4 w-4" }: IconProps) => (
+  <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true">
+    <path
+      d="M6 9a6 6 0 1112 0v3.5l1.4 2.8a1 1 0 01-.9 1.5H5.5a1 1 0 01-.9-1.5L6 12.5V9z"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <path d="M10 18a2 2 0 004 0" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+  </svg>
+);
+
+const ThemeIcon = ({ mode, className = "h-4 w-4" }: { mode: ThemeMode; className?: string }) =>
+  mode === "dark" ? (
+    <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true">
+      <path
+        d="M21 12.8A9 9 0 1111.2 3a7 7 0 109.8 9.8z"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  ) : (
+    <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true">
+      <circle cx="12" cy="12" r="4" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M12 2v2M12 20v2M4 12H2M22 12h-2M5 5l-1.4-1.4M20.4 20.4 19 19M5 19l-1.4 1.4M20.4 3.6 19 5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  );
+
+const TextSizeIcon = ({ large, className = "h-4 w-4" }: { large: boolean; className?: string }) => (
+  <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true">
+    <path
+      d="M4.5 17h7M8 17V7M8 7H4.8M8 7h3.2"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <path
+      d="M14.5 15h5M17 15V9.5M17 9.5h-2.3M17 9.5h2.3"
+      stroke="currentColor"
+      strokeWidth={large ? "2" : "1.4"}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      opacity={large ? 1 : 0.9}
+    />
+  </svg>
+);
 
 export default function ManagerProfileEditPage() {
   const router = useRouter();
@@ -619,17 +671,39 @@ export default function ManagerProfileEditPage() {
                   type="button"
                   onClick={() => void handleTogglePush()}
                   disabled={pushStatus === "requesting"}
-                  className={`relative inline-flex h-7 w-14 items-center rounded-full border transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${
-                    pushEnabled ? "border-indigo-500 bg-indigo-600" : "border-slate-200 bg-slate-200 dark:border-slate-600 dark:bg-slate-700"
+                  className={`relative inline-flex h-10 w-32 items-center justify-between rounded-full border px-3 text-[11px] font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${
+                    pushEnabled
+                      ? "border-indigo-500 bg-gradient-to-r from-indigo-500 to-violet-500 text-white shadow-sm"
+                      : "border-slate-200 bg-slate-200 text-slate-700 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
                   } ${pushStatus === "requesting" ? "opacity-60" : "hover:shadow-sm"}`}
                   aria-pressed={pushEnabled}
                   aria-label="모바일 푸시 알림 설정"
                 >
-                  <span
-                    className={`absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow transition ${
-                      pushEnabled ? "translate-x-7 bg-indigo-50" : "translate-x-0"
-                    }`}
-                  />
+                  <span className="flex items-center gap-2">
+                    <span
+                      className={`flex h-7 w-7 items-center justify-center rounded-full bg-white/90 shadow-sm ${
+                        pushEnabled ? "text-indigo-600" : "text-slate-600"
+                      }`}
+                    >
+                      <BellIcon className="h-4 w-4" />
+                    </span>
+                    <span>{pushEnabled ? "알림 켜짐" : "알림 꺼짐"}</span>
+                  </span>
+                  <span className="relative flex h-6 w-14 items-center rounded-full border border-indigo-100 bg-white/90 text-[10px] font-bold uppercase tracking-wide text-indigo-600 shadow-inner">
+                    <span
+                      className={`absolute left-0 top-0 h-full w-full rounded-full bg-indigo-200/40 transition-opacity ${
+                        pushEnabled ? "opacity-100" : "opacity-0"
+                      }`}
+                      aria-hidden="true"
+                    />
+                    <span
+                      className={`relative inline-flex h-5 w-5 items-center justify-center rounded-full bg-indigo-500 text-white shadow transition-transform duration-200 ${
+                        pushEnabled ? "translate-x-[18px]" : "translate-x-0"
+                      }`}
+                    >
+                      {pushEnabled ? "On" : "Off"}
+                    </span>
+                  </span>
                   <span className="sr-only">{pushEnabled ? "푸시 켜짐" : "푸시 꺼짐"}</span>
                 </button>
               </div>
@@ -643,19 +717,39 @@ export default function ManagerProfileEditPage() {
                 <button
                   type="button"
                   onClick={toggleTheme}
-                  className={`relative inline-flex h-7 w-14 items-center rounded-full border transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${
+                  className={`relative inline-flex h-10 w-32 items-center justify-between rounded-full border px-3 text-[11px] font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${
                     theme === "dark"
-                      ? "border-indigo-500 bg-indigo-600"
-                      : "border-slate-300 bg-slate-200 dark:border-slate-600 dark:bg-slate-700"
+                      ? "border-indigo-500 bg-gradient-to-r from-slate-800 to-indigo-600 text-white shadow-sm"
+                      : "border-slate-300 bg-slate-200 text-slate-700 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
                   }`}
                   aria-pressed={theme === "dark"}
                   aria-label="다크 모드 토글"
                 >
-                  <span
-                    className={`absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow transition ${
-                      theme === "dark" ? "translate-x-7 bg-indigo-50" : "translate-x-0"
-                    }`}
-                  />
+                  <span className="flex items-center gap-2">
+                    <span
+                      className={`flex h-7 w-7 items-center justify-center rounded-full bg-white/90 shadow-sm ${
+                        theme === "dark" ? "text-indigo-600" : "text-amber-500"
+                      }`}
+                    >
+                      <ThemeIcon mode={theme} className="h-4 w-4" />
+                    </span>
+                    <span>{theme === "dark" ? "다크 모드" : "라이트 모드"}</span>
+                  </span>
+                  <span className="relative flex h-6 w-14 items-center rounded-full border border-indigo-100 bg-white/90 text-[10px] font-bold uppercase tracking-wide text-indigo-600 shadow-inner">
+                    <span
+                      className={`absolute left-0 top-0 h-full w-full rounded-full bg-indigo-200/40 transition-opacity ${
+                        theme === "dark" ? "opacity-100" : "opacity-0"
+                      }`}
+                      aria-hidden="true"
+                    />
+                    <span
+                      className={`relative inline-flex h-5 w-5 items-center justify-center rounded-full bg-indigo-500 text-white shadow transition-transform duration-200 ${
+                        theme === "dark" ? "translate-x-[18px]" : "translate-x-0"
+                      }`}
+                    >
+                      {theme === "dark" ? "On" : "Off"}
+                    </span>
+                  </span>
                 </button>
               </div>
               <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-700 dark:bg-slate-900/50">
@@ -666,19 +760,39 @@ export default function ManagerProfileEditPage() {
                 <button
                   type="button"
                   onClick={toggleTextSize}
-                  className={`relative inline-flex h-7 w-14 items-center rounded-full border transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${
+                  className={`relative inline-flex h-10 w-32 items-center justify-between rounded-full border px-3 text-[11px] font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${
                     textSize === "large"
-                      ? "border-indigo-500 bg-indigo-600"
-                      : "border-slate-300 bg-slate-200 dark:border-slate-600 dark:bg-slate-700"
+                      ? "border-indigo-500 bg-gradient-to-r from-indigo-500 to-blue-600 text-white shadow-sm"
+                      : "border-slate-300 bg-slate-200 text-slate-700 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
                   }`}
                   aria-pressed={textSize === "large"}
                   aria-label="큰 글씨 모드 토글"
                 >
-                  <span
-                    className={`absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow transition ${
-                      textSize === "large" ? "translate-x-7 bg-indigo-50" : "translate-x-0"
-                    }`}
-                  />
+                  <span className="flex items-center gap-2">
+                    <span
+                      className={`flex h-7 w-7 items-center justify-center rounded-full bg-white/90 shadow-sm ${
+                        textSize === "large" ? "text-indigo-600" : "text-slate-600"
+                      }`}
+                    >
+                      <TextSizeIcon large={textSize === "large"} className="h-4 w-4" />
+                    </span>
+                    <span>{textSize === "large" ? "큰 글씨" : "보통 글씨"}</span>
+                  </span>
+                  <span className="relative flex h-6 w-14 items-center rounded-full border border-indigo-100 bg-white/90 text-[10px] font-bold uppercase tracking-wide text-indigo-600 shadow-inner">
+                    <span
+                      className={`absolute left-0 top-0 h-full w-full rounded-full bg-indigo-200/40 transition-opacity ${
+                        textSize === "large" ? "opacity-100" : "opacity-0"
+                      }`}
+                      aria-hidden="true"
+                    />
+                    <span
+                      className={`relative inline-flex h-5 w-5 items-center justify-center rounded-full bg-indigo-500 text-white shadow transition-transform duration-200 ${
+                        textSize === "large" ? "translate-x-[18px]" : "translate-x-0"
+                      }`}
+                    >
+                      {textSize === "large" ? "On" : "Off"}
+                    </span>
+                  </span>
                 </button>
               </div>
             </div>

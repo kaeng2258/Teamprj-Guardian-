@@ -72,4 +72,8 @@ public class AdminDashboardService {
     public List<Notification> getNotifications() {
         return notificationRepository.findAll();
     }
+    public User getUserById(Long id) {
+        return userRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 사용자입니다. id=" + id));
+    }
 }

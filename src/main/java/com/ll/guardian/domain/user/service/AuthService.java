@@ -56,8 +56,15 @@ public class AuthService {
             throw new GuardianException(HttpStatus.UNAUTHORIZED, "비밀번호가 올바르지 않습니다.");
         }
 
-        String accessToken = jwtTokenProvider.createAccessToken(user.getEmail());
-        String refreshTokenValue = jwtTokenProvider.createRefreshToken(user.getEmail());
+        String accessToken = jwtTokenProvider.createAccessToken(
+                user.getEmail(),
+                "ROLE_" + user.getRole().name()   // ⭐ 스프링 권한 규칙에 맞게
+        );
+
+        String refreshTokenValue = jwtTokenProvider.createRefreshToken(
+                user.getEmail(),
+                "ROLE_" + user.getRole().name()
+        );
         RefreshToken refreshToken = refreshTokenService.issue(user, refreshTokenValue, refreshTokenValidity);
 
         return new LoginResponse(
@@ -81,7 +88,7 @@ public class AuthService {
         return switch (role) {
             case CLIENT -> "/client/mypage";
             case MANAGER -> "/manager/mypage";
-            case ADMIN -> "/admin/dashboard";
+            case ADMIN -> "/admin";
         };
     }
 

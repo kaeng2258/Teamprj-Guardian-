@@ -3,17 +3,8 @@ package com.ll.guardian.domain.emergency.entity;
 import com.ll.guardian.domain.emergency.EmergencyAlertStatus;
 import com.ll.guardian.domain.emergency.EmergencyAlertType;
 import com.ll.guardian.domain.user.entity.User;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
+
 import java.time.LocalDateTime;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -37,6 +28,7 @@ public class EmergencyAlert {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "client_user_id", nullable = false)
     private User client;
+
 
     @Enumerated(EnumType.STRING)
     @Column(name = "alert_type", nullable = false, length = 30)

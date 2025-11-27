@@ -3,6 +3,8 @@ package com.ll.guardian.global.auth;
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
 import com.auth0.jwt.exceptions.JWTVerificationException;
+import com.auth0.jwt.interfaces.DecodedJWT;
+import com.auth0.jwt.interfaces.JWTVerifier;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Date;
@@ -13,80 +15,73 @@ import org.springframework.stereotype.Component;
 public class JwtTokenProvider {
 
     private final Algorithm algorithm;
+    private final JWTVerifier verifier;
     private final Duration accessTokenValidity;
     private final Duration refreshTokenValidity;
 
     public JwtTokenProvider(
             @Value("${jwt.secret}") String secret,
             @Value("${jwt.access-token-validity}") Duration accessTokenValidity,
-            @Value("${jwt.refresh-token-validity}") Duration refreshTokenValidity) {
-
+            @Value("${jwt.refresh-token-validity}") Duration refreshTokenValidity
+    ) {
         this.algorithm = Algorithm.HMAC256(secret);
+        this.verifier = JWT.require(algorithm).build();
         this.accessTokenValidity = accessTokenValidity;
         this.refreshTokenValidity = refreshTokenValidity;
     }
 
-    // ------------------------------
-    // ⭐ role 있는 토큰 생성
-    // ------------------------------
 
+    // 액세스 토큰: email + role("ADMIN" / "CLIENT" / "MANAGER")
     public String createAccessToken(String email, String role) {
-        return createToken(email, role, accessTokenValidity);
-    }
-
-    public String createRefreshToken(String email, String role) {
-        return createToken(email, role, refreshTokenValidity);
-    }
-
-    // ------------------------------
-    // ⭐ role 없는 토큰 생성 (호환용)
-    // ------------------------------
-
-    public String createAccessToken(String email) {
-        return createToken(email, null, accessTokenValidity);
-    }
-
-    public String createRefreshToken(String email) {
-        return createToken(email, null, refreshTokenValidity);
-    }
-
-    // ------------------------------
-    // ⭐ 실제 토큰 생성 공통 함수
-    // ------------------------------
-
-    private String createToken(String subject, String role, Duration validity) {
         Instant now = Instant.now();
-        Instant expiresAt = now.plus(validity);
+        Instant expiresAt = now.plus(accessTokenValidity);
 
-        var builder = JWT.create()
-                .withSubject(subject)
+        return JWT.create()
+                .withSubject(email)
+                .withClaim("role", role)  // 여기엔 "ADMIN" 그대로만 들어간다
                 .withIssuedAt(Date.from(now))
-                .withExpiresAt(Date.from(expiresAt));
-
-        if (role != null) {
-            builder.withClaim("role", role);
-        }
-
-        return builder.sign(algorithm);
+                .withExpiresAt(Date.from(expiresAt))
+                .sign(algorithm);
     }
 
+    // 리프레시 토큰(역할 안 써도 됨)
+    public String createRefreshToken(String email) {
+        Instant now = Instant.now();
+        Instant expiresAt = now.plus(refreshTokenValidity);
+
+        return JWT.create()
+                .withSubject(email)
+                .withIssuedAt(Date.from(now))
+                .withExpiresAt(Date.from(expiresAt))
+                .sign(algorithm);
+    }
+
+    // 기존 코드 호환용 (email, role) 시그니처 버전
+    public String createRefreshToken(String email, String role) {
+        return createRefreshToken(email);
+    }
+
+    // 토큰 검증
     public boolean validateToken(String token) {
         try {
-            JWT.require(algorithm).build().verify(token);
+            verifier.verify(token);
             return true;
-        } catch (JWTVerificationException e) {
+        } catch (JWTVerificationException ex) {
+            System.out.println("[JwtTokenProvider] invalid token: " + ex.getMessage());
             return false;
         }
     }
 
     public String getSubject(String token) {
-        return JWT.require(algorithm).build().verify(token).getSubject();
+        DecodedJWT jwt = verifier.verify(token);
+        return jwt.getSubject();
     }
 
+    // "ADMIN" / "CLIENT" / "MANAGER" 반환
     public String getRole(String token) {
-        return JWT.require(algorithm).build()
-                .verify(token)
-                .getClaim("role")
-                .asString();
+        DecodedJWT jwt = verifier.verify(token);
+        String role = jwt.getClaim("role").asString();
+        if (role == null) return null;
+        return role.trim().toUpperCase();
     }
 }

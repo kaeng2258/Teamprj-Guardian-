@@ -34,22 +34,39 @@ export default function MyChatRooms({
   managerProfileId,
   refreshToken,
 }: MyChatRoomsProps) {
+  const effectiveUserId =
+    role === "MANAGER" ? managerProfileId ?? userId ?? null : userId ?? null;
   const [threads, setThreads] = useState<ChatThread[]>([]);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [profileImages, setProfileImages] = useState<Record<number, string>>({});
+  const [leaving, setLeaving] = useState<number | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [bookmarked, setBookmarked] = useState<number[]>([]);
   const defaultProfileImage =
     resolveProfileImageUrl("/image/픽토그램.png") || "/image/픽토그램.png";
+  const bookmarkKey = effectiveUserId
+    ? `guardian.bookmarkedRooms.${role}.${effectiveUserId}`
+    : null;
 
   const getProfileImage = (url?: string | null) =>
     url && typeof url === "string" && url.trim().length > 0
       ? resolveProfileImageUrl(url) || defaultProfileImage
       : defaultProfileImage;
 
-  useEffect(() => {
-    const effectiveUserId =
-      role === "MANAGER" ? managerProfileId ?? userId ?? null : userId ?? null;
+  const sortThreads = (list: ChatThread[], marks: number[]) => {
+    const star = new Set(marks);
+    return [...list].sort((a, b) => {
+      const aStar = star.has(a.roomId) ? 1 : 0;
+      const bStar = star.has(b.roomId) ? 1 : 0;
+      if (aStar !== bStar) return bStar - aStar;
+      const aTime = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0;
+      const bTime = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : 0;
+      return bTime - aTime;
+    });
+  };
 
+  useEffect(() => {
     if (!effectiveUserId) return;
 
     let active = true;
@@ -76,7 +93,7 @@ export default function MyChatRooms({
             ? data.filter((t) => t.managerId === effectiveUserId)
             : data.filter((t) => t.clientId === effectiveUserId);
 
-        setThreads(filtered);
+        setThreads(sortThreads(filtered, bookmarked));
       } catch (e: any) {
         if (!active) return;
         setErr(
@@ -95,7 +112,7 @@ export default function MyChatRooms({
     return () => {
       active = false;
     };
-  }, [role, userId, managerProfileId, refreshToken]);
+  }, [role, userId, managerProfileId, refreshToken, effectiveUserId]);
 
   useEffect(() => {
     // 다른 참여자의 프로필 이미지를 추가로 로드
@@ -123,17 +140,79 @@ export default function MyChatRooms({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [threads, role]);
 
+  useEffect(() => {
+    if (!bookmarkKey) return;
+    try {
+      const raw = window.localStorage.getItem(bookmarkKey);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          const cleaned = parsed
+            .map((id) => Number(id))
+            .filter((id) => Number.isFinite(id) && id > 0);
+          setBookmarked(cleaned);
+          setThreads((prev) => sortThreads(prev, cleaned));
+        }
+      }
+    } catch {
+      // ignore parse error
+    }
+  }, [bookmarkKey]);
+
+  useEffect(() => {
+    if (!bookmarkKey) return;
+    try {
+      window.localStorage.setItem(bookmarkKey, JSON.stringify(bookmarked));
+    } catch {
+      // ignore storage error
+    }
+    setThreads((prev) => sortThreads(prev, bookmarked));
+  }, [bookmarkKey, bookmarked]);
+
+  const handleLeaveRoom = async (roomId: number) => {
+    if (!effectiveUserId) {
+      setActionError("사용자 정보를 확인할 수 없습니다.");
+      return;
+    }
+    if (!window.confirm("이 채팅방에서 나가시겠습니까?")) return;
+    setLeaving(roomId);
+    setActionError(null);
+    try {
+      const res = await fetch(
+        `${API_BASE_URL}/api/chat/rooms/${roomId}?userId=${encodeURIComponent(
+          String(effectiveUserId),
+        )}`,
+        { method: "DELETE" },
+      );
+      if (!res.ok) {
+        throw new Error("채팅방에서 나갈 수 없습니다.");
+      }
+      setThreads((prev) => prev.filter((t) => t.roomId !== roomId));
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : "채팅방에서 나갈 수 없습니다.");
+    } finally {
+      setLeaving(null);
+    }
+  };
+
+  const toggleBookmark = (roomId: number) => {
+    setBookmarked((prev) => {
+      const next = prev.includes(roomId)
+        ? prev.filter((id) => id !== roomId)
+        : [...prev, roomId];
+      setThreads((current) => sortThreads(current, next));
+      return next;
+    });
+  };
+
   return (
-    <section className="flex flex-col gap-4 rounded-2xl border border-sky-200 bg-gradient-to-br from-sky-50 via-white to-emerald-50/70 p-6 shadow-sm">
+    <section className="flex flex-col gap-4 rounded-2xl border border-sky-200 bg-gradient-to-br from-sky-50 via-white to-emerald-50/70 p-6 shadow-sm dark:border-slate-700 dark:from-slate-800 dark:via-slate-900 dark:to-slate-800">
       <div className="flex items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-bold text-slate-900">내 채팅방</h2>
           <p className="mt-1 text-sm text-slate-600">
             현재 배정된 클라이언트와의 대화를 한눈에 확인하세요.
           </p>
-        </div>
-        <div className="hidden rounded-full border border-sky-200 bg-white px-3 py-1 text-xs font-semibold text-sky-700 sm:block">
-          실시간
         </div>
       </div>
 
@@ -186,16 +265,11 @@ export default function MyChatRooms({
                         alt={`${displayName} 프로필`}
                         className="h-full w-full object-cover"
                       />
-                      <span className="pointer-events-none absolute inset-0 rounded-full ring-1 ring-white/80 ring-offset-1" />
-                    </span>
-                    <div className="flex flex-col">
-                      <p className="text-sm font-semibold text-slate-900">
-                        {displayName}
-                      </p>
-                      <p className="text-xs text-slate-500">
-                        방 번호 #{roomId}
-                      </p>
-                    </div>
+                    <span className="pointer-events-none absolute inset-0 rounded-full ring-1 ring-white/80 ring-offset-1" />
+                  </span>
+                    <p className="text-sm font-semibold text-slate-900">
+                      {displayName}
+                    </p>
                   </div>
                   <div className="flex items-center gap-2">
                     {unread && (
@@ -203,23 +277,88 @@ export default function MyChatRooms({
                         NEW
                       </span>
                     )}
+                    <button
+                      type="button"
+                      className={`bookmark-star inline-flex h-7 w-7 items-center justify-center rounded-full border text-[13px] font-bold transition ${
+                        bookmarked.includes(roomId)
+                          ? "on border-amber-300 bg-amber-100 text-amber-600"
+                          : "border-slate-200 bg-white text-slate-400 hover:border-amber-200 hover:text-amber-500"
+                      }`}
+                      title="상단에 고정하기"
+                      aria-label={bookmarked.includes(roomId) ? "북마크 해제" : "북마크 추가"}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        toggleBookmark(roomId);
+                      }}
+                    >
+                      ★
+                    </button>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex flex-col gap-1">
+                    <p className="line-clamp-1 text-[13px] text-slate-700">
+                      {lastSnippet || "최근 메시지가 없습니다."}
+                    </p>
                     {lastTime && (
                       <small className="text-[11px] text-slate-500">
                         {new Date(lastTime).toLocaleString()}
                       </small>
                     )}
                   </div>
-                </div>
-                <div className="flex items-center justify-between gap-2">
-                  <p className="line-clamp-1 text-[13px] text-slate-700">
-                    {lastSnippet || "최근 메시지가 없습니다."}
-                  </p>
+                  <button
+                    type="button"
+                    className={`shrink-0 inline-flex items-center justify-center rounded-md border px-3 py-1.5 text-[11px] font-semibold transition ${
+                      leaving === roomId
+                        ? "border-rose-300 bg-rose-50 text-rose-600"
+                        : "border-slate-200 bg-white text-slate-700 hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700"
+                    } disabled:cursor-not-allowed disabled:opacity-60`}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      void handleLeaveRoom(roomId);
+                    }}
+                    disabled={leaving === roomId}
+                  >
+                    {leaving === roomId ? "나가는 중..." : "나가기"}
+                  </button>
                 </div>
               </Link>
             </li>
           );
         })}
       </ul>
+      {actionError && <p className="text-sm text-red-600">{actionError}</p>}
+      <style jsx>{`
+        .bookmark-star {
+          position: relative;
+          transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+          box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+        }
+        .bookmark-star:hover {
+          transform: translateY(-1px);
+          box-shadow: 0 6px 14px rgba(0, 0, 0, 0.1);
+        }
+        .bookmark-star.on {
+          animation: bookmark-pop 0.45s ease;
+          box-shadow: 0 6px 14px rgba(251, 191, 36, 0.25);
+        }
+        @keyframes bookmark-pop {
+          0% {
+            transform: scale(1);
+          }
+          40% {
+            transform: scale(1.18);
+          }
+          70% {
+            transform: scale(0.95);
+          }
+          100% {
+            transform: scale(1);
+          }
+        }
+      `}</style>
     </section>
   );
 }

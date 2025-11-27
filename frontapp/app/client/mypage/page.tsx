@@ -714,6 +714,7 @@ export default function ClientMyPage() {
     chat: 0,
     emergency: 0,
   });
+  const [alertsAcknowledged, setAlertsAcknowledged] = useState(false);
   const PAGE_SIZE = 10;
   const [emergencyAlerts, setEmergencyAlerts] = useState<string[]>([]);
   const [emergencyLoaded, setEmergencyLoaded] = useState(false);
@@ -743,6 +744,11 @@ export default function ClientMyPage() {
     [],
   );
 
+  const effectiveOverdueCount = alertsAcknowledged ? 0 : overdueAlerts.length;
+  const effectiveChatCount = alertsAcknowledged ? 0 : chatAlerts.length;
+  const effectiveEmergencyCount = alertsAcknowledged ? 0 : emergencyAlerts.length;
+  const totalPendingAlerts = effectiveOverdueCount + effectiveChatCount + effectiveEmergencyCount;
+
   useEffect(() => {
     if (alertTab !== "emergency" || emergencyLoaded || !client.userId) return;
     const load = async () => {
@@ -768,23 +774,45 @@ export default function ClientMyPage() {
   }, [alertTab, emergencyLoaded, client.userId]);
 
   const currentAlerts = useMemo(() => {
+    if (alertsAcknowledged) {
+      return ["모든 알림을 확인했습니다."];
+    }
     switch (alertTab) {
       case "overdue":
         return overdueAlerts;
       case "chat":
         return chatAlerts;
       case "emergency":
-        return emergencyError ? [emergencyError] : emergencyAlerts.length > 0 ? emergencyAlerts : ["알림이 없습니다."];
+        return emergencyError ? [emergencyError] : emergencyAlerts.length > 0 ? emergencyAlerts : [];
       default:
         return [];
     }
-  }, [alertTab, overdueAlerts, chatAlerts, emergencyAlerts, emergencyError]);
+  }, [alertTab, overdueAlerts, chatAlerts, emergencyAlerts, emergencyError, alertsAcknowledged]);
 
   const pagedAlerts = useMemo(() => {
     const page = alertPage[alertTab] ?? 0;
     const start = page * PAGE_SIZE;
     return currentAlerts.slice(start, start + PAGE_SIZE);
   }, [alertPage, alertTab, currentAlerts]);
+  const hasAlerts = currentAlerts.length > 0;
+  const alertEmptyText = useMemo(() => {
+    if (alertsAcknowledged) return "모든 알림을 확인했습니다.";
+    switch (alertTab) {
+      case "overdue":
+        return "미복약 알림이 없습니다.";
+      case "chat":
+        return "미읽 메세지 알림이 없습니다.";
+      case "emergency":
+        return emergencyError || "긴급 알림이 없습니다.";
+      default:
+        return "알림이 없습니다.";
+    }
+  }, [alertTab, alertsAcknowledged, emergencyError]);
+
+  const handleAcknowledgeAlerts = useCallback(() => {
+    setAlertsAcknowledged(true);
+    setAlertPage({ overdue: 0, chat: 0, emergency: 0 });
+  }, []);
 
   const totalPages = useMemo(() => Math.max(1, Math.ceil(currentAlerts.length / PAGE_SIZE)), [currentAlerts.length]);
 
@@ -1167,7 +1195,7 @@ export default function ClientMyPage() {
 
         {activePanel === "schedule" && (
           <>
-        <section className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-indigo-50 p-4 sm:p-6">
+        <section className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-indigo-50 p-4 sm:p-6 dark:border-slate-700 dark:from-slate-800 dark:via-slate-900 dark:to-slate-800">
           <div className="flex flex-col gap-2 border-b border-slate-200 pb-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-lg font-semibold text-slate-900 sm:text-xl">서비스 이용 현황</h2>
@@ -1199,18 +1227,27 @@ export default function ClientMyPage() {
               </button>
             ))}
           </div>
+
           {activeStat && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4 py-6 backdrop-blur-sm">
-              <div className="max-w-lg w-full rounded-2xl border border-indigo-100 bg-white p-5 shadow-xl">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-indigo-700">
-                      {activeStat.badge}
+            <div className="fixed inset-0 z-50 flex items-start justify-center px-4 py-8 sm:py-10">
+              <div
+                className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+                onClick={() => setActiveStat(null)}
+                role="presentation"
+              />
+              <div className="relative w-full max-w-2xl rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-800">
+                <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-5 py-4 dark:border-slate-700 sm:px-6">
+                  <div className="space-y-1">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-indigo-600 dark:text-indigo-200">
+                      관리 현황
                     </p>
-                    <h3 className="text-lg font-semibold text-slate-900">{activeStat.label}</h3>
+                    <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100 sm:text-2xl">
+                      {activeStat.label}
+                    </h3>
+                    <p className="text-sm text-slate-600 dark:text-slate-300">{activeStat.detail}</p>
                   </div>
                   <button
-                    className="text-xs font-semibold text-slate-500 hover:text-slate-700"
+                    className="text-xs font-semibold text-slate-500 transition hover:text-slate-700 dark:text-slate-300"
                     onClick={() => setActiveStat(null)}
                     type="button"
                     aria-label="상세 닫기"
@@ -1218,109 +1255,140 @@ export default function ClientMyPage() {
                     닫기 ✕
                   </button>
                 </div>
-                <p className="mt-3 text-sm text-slate-700 leading-relaxed">{activeStat.detail}</p>
-                {activeStat.key === "push" ? (
-                  <>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {[
-                        { key: "overdue", label: "미복약", count: overdueAlerts.length },
-                        { key: "chat", label: "미읽 메세지", count: chatAlerts.length },
-                        { key: "emergency", label: "긴급 호출", count: emergencyAlerts.length },
-                      ].map((tab) => (
-                        <button
-                          key={tab.key}
-                          type="button"
-                          onClick={() => setAlertTab(tab.key as AlertTab)}
-                          className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
-                            alertTab === tab.key
-                              ? "border-indigo-500 bg-indigo-50 text-indigo-700"
-                              : "border-slate-200 bg-white text-slate-600 hover:border-indigo-300"
-                          }`}
-                        >
-                          {tab.label} ({tab.count})
-                        </button>
-                      ))}
-                    </div>
-                    <div className="mt-3 max-h-64 overflow-y-auto rounded-lg bg-slate-50 p-3 text-sm text-slate-700">
-                      <ul className="space-y-2">
-                        {pagedAlerts.map((item, idx) => (
-                          <li key={`${alertTab}-item-${idx}`} className="flex items-start gap-2">
-                            <span className="mt-0.5 inline-block h-2 w-2 rounded-full bg-indigo-400" />
-                            <span className="leading-relaxed">{item}</span>
-                          </li>
+
+                <div className="space-y-3 p-5 sm:p-6">
+                  {activeStat.key === "push" ? (
+                    <>
+                      <div className="flex flex-wrap gap-2">
+                        {[
+                          { key: "overdue", label: "미복약", count: effectiveOverdueCount },
+                          { key: "chat", label: "미읽 메세지", count: effectiveChatCount },
+                          { key: "emergency", label: "긴급 호출", count: effectiveEmergencyCount },
+                        ].map((tab) => (
+                          <button
+                            key={tab.key}
+                            type="button"
+                            onClick={() => setAlertTab(tab.key as AlertTab)}
+                            className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                              alertTab === tab.key
+                                ? "border-indigo-500 bg-indigo-50 text-indigo-700"
+                                : "border-slate-200 bg-white text-slate-600 hover:border-indigo-300"
+                            }`}
+                          >
+                            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-indigo-700">
+                              {tab.count}
+                            </span>
+                            {tab.label}
+                          </button>
                         ))}
-                      </ul>
-                    </div>
-                    {totalPages > 1 && (
-                      <div className="mt-2 flex items-center justify-between text-xs text-slate-600">
-                        <span>
-                          페이지 { (alertPage[alertTab] ?? 0) + 1 } / {totalPages}
-                        </span>
-                        <div className="flex gap-2">
-                          <button
-                            type="button"
-                            className="rounded-md border border-slate-200 px-2 py-1 hover:border-indigo-300"
-                            disabled={(alertPage[alertTab] ?? 0) === 0}
-                            onClick={() =>
-                              setAlertPage((prev) => ({
-                                ...prev,
-                                [alertTab]: Math.max(0, (prev[alertTab] ?? 0) - 1),
-                              }))
-                            }
-                          >
-                            이전
-                          </button>
-                          <button
-                            type="button"
-                            className="rounded-md border border-slate-200 px-2 py-1 hover:border-indigo-300"
-                            disabled={(alertPage[alertTab] ?? 0) >= totalPages - 1}
-                            onClick={() =>
-                              setAlertPage((prev) => ({
-                                ...prev,
-                                [alertTab]: Math.min(totalPages - 1, (prev[alertTab] ?? 0) + 1),
-                              }))
-                            }
-                          >
-                            다음
-                          </button>
-                        </div>
                       </div>
-                    )}
-                    {activeStat.onAction && (
-                      <button
-                        className="mt-4 inline-flex h-11 items-center justify-center rounded-xl bg-indigo-600 px-4 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-400"
-                        disabled={activeStat.actionDisabled}
-                        onClick={activeStat.onAction}
-                        type="button"
-                      >
-                        {activeStat.actionLabel ?? "실행"}
-                      </button>
-                    )}
-                  </>
-                ) : (
-                  <>
-                    {activeStat.items && activeStat.items.length > 0 && (
-                      <ul className="mt-3 space-y-2 rounded-lg bg-slate-50 p-3 text-sm text-slate-700">
-                        {activeStat.items.map((item, idx) => (
-                          <li key={`${activeStat.key}-item-${idx}`} className="flex items-start gap-2">
-                            <span className="mt-0.5 inline-block h-2 w-2 rounded-full bg-indigo-400" />
-                            <span className="leading-relaxed">{item}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                    {activeStat.onAction && (
-                      <button
-                        className="mt-4 inline-flex h-11 items-center justify-center rounded-xl bg-indigo-600 px-4 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-400"
-                        disabled={activeStat.actionDisabled}
-                        onClick={activeStat.onAction}
-                        type="button"
-                      >
-                        {activeStat.actionLabel ?? "실행"}
-                      </button>
-                    )}
-                  </>
-                )}
+                      <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3">
+                        {hasAlerts ? (
+                          <ul className="space-y-2">
+                            {pagedAlerts.map((item, idx) => (
+                              <li
+                                key={`${alertTab}-item-${idx}`}
+                                className="flex items-start gap-2 rounded-lg bg-white px-3 py-2 text-sm text-slate-800 shadow-sm transition hover:-translate-y-0.5 hover:shadow"
+                              >
+                                <span className="mt-0.5 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-indigo-100 px-2 text-[10px] font-bold text-indigo-700">
+                                  {(alertPage[alertTab] ?? 0) * PAGE_SIZE + idx + 1}
+                                </span>
+                                <span className="leading-relaxed">{item}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <div className="flex items-center justify-center rounded-lg bg-white px-3 py-3 text-sm text-slate-500">
+                            알림이 없습니다.
+                          </div>
+                        )}
+                      </div>
+                      {hasAlerts && totalPages > 1 && (
+                        <div className="flex items-center justify-between text-xs text-slate-600">
+                          <span>
+                            페이지 { (alertPage[alertTab] ?? 0) + 1 } / {totalPages}
+                          </span>
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              className="rounded-md border border-slate-200 px-2 py-1 hover:border-indigo-300"
+                              disabled={(alertPage[alertTab] ?? 0) === 0}
+                              onClick={() =>
+                                setAlertPage((prev) => ({
+                                  ...prev,
+                                  [alertTab]: Math.max(0, (prev[alertTab] ?? 0) - 1),
+                                }))
+                              }
+                            >
+                              이전
+                            </button>
+                            <button
+                              type="button"
+                              className="rounded-md border border-slate-200 px-2 py-1 hover:border-indigo-300"
+                              disabled={(alertPage[alertTab] ?? 0) >= totalPages - 1}
+                              onClick={() =>
+                                setAlertPage((prev) => ({
+                                  ...prev,
+                                  [alertTab]: Math.min(totalPages - 1, (prev[alertTab] ?? 0) + 1),
+                                }))
+                              }
+                            >
+                              다음
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between pt-1">
+                        <button
+                          className="inline-flex h-10 items-center justify-center rounded-md border border-slate-200 px-3 text-xs font-semibold text-slate-700 transition hover:border-indigo-300 hover:text-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+                          type="button"
+                          disabled={alertsAcknowledged || totalPendingAlerts === 0}
+                          onClick={handleAcknowledgeAlerts}
+                        >
+                          전부 확인
+                        </button>
+                        {activeStat.actionLabel && (
+                          <button
+                            className="inline-flex h-11 items-center justify-center rounded-xl bg-indigo-600 px-4 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-400"
+                            disabled={activeStat.actionDisabled}
+                            onClick={handleStatAction}
+                            type="button"
+                          >
+                            {activeStat.actionLabel}
+                          </button>
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      {activeStat.items && activeStat.items.length > 0 && (
+                        <ul className="space-y-2 rounded-xl border border-slate-200 bg-slate-50/80 p-3 text-sm text-slate-700">
+                          {activeStat.items.map((item, idx) => (
+                            <li
+                              key={`${activeStat.key}-item-${idx}`}
+                              className="flex items-start gap-2 rounded-lg bg-white px-3 py-2 shadow-sm"
+                            >
+                              <span className="mt-0.5 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-indigo-100 px-2 text-[10px] font-bold text-indigo-700">
+                                {idx + 1}
+                              </span>
+                              <span className="leading-relaxed">{item}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                      {activeStat.actionLabel && (
+                        <button
+                          className="mt-2 inline-flex h-11 items-center justify-center rounded-xl bg-indigo-600 px-4 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-400"
+                          disabled={activeStat.actionDisabled}
+                          onClick={handleStatAction}
+                          type="button"
+                        >
+                          {activeStat.actionLabel}
+                        </button>
+                      )}
+                    </>
+                  )}
+                </div>
               </div>
             </div>
           )}

@@ -583,9 +583,9 @@ export default function ManagerMyPage() {
     if (typeof window === "undefined") {
       return;
     }
-    if (!favoritesKey) return;
+    const key = favoritesKey ?? "managerFavoriteClients";
     try {
-      window.localStorage.setItem(favoritesKey, JSON.stringify(favoriteClientIds));
+      window.localStorage.setItem(key, JSON.stringify(favoriteClientIds));
     } catch {
       // ignore storage error
     }
@@ -1024,7 +1024,6 @@ export default function ManagerMyPage() {
   );
 
   const toggleFavorite = useCallback((clientId: number) => {
-    if (!manager.userId) return;
     setFavoriteClientIds((prev) => {
       const set = new Set(prev);
       if (set.has(clientId)) {

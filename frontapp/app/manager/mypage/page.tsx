@@ -5,6 +5,9 @@ import { DrugDetailModal } from "@/components/DrugDetailModal";
 import { resolveProfileImageUrl } from "@/lib/image";
 import { useRouter } from "next/navigation";
 import { ChatClientPicker } from "@/components/ChatClientPicker";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faMagnifyingGlass } from "@fortawesome/free-solid-svg-icons";
+import { faComment } from "@fortawesome/free-regular-svg-icons";
 
 import {
   ChangeEvent,
@@ -18,6 +21,25 @@ import {
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "";
 
+const PillIcon = ({ className = "h-6 w-6" }: { className?: string }) => (
+  <img
+    src="/image/medicine.png"
+    alt="복약 아이콘"
+    className={className}
+    style={{ filter: "brightness(0) invert(1)" }}
+    width={24}
+    height={24}
+  />
+);
+
+const byPrefixAndName = {
+  fas: {
+    "magnifying-glass": faMagnifyingGlass,
+  },
+  far: {
+    comment: faComment,
+  },
+};
 type ManagerOverview = {
   userId: number | null;
   email: string;
@@ -222,24 +244,28 @@ const managerQuickActions: Array<{
   label: string;
   description: string;
   accent: string;
+  icon?: JSX.Element;
 }> = [
   {
     value: "client",
     label: "복약 관리",
     description: "배정 및 복약 일정",
     accent: "bg-indigo-600",
+    icon: <PillIcon className="h-4 w-4" />,
   },
   {
     value: "drug",
     label: "약 검색",
     description: "e약은요 기반 약품 조회",
     accent: "bg-emerald-500",
+    icon: <FontAwesomeIcon icon={byPrefixAndName.fas["magnifying-glass"]} className="h-4 w-4" />,
   },
   {
     value: "chat",
     label: "채팅방",
     description: "실시간 상담 및 공지",
     accent: "bg-sky-500",
+    icon: <FontAwesomeIcon icon={byPrefixAndName.far["comment"]} className="h-4 w-4" />,
   },
 ];
 
@@ -2507,41 +2533,36 @@ const WeeklyDayCard = ({
                         {latestLog ? `${formatDateTime(latestLog.logTimestamp)}` : "기록 없음"}
                       </p>
                       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
-                        <label
-                          className={`inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold shadow-sm transition ${
-                            planUpdating
-                              ? "cursor-not-allowed opacity-70"
-                              : "cursor-pointer hover:border-indigo-200 hover:text-indigo-800"
-                          }`}
+                        <button
+                          type="button"
+                          aria-pressed={plan.active}
+                          disabled={planUpdating}
+                          onClick={() =>
+                            handleUpdatePlan(client.clientId, plan.id, {
+                              active: !plan.active,
+                              dosageAmount: plan.dosageAmount,
+                              dosageUnit: plan.dosageUnit,
+                              alarmTime: plan.alarmTime,
+                              daysOfWeek: plan.daysOfWeek,
+                              medicineId: plan.medicineId,
+                            })
+                          }
+                          className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold shadow-sm transition ${
+                            plan.active
+                              ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                              : "border-slate-200 bg-white text-slate-700"
+                          } ${planUpdating ? "cursor-wait opacity-70" : "hover:-translate-y-[1px] hover:border-indigo-200 hover:shadow-sm"}`}
                         >
-                          <input
-                            type="checkbox"
-                            className="peer sr-only"
-                            checked={plan.active}
-                            disabled={planUpdating}
-                            onChange={() =>
-                              handleUpdatePlan(client.clientId, plan.id, {
-                                active: !plan.active,
-                                dosageAmount: plan.dosageAmount,
-                                dosageUnit: plan.dosageUnit,
-                                alarmTime: plan.alarmTime,
-                                daysOfWeek: plan.daysOfWeek,
-                                medicineId: plan.medicineId,
-                              })
-                            }
-                          />
                           <span
-                            className="relative h-5 w-9 rounded-full bg-slate-200 transition peer-checked:bg-emerald-500 peer-disabled:bg-slate-200"
+                            className={`flex h-6 w-6 items-center justify-center rounded-full text-[11px] ${
+                              plan.active ? "bg-emerald-500 text-white" : "bg-slate-200 text-slate-600"
+                            }`}
                             aria-hidden="true"
                           >
-                            <span
-                              className="absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white shadow transition peer-checked:translate-x-4 peer-disabled:opacity-70"
-                            />
+                            {planUpdating ? "…" : plan.active ? "ON" : "OFF"}
                           </span>
-                          <span className="text-slate-700 peer-checked:text-emerald-700 peer-disabled:text-slate-500">
-                            {plan.active ? "활성화" : "비활성화"}
-                          </span>
-                        </label>
+                          <span>{plan.active ? "활성화" : "비활성화"}</span>
+                        </button>
                         <button
                           className={`${primaryActionButton} w-full sm:w-auto`}
                           disabled={logProcessing[plan.id] === "loading"}
@@ -3238,7 +3259,7 @@ const WeeklyDayCard = ({
                       <span
                         className={`inline-flex h-8 w-8 items-center justify-center rounded-full text-[0.7rem] font-semibold text-white ${action.accent}`}
                       >
-                        {action.label.slice(0, 1)}
+                        {action.icon ?? action.label.slice(0, 1)}
                       </span>
                       <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">
                         {action.label}
@@ -3770,9 +3791,7 @@ const WeeklyDayCard = ({
         <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:p-6">
           <div className="flex flex-col gap-2 border-b border-slate-200 pb-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-lg font-semibold text-slate-900">
-                복약 관리
-              </h2>
+              <h2 className="text-lg font-semibold text-slate-900">복약 관리</h2>
               <p className="text-sm text-slate-600">
                 복약 스케줄을 등록하거나 복약 여부를 대신 기록할 수 있습니다.
               </p>

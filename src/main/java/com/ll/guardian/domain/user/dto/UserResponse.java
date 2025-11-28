@@ -9,6 +9,7 @@ public record UserResponse(
         String email,
         String name,
         LocalDate birthDate,
+        String gender,
         UserRole role,
         UserStatus status,
         String profileImageUrl,

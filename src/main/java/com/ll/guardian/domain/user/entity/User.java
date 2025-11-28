@@ -48,6 +48,18 @@ public class User extends BaseTimeEntity {
     @Column(name = "birth_date")
     private LocalDate birthDate;
 
+    @Column(name = "gender", length = 20)
+    private String gender;
+
+    @Column(name = "zip_code", length = 20)
+    private String zipCode;
+
+    @Column(name = "address", length = 255)
+    private String address;
+
+    @Column(name = "detail_address", length = 255)
+    private String detailAddress;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "role", nullable = false, length = 20)
     private UserRole role;
@@ -68,6 +80,37 @@ public class User extends BaseTimeEntity {
 
     public void updateProfile(String name, String profileImageUrl, UserStatus status) {
         this.name = name;
+        this.profileImageUrl = profileImageUrl != null ? profileImageUrl : this.profileImageUrl;
+        if (status != null) {
+            this.status = status;
+        }
+    }
+
+    public void updateProfile(
+            String name,
+            LocalDate birthDate,
+            String gender,
+            String zipCode,
+            String address,
+            String detailAddress,
+            String profileImageUrl,
+            UserStatus status) {
+        this.name = name;
+        if (birthDate != null) {
+            this.birthDate = birthDate;
+        }
+        if (gender != null) {
+            this.gender = gender;
+        }
+        if (zipCode != null) {
+            this.zipCode = zipCode;
+        }
+        if (address != null) {
+            this.address = address;
+        }
+        if (detailAddress != null) {
+            this.detailAddress = detailAddress;
+        }
         if (profileImageUrl != null) {
             this.profileImageUrl = profileImageUrl;
         }

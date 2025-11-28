@@ -34,8 +34,11 @@ export default function MyChatRooms({
   managerProfileId,
   refreshToken,
 }: MyChatRoomsProps) {
-  const effectiveUserId =
-    role === "MANAGER" ? managerProfileId ?? userId ?? null : userId ?? null;
+  // 북마크 키가 리렌더 중에 바뀌지 않도록 계정 userId를 우선 사용하고, 없다면 프로필 ID로 대체
+  const effectiveUserId = React.useMemo(
+    () => (role === "MANAGER" ? userId ?? managerProfileId ?? null : userId ?? null),
+    [role, userId, managerProfileId],
+  );
   const [threads, setThreads] = useState<ChatThread[]>([]);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -43,11 +46,13 @@ export default function MyChatRooms({
   const [leaving, setLeaving] = useState<number | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [bookmarked, setBookmarked] = useState<number[]>([]);
+  const [bookmarksHydrated, setBookmarksHydrated] = useState(false);
   const defaultProfileImage =
     resolveProfileImageUrl("/image/픽토그램.png") || "/image/픽토그램.png";
-  const bookmarkKey = effectiveUserId
-    ? `guardian.bookmarkedRooms.${role}.${effectiveUserId}`
-    : null;
+  const bookmarkKey = React.useMemo(
+    () => (effectiveUserId ? `guardian.bookmarkedRooms.${role}.${String(effectiveUserId)}` : null),
+    [effectiveUserId, role],
+  );
 
   const getProfileImage = (url?: string | null) =>
     url && typeof url === "string" && url.trim().length > 0
@@ -156,18 +161,20 @@ export default function MyChatRooms({
       }
     } catch {
       // ignore parse error
+    } finally {
+      setBookmarksHydrated(true);
     }
   }, [bookmarkKey]);
 
   useEffect(() => {
-    if (!bookmarkKey) return;
+    if (!bookmarkKey || !bookmarksHydrated) return;
     try {
       window.localStorage.setItem(bookmarkKey, JSON.stringify(bookmarked));
     } catch {
       // ignore storage error
     }
     setThreads((prev) => sortThreads(prev, bookmarked));
-  }, [bookmarkKey, bookmarked]);
+  }, [bookmarkKey, bookmarked, bookmarksHydrated]);
 
   const handleLeaveRoom = async (roomId: number) => {
     if (!effectiveUserId) {
@@ -196,6 +203,11 @@ export default function MyChatRooms({
   };
 
   const toggleBookmark = (roomId: number) => {
+    if (!bookmarkKey) return;
+    if (!bookmarksHydrated) {
+      // 로컬 저장소 동기화 전에는 토글하지 않는다.
+      return;
+    }
     setBookmarked((prev) => {
       const next = prev.includes(roomId)
         ? prev.filter((id) => id !== roomId)
@@ -281,8 +293,8 @@ export default function MyChatRooms({
                       type="button"
                       className={`bookmark-star inline-flex h-7 w-7 items-center justify-center rounded-full border text-[13px] font-bold transition ${
                         bookmarked.includes(roomId)
-                          ? "on border-amber-300 bg-amber-100 text-amber-600"
-                          : "border-slate-200 bg-white text-slate-400 hover:border-amber-200 hover:text-amber-500"
+                          ? "on border-lime-300 bg-lime-100 text-lime-700"
+                          : "border-slate-200 bg-white text-slate-400 hover:border-lime-200 hover:text-lime-500"
                       }`}
                       title="상단에 고정하기"
                       aria-label={bookmarked.includes(roomId) ? "북마크 해제" : "북마크 추가"}
@@ -342,7 +354,7 @@ export default function MyChatRooms({
         }
         .bookmark-star.on {
           animation: bookmark-pop 0.45s ease;
-          box-shadow: 0 6px 14px rgba(251, 191, 36, 0.25);
+          box-shadow: 0 6px 14px rgba(163, 230, 53, 0.25);
         }
         @keyframes bookmark-pop {
           0% {

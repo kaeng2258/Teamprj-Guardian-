@@ -6,7 +6,7 @@ import { resolveProfileImageUrl } from "@/lib/image";
 import { useRouter } from "next/navigation";
 import { ChatClientPicker } from "@/components/ChatClientPicker";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faMagnifyingGlass } from "@fortawesome/free-solid-svg-icons";
+import { faMagnifyingGlass, faPen, faRotateRight } from "@fortawesome/free-solid-svg-icons";
 import { faComment } from "@fortawesome/free-regular-svg-icons";
 
 import {
@@ -35,6 +35,8 @@ const PillIcon = ({ className = "h-6 w-6" }: { className?: string }) => (
 const byPrefixAndName = {
   fas: {
     "magnifying-glass": faMagnifyingGlass,
+    pen: faPen,
+    "rotate-right": faRotateRight,
   },
   far: {
     comment: faComment,
@@ -2472,16 +2474,13 @@ const WeeklyDayCard = ({
               onClick={() => loadWeeklySummaryForClient(client.clientId)}
               type="button"
             >
-              <span
-                aria-hidden="true"
-                className={`inline-flex h-6 w-6 items-center justify-center rounded-full border text-[11px] ${
-                  summaryLoadingState
-                    ? "animate-spin border-indigo-100 bg-indigo-50 text-indigo-700"
-                    : "border-slate-200 bg-slate-100 text-slate-600"
+              <FontAwesomeIcon
+                icon={byPrefixAndName.fas["rotate-right"]}
+                className={`h-4 w-4 ${
+                  summaryLoadingState ? "animate-spin text-indigo-700" : "text-slate-600"
                 }`}
-              >
-                ↻
-              </span>
+                aria-hidden
+              />
               <span>{summaryLoadingState ? "갱신 중..." : "주간 현황 새로고침"}</span>
             </button>
           </div>
@@ -3289,7 +3288,13 @@ const WeeklyDayCard = ({
                   type="button"
                   onClick={() => router.push("/manager/profile/edit")}
                 >
-                  Edit
+                  <FontAwesomeIcon
+                    icon={byPrefixAndName.fas["pen"]}
+                    className="h-4 w-4"
+                    aria-hidden
+                    style={{ transform: "scaleX(-1)" }}
+                  />
+                  <span className="sr-only">프로필 편집</span>
                 </button>
               </div>
               <div className="flex flex-col gap-1">
@@ -3891,14 +3896,13 @@ const WeeklyDayCard = ({
               onClick={loadDashboard}
               type="button"
             >
-              <span
-                className={`inline-flex h-5 w-5 items-center justify-center rounded-full ${
-                  dashboardLoading ? "animate-spin bg-indigo-100 text-indigo-700" : "bg-slate-100 text-slate-600"
+              <FontAwesomeIcon
+                icon={byPrefixAndName.fas["rotate-right"]}
+                className={`h-4 w-4 rounded-full ${
+                  dashboardLoading ? "animate-spin text-indigo-700" : "text-slate-600"
                 }`}
-                aria-hidden="true"
-              >
-                ↻
-              </span>
+                aria-hidden
+              />
               {dashboardLoading ? "새로고침 중..." : "새로고침"}
             </button>
           </div>

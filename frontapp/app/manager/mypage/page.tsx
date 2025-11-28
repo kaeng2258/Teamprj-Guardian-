@@ -153,6 +153,17 @@ type UserSummary = {
   profileImageUrl?: string | null;
 };
 
+type ChatAlert = {
+  roomId: number;
+  label: string;
+  lastMessageAt?: string | null;
+};
+
+type OverdueAlertItem = {
+  label: string;
+  dueTime: number;
+};
+
 type ManualMedicineForm = {
   name: string;
   productCode: string;
@@ -604,6 +615,7 @@ export default function ManagerMyPage() {
   }, [router]);
 
   const favoritesKey = manager.userId ? `managerFavoriteClients:${manager.userId}` : null;
+  const alertAckKey = manager.userId ? `managerAlertsAcknowledgedAt:${manager.userId}` : null;
 
   // 즐겨찾기 로드 (사용자 기준)
   useEffect(() => {
@@ -649,6 +661,23 @@ export default function ManagerMyPage() {
       // ignore storage error
     }
   }, [favoriteClientIds, favoritesKey]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!alertAckKey) {
+      setLastAcknowledgedAt(null);
+      return;
+    }
+    const stored = window.localStorage.getItem(alertAckKey);
+    if (stored) {
+      const parsed = Date.parse(stored);
+      if (!Number.isNaN(parsed)) {
+        setLastAcknowledgedAt(new Date(parsed));
+        return;
+      }
+    }
+    setLastAcknowledgedAt(null);
+  }, [alertAckKey]);
 
   const loadDashboard = useCallback(async () => {
     if (!manager.userId) {
@@ -841,6 +870,7 @@ export default function ManagerMyPage() {
     chat: 0,
     emergency: 0,
   });
+  const [lastAcknowledgedAt, setLastAcknowledgedAt] = useState<Date | null>(null);
   const [managerAlertsAcknowledged, setManagerAlertsAcknowledged] = useState(false);
   const PAGE_SIZE = 10;
 
@@ -941,10 +971,22 @@ export default function ManagerMyPage() {
         ),
     [dashboard],
   );
+  const latestEmergencyAlertTime = useMemo(() => {
+    let latest = 0;
+    (dashboard?.clients ?? []).forEach((client) => {
+      (client.emergencyAlerts ?? []).forEach((alert) => {
+        const time = alert.alertTime ? new Date(alert.alertTime).getTime() : 0;
+        if (!Number.isNaN(time)) {
+          latest = Math.max(latest, time);
+        }
+      });
+    });
+    return latest;
+  }, [dashboard]);
 
-  const overdueAlerts = useMemo(() => {
+  const overdueAlerts = useMemo<OverdueAlertItem[]>(() => {
     const now = new Date();
-    const list: string[] = [];
+    const list: OverdueAlertItem[] = [];
     (dashboard?.clients ?? []).forEach((client) => {
       (client.medicationPlans ?? []).forEach((plan) => {
         if (!plan.active) return;
@@ -964,14 +1006,32 @@ export default function ManagerMyPage() {
           return log.medicineId === plan.medicineId;
         });
         if (!hasTodayLog) {
-          list.push(`${client.clientName} / ${plan.medicineName} / ${plan.alarmTime?.slice(0, 5) ?? ""} 확인 필요`);
+          list.push({
+            label: `${client.clientName} / ${plan.medicineName} / ${plan.alarmTime?.slice(0, 5) ?? ""} 확인 필요`,
+            dueTime: alarm.getTime(),
+          });
         }
       });
     });
     return list;
   }, [dashboard, todayDateString, todayToken]);
 
-  const [chatAlerts, setChatAlerts] = useState<Array<{ roomId: number; label: string }>>([]);
+  const overdueAlertLabels = useMemo(() => overdueAlerts.map((item) => item.label), [overdueAlerts]);
+  const latestOverdueAlertTime = useMemo(
+    () => overdueAlerts.reduce((latest, item) => Math.max(latest, item.dueTime), 0),
+    [overdueAlerts],
+  );
+
+  const [chatAlerts, setChatAlerts] = useState<ChatAlert[]>([]);
+  const latestChatAlertTime = useMemo(
+    () =>
+      chatAlerts.reduce((latest, alert) => {
+        const time = alert.lastMessageAt ? new Date(alert.lastMessageAt).getTime() : 0;
+        if (Number.isNaN(time)) return latest;
+        return Math.max(latest, time);
+      }, 0),
+    [chatAlerts],
+  );
 
   useEffect(() => {
     const loadUnread = async () => {
@@ -984,6 +1044,7 @@ export default function ManagerMyPage() {
           clientName?: string;
           managerName?: string;
           lastMessageSnippet?: string;
+          lastMessageAt?: string;
           readByManager: boolean;
         }> = await res.json();
         const unread = data
@@ -991,6 +1052,7 @@ export default function ManagerMyPage() {
           .map((t) => ({
             roomId: t.roomId,
             label: `${t.clientName ?? "이용자"} / ${t.lastMessageSnippet ?? "새 메시지"}`,
+            lastMessageAt: t.lastMessageAt,
           }));
         setChatAlerts(unread);
       } catch {
@@ -1006,7 +1068,7 @@ export default function ManagerMyPage() {
     }
     switch (managerAlertTab) {
       case "overdue":
-        return overdueAlerts;
+        return overdueAlertLabels;
       case "chat":
         return chatAlerts.map((c) => c.label);
       case "emergency":
@@ -1014,7 +1076,7 @@ export default function ManagerMyPage() {
       default:
         return [];
     }
-  }, [managerAlertTab, overdueAlerts, chatAlerts, emergencyAlerts, managerAlertsAcknowledged]);
+  }, [managerAlertTab, overdueAlertLabels, chatAlerts, emergencyAlerts, managerAlertsAcknowledged]);
 
   const pagedAlerts = useMemo(() => {
     const page = alertPage[managerAlertTab] ?? 0;
@@ -1042,6 +1104,24 @@ export default function ManagerMyPage() {
   const effectiveEmergencyCount = managerAlertsAcknowledged ? 0 : emergencyAlerts.length;
   const totalPendingManagerAlerts = effectiveOverdueCount + effectiveChatCount + effectiveEmergencyCount;
 
+  useEffect(() => {
+    if (!manager.userId) return;
+    if (!lastAcknowledgedAt) {
+      setManagerAlertsAcknowledged(false);
+      return;
+    }
+    const latestAlertTime = Math.max(
+      latestOverdueAlertTime,
+      latestChatAlertTime,
+      latestEmergencyAlertTime,
+    );
+    if (latestAlertTime === 0) {
+      setManagerAlertsAcknowledged(true);
+      return;
+    }
+    setManagerAlertsAcknowledged(lastAcknowledgedAt.getTime() >= latestAlertTime);
+  }, [manager.userId, lastAcknowledgedAt, latestOverdueAlertTime, latestChatAlertTime, latestEmergencyAlertTime]);
+
   const handleManagerAcknowledgeAlerts = useCallback(async () => {
     if (!manager.userId) return;
     setAckLoading(true);
@@ -1054,6 +1134,15 @@ export default function ManagerMyPage() {
         const message = await extractApiError(response, "알림을 확인 처리하지 못했습니다.");
         throw new Error(message);
       }
+      const now = new Date();
+      setLastAcknowledgedAt(now);
+      if (typeof window !== "undefined" && alertAckKey) {
+        try {
+          window.localStorage.setItem(alertAckKey, now.toISOString());
+        } catch {
+          // ignore storage error
+        }
+      }
       setManagerAlertsAcknowledged(true);
       setAlertPage({ overdue: 0, chat: 0, emergency: 0 });
       setChatAlerts([]);
@@ -1064,7 +1153,7 @@ export default function ManagerMyPage() {
     } finally {
       setAckLoading(false);
     }
-  }, [manager.userId, loadDashboard]);
+  }, [manager.userId, alertAckKey, loadDashboard]);
 
   const totalPages = useMemo(() => Math.max(1, Math.ceil(currentAlerts.length / PAGE_SIZE)), [currentAlerts.length]);
 

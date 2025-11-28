@@ -21,7 +21,6 @@ import java.util.List;
 @RequiredArgsConstructor
 public class SecurityConfig {
 
-    // ✅ 필드로 주입
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
 
     @Bean
@@ -35,32 +34,35 @@ public class SecurityConfig {
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
                 .authorizeHttpRequests(auth -> auth
-                        // 회원가입/이메일중복/로그인 허용
+                        // ✅ 회원가입/이메일중복/로그인/토큰 관련은 모두 허용
                         .requestMatchers(HttpMethod.POST, "/api/users").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/users/check-email").permitAll()
-                        .requestMatchers("/api/auth/login").permitAll()
+                        .requestMatchers(
+                                "/",
+                                "/login",
+                                "/error",
+                                "/api/auth/**"
+                        ).permitAll()
 
-                        // 관리자: ADMIN
+                        // ✅ 관리자: DB / 토큰 / GrantedAuthority 전부 "ADMIN" 으로 통일
                         .requestMatchers("/api/admin/**", "/admin/**")
                         .hasAuthority("ADMIN")
 
-                        // 관리인: MANAGER
+                        // ✅ 관리인: "MANAGER"
                         .requestMatchers("/api/manager/**", "/manager/**")
                         .hasAuthority("MANAGER")
 
-                        // 환자: CLIENT
+                        // ✅ 환자: "CLIENT"
                         .requestMatchers("/api/client/**", "/client/**")
                         .hasAuthority("CLIENT")
 
-                        // 웹소켓, H2, 정적 페이지 등 공개
+                        // ✅ 웹소켓, H2, 정적 페이지 등 공개
                         .requestMatchers(
                                 "/ws/**",
                                 "/topic/**",
                                 "/h2-console/**",
-                                "/",
                                 "/index.html",
                                 "/favicon.ico",
-                                "/error",
                                 "/templates/**",
                                 "/chat.html",
                                 "/chat",
@@ -68,17 +70,17 @@ public class SecurityConfig {
                                 "/search"
                         ).permitAll()
 
+                        // 나머지는 인증만 되면 OK
                         .anyRequest().authenticated()
                 )
                 .formLogin(form -> form.disable())
                 .httpBasic(basic -> basic.disable())
-                // ✅ 필드로 받은 jwtAuthenticationFilter 등록
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
 
-    // ✅ CORS 설정
+    // ✅ CORS
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
@@ -92,7 +94,7 @@ public class SecurityConfig {
         return source;
     }
 
-    // ✅ PasswordEncoder (AuthService 때문에 필수)
+    // ✅ PasswordEncoder
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();

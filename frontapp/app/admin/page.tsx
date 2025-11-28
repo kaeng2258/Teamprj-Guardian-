@@ -62,18 +62,20 @@ export default function AdminDashboardPage() {
   const [selectedUser, setSelectedUser] = useState<AdminUserDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
-  // 🔒 localStorage 에서 토큰 꺼내는 공통 함수
-  const getAuth = (): GuardianAuthPayload | null => {
-    if (typeof window === "undefined") return null;
-    const raw = window.localStorage.getItem("guardian_auth");
-    if (!raw) return null;
-    try {
-      return JSON.parse(raw) as GuardianAuthPayload;
-    } catch (e) {
-      console.error("[AdminDashboard] auth parse error:", e);
-      return null;
-    }
-  };
+const getAuth = (): GuardianAuthPayload | null => {
+  if (typeof window === "undefined") return null;
+  const raw = window.localStorage.getItem("guardian_auth");
+  console.log("[AdminDashboard] guardian_auth raw =", raw);  // ⬅ 추가
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as GuardianAuthPayload;
+    console.log("[AdminDashboard] guardian_auth parsed =", parsed); // ⬅ 추가
+    return parsed;
+  } catch (e) {
+    console.error("[AdminDashboard] auth parse error:", e);
+    return null;
+  }
+};
 
   // ✅ 요약 정보 로드 (ADMIN 가드 통과 후 + 토큰 붙여서 호출)
   useEffect(() => {
@@ -133,14 +135,15 @@ export default function AdminDashboardPage() {
     router.replace("/");     // 로그인 페이지로 이동
   };
   // ✅ 유저 검색 (토큰 포함)
-  const searchUsers = async () => {
-    try {
-      setUserLoading(true);
-      setUserError(null);
-      setUsers([]);
-      setSelectedUser(null);
+const searchUsers = async () => {
+  try {
+    setUserLoading(true);
+    setUserError(null);
+    setUsers([]);
+    setSelectedUser(null);
 
-      const auth = getAuth();
+    const auth = getAuth();
+    console.log("[AdminDashboard] searchUsers auth =", auth); 
       if (!auth) {
         setUserError("로그인 정보가 없습니다. 다시 로그인 해주세요.");
         return;

@@ -62,6 +62,13 @@ public class CareAssignmentService {
                 .collect(Collectors.toList());
     }
 
+    public void unassign(Long clientId, Long managerId, LocalDate endDate) {
+        CareMatch match = careMatchRepository
+                .findFirstByClientIdAndManagerIdAndCurrentTrue(clientId, managerId)
+                .orElseThrow(() -> new GuardianException(HttpStatus.NOT_FOUND, "현재 배정 정보를 찾을 수 없습니다."));
+        unassign(match.getId(), endDate);
+    }
+
     private User getUser(Long userId) {
         return userRepository
                 .findById(userId)

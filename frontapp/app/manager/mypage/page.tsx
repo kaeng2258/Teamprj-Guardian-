@@ -343,6 +343,9 @@ export default function ManagerMyPage() {
   const [deleteProcessing, setDeleteProcessing] = useState<
     Record<number, "idle" | "loading">
   >({});
+  const [planUpdateProcessing, setPlanUpdateProcessing] = useState<
+    Record<number, "idle" | "loading">
+  >({});
   const [editingPlanId, setEditingPlanId] = useState<number | null>(null);
   const [editingForms, setEditingForms] = useState<
     Record<
@@ -472,6 +475,31 @@ export default function ManagerMyPage() {
       };
     });
   };
+
+  const applyPlanPatch = useCallback(
+    (clientId: number, planId: number, patch: Partial<MedicationPlan>) => {
+      setDashboard((prev) => {
+        if (!prev) {
+          return prev;
+        }
+        return {
+          ...prev,
+          clients: prev.clients.map((client) => {
+            if (client.clientId !== clientId) {
+              return client;
+            }
+            return {
+              ...client,
+              medicationPlans: client.medicationPlans.map((plan) =>
+                plan.id === planId ? { ...plan, ...patch } : plan
+              ),
+            };
+          }),
+        };
+      });
+    },
+    [],
+  );
 
   const loadWeeklySummaryForClient = useCallback(
     async (clientId: number) => {
@@ -1042,6 +1070,10 @@ export default function ManagerMyPage() {
     [favoriteClientIds],
   );
 
+  const removeFavorite = useCallback((clientId: number) => {
+    setFavoriteClientIds((prev) => prev.filter((id) => id !== clientId));
+  }, []);
+
   const toggleFavorite = useCallback((clientId: number) => {
     setFavoriteClientIds((prev) => {
       const set = new Set(prev);
@@ -1604,6 +1636,7 @@ const WeeklyDayCard = ({
         await handleClientSearch();
       }
 
+      removeFavorite(clientId);
       setAssignmentMessages((prev) => ({
         ...prev,
         [clientId]: { type: "success", text: "배정을 취소했습니다." },
@@ -2092,6 +2125,36 @@ const WeeklyDayCard = ({
       error: "",
       message: "",
     }));
+    setPlanUpdateProcessing((prev) => ({ ...prev, [planId]: "loading" }));
+    const currentPlan =
+      dashboard?.clients
+        ?.find((client) => client.clientId === clientId)
+        ?.medicationPlans.find((plan) => plan.id === planId) ?? null;
+    const previousSnapshot = currentPlan
+      ? { ...currentPlan, daysOfWeek: [...currentPlan.daysOfWeek] }
+      : null;
+    const planPatch: Partial<MedicationPlan> = {};
+    if (payload.dosageAmount !== undefined) {
+      planPatch.dosageAmount = payload.dosageAmount;
+    }
+    if (payload.dosageUnit !== undefined) {
+      planPatch.dosageUnit = payload.dosageUnit;
+    }
+    if (payload.alarmTime !== undefined) {
+      planPatch.alarmTime = payload.alarmTime;
+    }
+    if (payload.daysOfWeek !== undefined) {
+      planPatch.daysOfWeek = [...payload.daysOfWeek];
+    }
+    if (payload.active !== undefined) {
+      planPatch.active = payload.active;
+    }
+    if (payload.medicineId !== undefined) {
+      planPatch.medicineId = payload.medicineId;
+    }
+    if (previousSnapshot && Object.keys(planPatch).length > 0) {
+      applyPlanPatch(clientId, planId, planPatch);
+    }
     try {
       const response = await fetch(
         `${API_BASE_URL}/api/clients/${clientId}/medication/plans/${planId}`,
@@ -2119,6 +2182,9 @@ const WeeklyDayCard = ({
       }));
       setEditingPlanId(null);
     } catch (error) {
+      if (previousSnapshot) {
+        applyPlanPatch(clientId, planId, previousSnapshot);
+      }
       const message =
         error instanceof Error
           ? error.message
@@ -2132,6 +2198,7 @@ const WeeklyDayCard = ({
         ...current,
         submitting: false,
       }));
+      setPlanUpdateProcessing((prev) => ({ ...prev, [planId]: "idle" }));
     }
   };
 
@@ -2360,6 +2427,7 @@ const WeeklyDayCard = ({
                   client.latestMedicationLogs.find(
                     (log) => !log.planId && log.medicineId === plan.medicineId,
                   );
+                const planUpdating = planUpdateProcessing[plan.id] === "loading";
                 return (
                   <div
                     key={plan.id}
@@ -2439,46 +2507,41 @@ const WeeklyDayCard = ({
                         {latestLog ? `${formatDateTime(latestLog.logTimestamp)}` : "기록 없음"}
                       </p>
                       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
-                        <button
-                          className={`${subtleActionButton} ${
-                            plan.active
-                              ? "border-emerald-200 bg-emerald-50 text-emerald-700 hover:border-emerald-300 hover:text-emerald-800"
-                              : ""
+                        <label
+                          className={`inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold shadow-sm transition ${
+                            planUpdating
+                              ? "cursor-not-allowed opacity-70"
+                              : "cursor-pointer hover:border-indigo-200 hover:text-indigo-800"
                           }`}
-                          onClick={() =>
-                            handleUpdatePlan(client.clientId, plan.id, {
-                              active: !plan.active,
-                              dosageAmount: plan.dosageAmount,
-                              dosageUnit: plan.dosageUnit,
-                              alarmTime: plan.alarmTime,
-                              daysOfWeek: plan.daysOfWeek,
-                              medicineId: plan.medicineId,
-                            })
-                          }
-                          type="button"
                         >
+                          <input
+                            type="checkbox"
+                            className="peer sr-only"
+                            checked={plan.active}
+                            disabled={planUpdating}
+                            onChange={() =>
+                              handleUpdatePlan(client.clientId, plan.id, {
+                                active: !plan.active,
+                                dosageAmount: plan.dosageAmount,
+                                dosageUnit: plan.dosageUnit,
+                                alarmTime: plan.alarmTime,
+                                daysOfWeek: plan.daysOfWeek,
+                                medicineId: plan.medicineId,
+                              })
+                            }
+                          />
                           <span
+                            className="relative h-5 w-9 rounded-full bg-slate-200 transition peer-checked:bg-emerald-500 peer-disabled:bg-slate-200"
                             aria-hidden="true"
-                            className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] ${
-                              plan.active
-                                ? "bg-emerald-100 text-emerald-700"
-                                : "bg-slate-100 text-slate-600"
-                            }`}
                           >
-                            <svg
-                              className="h-3.5 w-3.5"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              viewBox="0 0 24 24"
-                            >
-                              <path d="M5 13l4 4L19 7" />
-                            </svg>
+                            <span
+                              className="absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white shadow transition peer-checked:translate-x-4 peer-disabled:opacity-70"
+                            />
                           </span>
-                          {plan.active ? "비활성화" : "활성화"}
-                        </button>
+                          <span className="text-slate-700 peer-checked:text-emerald-700 peer-disabled:text-slate-500">
+                            {plan.active ? "활성화" : "비활성화"}
+                          </span>
+                        </label>
                         <button
                           className={`${primaryActionButton} w-full sm:w-auto`}
                           disabled={logProcessing[plan.id] === "loading"}

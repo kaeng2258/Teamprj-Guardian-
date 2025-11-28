@@ -39,7 +39,7 @@ type DaumPostcodeData = {
 };
 
 const roleLabels: Record<UserRoleOption, string> = {
-  CLIENT: "환자",
+  CLIENT: "일반",
   MANAGER: "매니저",
 };
 

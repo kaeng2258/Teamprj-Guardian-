@@ -729,7 +729,7 @@ export default function ManagerProfileEditPage() {
                     onClick={handleAddressSearch}
                     className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-indigo-400 hover:text-indigo-900 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-200"
                   >
-                    주소 검색 (다음)
+                    주소 검색
                   </button>
                 </div>
                 <label className="flex flex-col gap-1 text-sm text-slate-700 dark:text-slate-200 sm:col-span-3">
@@ -773,9 +773,9 @@ export default function ManagerProfileEditPage() {
                   disabled={pushStatus === "requesting"}
                   className={`relative inline-flex h-10 w-32 items-center justify-between rounded-full border px-3 text-[11px] font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${
                     pushEnabled
-                      ? "border-indigo-500 bg-gradient-to-r from-indigo-500 to-violet-500 text-white shadow-sm"
-                      : "border-slate-200 bg-slate-200 text-slate-700 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
-                  } ${pushStatus === "requesting" ? "opacity-60" : "hover:shadow-sm"}`}
+                      ? "border-indigo-500 bg-indigo-50 text-indigo-700 shadow-sm"
+                      : "border-slate-200 bg-slate-100 text-slate-700 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
+                  } ${pushStatus === "requesting" ? "opacity-60" : "hover:-translate-y-[1px] hover:shadow-sm"}`}
                   aria-pressed={pushEnabled}
                   aria-label="모바일 푸시 알림 설정"
                 >
@@ -787,22 +787,18 @@ export default function ManagerProfileEditPage() {
                     >
                       <BellIcon className="h-4 w-4" />
                     </span>
-                    <span>{pushEnabled ? "알림 켜짐" : "알림 꺼짐"}</span>
+                    <span className="sr-only">{pushEnabled ? "알림 켜짐" : "알림 꺼짐"}</span>
                   </span>
-                  <span className="relative flex h-6 w-14 items-center rounded-full border border-indigo-100 bg-white/90 text-[10px] font-bold uppercase tracking-wide text-indigo-600 shadow-inner">
+                  <span
+                    className={`relative flex h-7 w-14 items-center rounded-full transition ${pushEnabled ? "bg-indigo-100" : "bg-slate-200/90"}`}
+                  >
                     <span
-                      className={`absolute left-0 top-0 h-full w-full rounded-full bg-indigo-200/40 transition-opacity ${
-                        pushEnabled ? "opacity-100" : "opacity-0"
+                      className={`absolute left-1 h-5 w-5 rounded-full ring-1 ring-slate-200 transition-all duration-200 ${
+                        pushEnabled
+                          ? "translate-x-7 bg-indigo-600 shadow-lg"
+                          : "translate-x-0 bg-white shadow-sm"
                       }`}
-                      aria-hidden="true"
                     />
-                    <span
-                      className={`relative inline-flex h-5 w-5 items-center justify-center rounded-full bg-indigo-500 text-white shadow transition-transform duration-200 ${
-                        pushEnabled ? "translate-x-[18px]" : "translate-x-0"
-                      }`}
-                    >
-                      {pushEnabled ? "On" : "Off"}
-                    </span>
                   </span>
                   <span className="sr-only">{pushEnabled ? "푸시 켜짐" : "푸시 꺼짐"}</span>
                 </button>
@@ -820,7 +816,7 @@ export default function ManagerProfileEditPage() {
                   className={`relative inline-flex h-10 w-32 items-center justify-between rounded-full border px-3 text-[11px] font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${
                     theme === "dark"
                       ? "border-indigo-500 bg-gradient-to-r from-slate-800 to-indigo-600 text-white shadow-sm"
-                      : "border-slate-300 bg-slate-200 text-slate-700 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
+                      : "border-slate-300 bg-slate-100 text-slate-700 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
                   }`}
                   aria-pressed={theme === "dark"}
                   aria-label="다크 모드 토글"
@@ -833,22 +829,18 @@ export default function ManagerProfileEditPage() {
                     >
                       <ThemeIcon mode={theme} className="h-4 w-4" />
                     </span>
-                    <span>{theme === "dark" ? "다크 모드" : "라이트 모드"}</span>
+                    <span className="sr-only">{theme === "dark" ? "다크 모드" : "라이트 모드"}</span>
                   </span>
-                  <span className="relative flex h-6 w-14 items-center rounded-full border border-indigo-100 bg-white/90 text-[10px] font-bold uppercase tracking-wide text-indigo-600 shadow-inner">
+                  <span
+                    className={`relative flex h-7 w-14 items-center rounded-full transition ${theme === "dark" ? "bg-indigo-200/60" : "bg-slate-200/90"}`}
+                  >
                     <span
-                      className={`absolute left-0 top-0 h-full w-full rounded-full bg-indigo-200/40 transition-opacity ${
-                        theme === "dark" ? "opacity-100" : "opacity-0"
+                      className={`absolute left-1 h-5 w-5 rounded-full ring-1 ring-slate-200 transition-all duration-200 ${
+                        theme === "dark"
+                          ? "translate-x-7 bg-indigo-700 shadow-lg"
+                          : "translate-x-0 bg-white shadow-sm"
                       }`}
-                      aria-hidden="true"
                     />
-                    <span
-                      className={`relative inline-flex h-5 w-5 items-center justify-center rounded-full bg-indigo-500 text-white shadow transition-transform duration-200 ${
-                        theme === "dark" ? "translate-x-[18px]" : "translate-x-0"
-                      }`}
-                    >
-                      {theme === "dark" ? "On" : "Off"}
-                    </span>
                   </span>
                 </button>
               </div>
@@ -863,7 +855,7 @@ export default function ManagerProfileEditPage() {
                   className={`relative inline-flex h-10 w-32 items-center justify-between rounded-full border px-3 text-[11px] font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${
                     textSize === "large"
                       ? "border-indigo-500 bg-gradient-to-r from-indigo-500 to-blue-600 text-white shadow-sm"
-                      : "border-slate-300 bg-slate-200 text-slate-700 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
+                      : "border-slate-300 bg-slate-100 text-slate-700 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
                   }`}
                   aria-pressed={textSize === "large"}
                   aria-label="큰 글씨 모드 토글"
@@ -876,22 +868,18 @@ export default function ManagerProfileEditPage() {
                     >
                       <TextSizeIcon large={textSize === "large"} className="h-4 w-4" />
                     </span>
-                    <span>{textSize === "large" ? "큰 글씨" : "보통 글씨"}</span>
+                    <span className="sr-only">{textSize === "large" ? "큰 글씨" : "보통 글씨"}</span>
                   </span>
-                  <span className="relative flex h-6 w-14 items-center rounded-full border border-indigo-100 bg-white/90 text-[10px] font-bold uppercase tracking-wide text-indigo-600 shadow-inner">
+                  <span
+                    className={`relative flex h-7 w-14 items-center rounded-full transition ${textSize === "large" ? "bg-indigo-200/60" : "bg-slate-200/90"}`}
+                  >
                     <span
-                      className={`absolute left-0 top-0 h-full w-full rounded-full bg-indigo-200/40 transition-opacity ${
-                        textSize === "large" ? "opacity-100" : "opacity-0"
+                      className={`absolute left-1 h-5 w-5 rounded-full ring-1 ring-slate-200 transition-all duration-200 ${
+                        textSize === "large"
+                          ? "translate-x-7 bg-indigo-700 shadow-lg"
+                          : "translate-x-0 bg-white shadow-sm"
                       }`}
-                      aria-hidden="true"
                     />
-                    <span
-                      className={`relative inline-flex h-5 w-5 items-center justify-center rounded-full bg-indigo-500 text-white shadow transition-transform duration-200 ${
-                        textSize === "large" ? "translate-x-[18px]" : "translate-x-0"
-                      }`}
-                    >
-                      {textSize === "large" ? "On" : "Off"}
-                    </span>
                   </span>
                 </button>
               </div>

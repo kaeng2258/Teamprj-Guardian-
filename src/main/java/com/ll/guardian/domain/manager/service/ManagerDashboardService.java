@@ -50,7 +50,7 @@ public class ManagerDashboardService {
                 .findById(managerId)
                 .orElseThrow(() -> new GuardianException(HttpStatus.NOT_FOUND, "담당자를 찾을 수 없습니다."));
 
-        List<CareMatch> matches = careMatchRepository.findByManagerId(managerId);
+        List<CareMatch> matches = careMatchRepository.findByManagerIdAndCurrentTrue(managerId);
         Map<Long, List<MedicationPlanResponse>> planMap = matches.stream()
                 .collect(Collectors.toMap(
                         match -> match.getClient().getId(),

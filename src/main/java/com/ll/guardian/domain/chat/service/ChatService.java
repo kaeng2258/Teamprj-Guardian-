@@ -8,6 +8,7 @@ import com.ll.guardian.domain.chat.entity.ChatMessage;
 import com.ll.guardian.domain.chat.entity.ChatRoom;
 import com.ll.guardian.domain.chat.repository.ChatMessageRepository;
 import com.ll.guardian.domain.chat.repository.ChatRoomRepository;
+import com.ll.guardian.domain.matching.repository.CareMatchRepository;
 import com.ll.guardian.domain.user.entity.User;
 import com.ll.guardian.domain.user.repository.UserRepository;
 import com.ll.guardian.global.exception.GuardianException;
@@ -25,14 +26,17 @@ public class ChatService {
 
     private final ChatRoomRepository chatRoomRepository;
     private final ChatMessageRepository chatMessageRepository;
+    private final CareMatchRepository careMatchRepository;
     private final UserRepository userRepository;
 
     public ChatService(
             ChatRoomRepository chatRoomRepository,
             ChatMessageRepository chatMessageRepository,
+            CareMatchRepository careMatchRepository,
             UserRepository userRepository) {
         this.chatRoomRepository = chatRoomRepository;
         this.chatMessageRepository = chatMessageRepository;
+        this.careMatchRepository = careMatchRepository;
         this.userRepository = userRepository;
     }
 
@@ -41,6 +45,7 @@ public class ChatService {
     public List<ChatThreadResponse> getThreadsForUser(Long userId) {
         return chatRoomRepository.findAll().stream()
                 .filter(room -> room.getClient().getId().equals(userId) || room.getManager().getId().equals(userId))
+                .filter(room -> isCurrentlyMatched(room.getClient().getId(), room.getManager().getId()))
                 .map(ChatThreadResponse::from)
                 .collect(Collectors.toList());
     }
@@ -56,6 +61,8 @@ public class ChatService {
                 && !room.getManager().getId().equals(sender.getId())) {
             throw new GuardianException(HttpStatus.FORBIDDEN, "채팅방에 참여한 사용자만 메시지를 보낼 수 있습니다.");
         }
+
+        ensureCurrentMatch(room);
 
         ChatMessage message = ChatMessage.builder()
                 .room(room)
@@ -74,6 +81,11 @@ public class ChatService {
     /** 특정 방의 전체 메시지(오름차순) */
     @Transactional(readOnly = true)
     public List<ChatMessageResponse> getMessages(Long roomId) {
+        ChatRoom room = chatRoomRepository
+                .findById(roomId)
+                .orElseThrow(() -> new GuardianException(HttpStatus.NOT_FOUND, "채팅방을 찾을 수 없습니다."));
+        ensureCurrentMatch(room);
+
         return chatMessageRepository.findByRoomIdOrderBySentAtAsc(roomId).stream()
                 .map(ChatMessageResponse::from)
                 .collect(Collectors.toList());
@@ -84,6 +96,7 @@ public class ChatService {
         ChatRoom room = chatRoomRepository
                 .findById(roomId)
                 .orElseThrow(() -> new GuardianException(HttpStatus.NOT_FOUND, "채팅방을 찾을 수 없습니다."));
+        ensureCurrentMatch(room);
         if (room.getClient().getId().equals(userId)) {
             room.markAsReadByClient();
         } else if (room.getManager().getId().equals(userId)) {
@@ -97,6 +110,10 @@ public class ChatService {
     public ChatRoom openOrGetRoom(Long clientId, Long managerId) {
         if (clientId.equals(managerId)) {
             throw new GuardianException(HttpStatus.BAD_REQUEST, "클라이언트와 매니저가 동일할 수 없습니다.");
+        }
+
+        if (!isCurrentlyMatched(clientId, managerId)) {
+            throw new GuardianException(HttpStatus.FORBIDDEN, "배정된 매칭이 해제되어 채팅을 열 수 없습니다.");
         }
 
         User client = getUser(clientId);
@@ -118,8 +135,10 @@ public class ChatService {
     /** (추가) 단일 방 조회 */
     @Transactional(readOnly = true)
     public ChatRoom getRoom(Long roomId) {
-        return chatRoomRepository.findById(roomId)
+        ChatRoom room = chatRoomRepository.findById(roomId)
                 .orElseThrow(() -> new GuardianException(HttpStatus.NOT_FOUND, "채팅방을 찾을 수 없습니다."));
+        ensureCurrentMatch(room);
+        return room;
     }
 
     // ---- 내부 유틸 ----
@@ -142,5 +161,15 @@ public class ChatService {
 
         // ✅ 방 제거
         chatRoomRepository.delete(room);
+    }
+
+    private boolean isCurrentlyMatched(Long clientId, Long managerId) {
+        return careMatchRepository.findFirstByClientIdAndManagerIdAndCurrentTrue(clientId, managerId).isPresent();
+    }
+
+    private void ensureCurrentMatch(ChatRoom room) {
+        if (!isCurrentlyMatched(room.getClient().getId(), room.getManager().getId())) {
+            throw new GuardianException(HttpStatus.FORBIDDEN, "배정이 해제된 상태에서는 채팅을 이용할 수 없습니다.");
+        }
     }
 }

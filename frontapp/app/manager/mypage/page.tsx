@@ -362,7 +362,7 @@ export default function ManagerMyPage() {
   const [searchError, setSearchError] = useState("");
   const [searchMessage, setSearchMessage] = useState("");
   const [assignmentStates, setAssignmentStates] = useState<
-    Record<number, "idle" | "loading">
+    Record<number, "idle" | "assigning" | "unassigning">
   >({});
   const [assignmentMessages, setAssignmentMessages] = useState<
     Record<number, PlanActionMessage | undefined>
@@ -1087,6 +1087,43 @@ export default function ManagerMyPage() {
   const closeClientModal = () => setClientModalClientId(null);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    const body = document.body;
+    const docEl = document.documentElement;
+    const originalOverflow = body.style.overflow;
+    const originalPaddingRight = body.style.paddingRight;
+    const originalPosition = body.style.position;
+    const originalTop = body.style.top;
+    const originalWidth = body.style.width;
+    const originalDocOverscroll = docEl.style.overscrollBehavior;
+    const scrollY = window.scrollY;
+
+    if (clientModalClientId) {
+      const scrollBarWidth = window.innerWidth - docEl.clientWidth;
+      body.style.position = "fixed";
+      body.style.top = `-${scrollY}px`;
+      body.style.width = "100%";
+      body.style.overflow = "hidden";
+      if (scrollBarWidth > 0) {
+        body.style.paddingRight = `${scrollBarWidth}px`;
+      }
+      docEl.style.overscrollBehavior = "none";
+    }
+
+    return () => {
+      body.style.overflow = originalOverflow;
+      body.style.paddingRight = originalPaddingRight;
+      body.style.position = originalPosition;
+      body.style.top = originalTop;
+      body.style.width = originalWidth;
+      docEl.style.overscrollBehavior = originalDocOverscroll;
+      if (clientModalClientId) {
+        window.scrollTo(0, scrollY);
+      }
+    };
+  }, [clientModalClientId]);
+
+  useEffect(() => {
     const loadClientDetail = async (clientId: number) => {
       const existing = clientDetails[clientId];
       const needsMore =
@@ -1132,21 +1169,6 @@ export default function ManagerMyPage() {
       setClientModalClientId(null);
     }
   }, [clientModalClientId, dashboard]);
-
-  useEffect(() => {
-    if (clientModalClientId === null) {
-      return undefined;
-    }
-    if (typeof document === "undefined") {
-      return undefined;
-    }
-    const { body } = document;
-    const previousOverflow = body.style.overflow;
-    body.style.overflow = "hidden";
-    return () => {
-      body.style.overflow = previousOverflow;
-    };
-  }, [clientModalClientId]);
 
   useEffect(() => {
     if (clientModalClientId === null) {
@@ -1495,7 +1517,7 @@ const WeeklyDayCard = ({
       return;
     }
 
-    setAssignmentStates((prev) => ({ ...prev, [clientId]: "loading" }));
+    setAssignmentStates((prev) => ({ ...prev, [clientId]: "assigning" }));
     setAssignmentMessages((prev) => ({ ...prev, [clientId]: undefined }));
 
     try {
@@ -1505,6 +1527,7 @@ const WeeklyDayCard = ({
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            ...authHeaders(),
           },
           body: JSON.stringify({ clientId }),
         }
@@ -1540,6 +1563,56 @@ const WeeklyDayCard = ({
         error instanceof Error
           ? error.message
           : "배정하지 못했습니다.";
+      setAssignmentMessages((prev) => ({
+        ...prev,
+        [clientId]: { type: "error", text: message },
+      }));
+    } finally {
+      setAssignmentStates((prev) => ({ ...prev, [clientId]: "idle" }));
+    }
+  };
+
+  const handleUnassignClient = async (clientId: number) => {
+    if (!manager.userId) {
+      return;
+    }
+
+    setAssignmentStates((prev) => ({ ...prev, [clientId]: "unassigning" }));
+    setAssignmentMessages((prev) => ({ ...prev, [clientId]: undefined }));
+
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/managers/${manager.userId}/clients/assignments/${clientId}`,
+        {
+          method: "DELETE",
+          headers: {
+            ...authHeaders(),
+          },
+        }
+      );
+
+      if (!response.ok) {
+        const message = await extractApiError(
+          response,
+          "배정을 취소하지 못했습니다."
+        );
+        throw new Error(message);
+      }
+
+      await loadDashboard();
+      if (searchKeyword.trim()) {
+        await handleClientSearch();
+      }
+
+      setAssignmentMessages((prev) => ({
+        ...prev,
+        [clientId]: { type: "success", text: "배정을 취소했습니다." },
+      }));
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "배정을 취소하지 못했습니다.";
       setAssignmentMessages((prev) => ({
         ...prev,
         [clientId]: { type: "error", text: message },
@@ -2481,7 +2554,7 @@ const WeeklyDayCard = ({
                             return (
                               <label
                                 key={day}
-                                className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold ${
+                                className={`relative inline-flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold ${
                                   checked
                                     ? "border-indigo-500 bg-indigo-50 text-indigo-700"
                                     : "border-slate-200 bg-white text-slate-600"
@@ -2489,7 +2562,7 @@ const WeeklyDayCard = ({
                               >
                                 <input
                                   type="checkbox"
-                                  className="sr-only"
+                                  className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
                                   checked={checked}
                                   onChange={(event) =>
                                     updateEditField(plan.id, (draft) => {
@@ -2946,10 +3019,10 @@ const WeeklyDayCard = ({
                   {allDays.map((day) => {
                     const isSelected = form.daysOfWeek.includes(day.value);
                     return (
-                      <label key={day.value} className="block">
+                      <label key={day.value} className="relative block cursor-pointer">
                         <input
                           type="checkbox"
-                          className="peer sr-only"
+                          className="peer absolute inset-0 h-full w-full cursor-pointer opacity-0"
                           checked={isSelected}
                           onChange={() => handleToggleDay(client.clientId, day.value)}
                         />
@@ -3448,17 +3521,21 @@ const WeeklyDayCard = ({
                 const assignedToOther =
                   result.currentlyAssigned &&
                   result.assignedManagerId !== manager.userId;
-                const assignState = assignmentStates[result.clientId];
+                const assignState = assignmentStates[result.clientId] ?? "idle";
+                const isAssigning = assignState === "assigning";
+                const isUnassigning = assignState === "unassigning";
                 const buttonDisabled =
-                  assignState === "loading" || assignedToCurrent || !result.assignable;
+                  isAssigning || isUnassigning || assignedToCurrent || !result.assignable;
                 let buttonLabel = "배정하기";
-                if (assignState === "loading") {
+                if (isAssigning) {
                   buttonLabel = "배정 중...";
                 } else if (assignedToCurrent) {
                   buttonLabel = "이미 배정됨";
                 } else if (!result.assignable) {
                   buttonLabel = "배정 불가";
                 }
+                const showUnassign = assignedToCurrent;
+                const unassignDisabled = isAssigning || isUnassigning;
 
                 const addressDisplay = formatAddress(result.address, result.detailAddress);
                 const computedAge =
@@ -3571,33 +3648,50 @@ const WeeklyDayCard = ({
                       </div>
                     </div>
                     <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                      <button
-                        className="w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-indigo-300 sm:w-auto"
-                        disabled={buttonDisabled}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          handleAssignClient(result.clientId);
-                        }}
-                        type="button"
-                      >
-                        {buttonLabel}
-                      </button>
-                      {assignMessage && (
-                        <p
-                          className={`text-sm ${
-                            assignMessage.type === "success"
-                              ? "text-indigo-700"
-                              : "text-red-600"
-                          }`}
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-2">
+                        <button
+                          className="w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-indigo-300 sm:w-auto"
+                          disabled={buttonDisabled}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            handleAssignClient(result.clientId);
+                          }}
+                          type="button"
                         >
-                          {assignMessage.text}
-                        </p>
-                      )}
-                      {!result.assignable && !assignedToCurrent && (
-                        <p className="text-sm text-red-600">
-                          다른 매니저에게 배정된 이용자입니다.
-                        </p>
-                      )}
+                          {buttonLabel}
+                        </button>
+                        {showUnassign && (
+                          <button
+                            className="w-full rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-rose-300 hover:text-rose-700 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+                            disabled={unassignDisabled}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              handleUnassignClient(result.clientId);
+                            }}
+                            type="button"
+                          >
+                            {isUnassigning ? "배정 취소 중..." : "배정 취소"}
+                          </button>
+                        )}
+                      </div>
+                      <div className="flex flex-col gap-1 sm:items-end">
+                        {assignMessage && (
+                          <p
+                            className={`text-sm ${
+                              assignMessage.type === "success"
+                                ? "text-indigo-700"
+                                : "text-red-600"
+                            }`}
+                          >
+                            {assignMessage.text}
+                          </p>
+                        )}
+                        {!result.assignable && !assignedToCurrent && (
+                          <p className="text-sm text-red-600">
+                            다른 매니저에게 배정된 이용자입니다.
+                          </p>
+                        )}
+                      </div>
                     </div>
                   </article>
                 );
@@ -3885,7 +3979,7 @@ const WeeklyDayCard = ({
               >
                 닫기 ✕
               </button>
-              <div className="modal-scroll max-h-[90vh] overflow-y-auto p-4 sm:p-6">
+              <div className="modal-scroll max-h-[90vh] overflow-y-auto touch-pan-y overscroll-contain p-4 sm:p-6">
                 <div className="space-y-4 pr-2 sm:pr-4">
                   <div className="grid gap-4 rounded-2xl border border-slate-100 bg-slate-50/80 p-4 sm:grid-cols-[240px,1fr] sm:items-center sm:gap-6">
                     <div className="flex items-center gap-4 sm:gap-5">
@@ -3975,10 +4069,13 @@ const WeeklyDayCard = ({
       )}
       <style jsx global>{`
         .modal-scroll {
+          max-height: calc(100vh - 96px);
           scrollbar-width: thin;
           scrollbar-color: #818cf8 #f8fafc;
           padding-right: 1rem;
           scrollbar-gutter: stable both-edges;
+          -webkit-overflow-scrolling: touch;
+          overscroll-behavior: contain;
         }
         .modal-scroll::-webkit-scrollbar {
           width: 10px;

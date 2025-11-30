@@ -152,6 +152,15 @@ export default function Home() {
 
       const payload: LoginSuccessPayload = await response.json();
       if (typeof window !== "undefined") {
+        const authPayload = {
+          userId: payload.userId,
+          role: payload.role,
+          accessToken: payload.accessToken,
+          refreshToken: payload.refreshToken,
+          email: loginEmail,
+        };
+
+        window.localStorage.setItem("guardian_auth", JSON.stringify(authPayload));
         window.localStorage.setItem("accessToken", payload.accessToken);
         window.localStorage.setItem("refreshToken", payload.refreshToken);
         window.localStorage.setItem("userRole", payload.role);

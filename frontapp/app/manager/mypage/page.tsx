@@ -160,6 +160,16 @@ type ChatAlert = {
   label: string;
   lastMessageAt?: string | null;
 };
+type ChatThread = {
+  roomId: number;
+  clientId: number;
+  managerId: number;
+  clientName?: string | null;
+  managerName?: string | null;
+  lastMessageSnippet?: string | null;
+  lastMessageAt?: string | null;
+  readByManager?: boolean;
+};
 
 type OverdueAlertItem = {
   label: string;
@@ -875,6 +885,7 @@ export default function ManagerMyPage() {
   const [lastAcknowledgedAt, setLastAcknowledgedAt] = useState<Date | null>(null);
   const [managerAlertsAcknowledged, setManagerAlertsAcknowledged] = useState(false);
   const PAGE_SIZE = 10;
+  const [dismissedEmergencyIds, setDismissedEmergencyIds] = useState<Set<number>>(new Set());
 
   const todayToken = useMemo(() => {
     const tokens = ["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"];
@@ -891,6 +902,13 @@ export default function ManagerMyPage() {
         const days = (plan.daysOfWeek ?? []).map((d) => d.toUpperCase());
         const dueToday = days.includes("ALL") || days.includes(todayToken);
         if (!dueToday) return;
+        const hasTodayLog = (client.latestMedicationLogs ?? []).some((log) => {
+          const logDate = (log.logTimestamp ?? "").split("T")[0];
+          if (logDate !== todayDateString) return false;
+          if (log.planId && plan.id) return log.planId === plan.id;
+          return log.medicineId === plan.medicineId;
+        });
+        if (hasTodayLog) return;
         const [h, m] = (plan.alarmTime ?? "").split(":");
         const alarm = new Date(now);
         alarm.setHours(Number(h) || 0, Number(m) || 0, 0, 0);
@@ -907,72 +925,24 @@ export default function ManagerMyPage() {
     return list.sort((a, b) => a.time.localeCompare(b.time));
   }, [dashboard, todayToken]);
 
-  const managerStats = useMemo(() => {
-    const total = dashboard?.clients.length ?? 0;
-    const pendingToday = upcomingTodayPlans.length;
-    const alerts = managerAlertsAcknowledged ? 0 : dashboard?.activeAlertCount ?? 0;
-    return [
-      {
-        key: "care",
-        label: "복약관리 인원",
-        value: dashboardLoading && !dashboard ? "확인 중" : `${total}명`,
-        hint: total > 0 ? "현재 담당 중인 이용자 수" : "담당 이용자가 없습니다.",
-        accent: "bg-indigo-100 text-indigo-700",
-        badge: "CARE",
-        detail:
-          total > 0
-            ? "담당 중인 이용자의 복약 일정과 알림을 정기적으로 점검해주세요."
-            : "아직 담당 인원이 없습니다. 관리자나 매칭을 통해 배정해 주세요.",
-        items: (dashboard?.clients ?? [])
-                .slice(0, 5)
-                .map((c) => `${c.clientName} / 일정 ${c.medicationPlans.length}건 / 알림 ${c.emergencyAlerts.length}건`),
-      },
-      {
-        key: "pending",
-        label: "대기 중 복약 일정",
-        value: dashboardLoading && !dashboard ? "확인 중" : `${pendingToday}건`,
-        hint: pendingToday > 0 ? "오늘 예정된 복약 일정이 있습니다." : "현재 시간 이후 예정된 일정이 없습니다.",
-        accent: "bg-amber-100 text-amber-700",
-        badge: "PLAN",
-        detail:
-          pendingToday > 0
-            ? "오늘 복약 시간이 아직 남은 이용자를 확인하고 대비하세요."
-            : "오늘 남은 복약 일정이 없습니다.",
-        items: upcomingTodayPlans
-                .slice(0, 5)
-                .map((p) => `${p.time} · ${p.clientName} / ${p.medicineName}`),
-      },
-      {
-        key: "alert",
-        label: "미처리 알림",
-        value: dashboardLoading && !dashboard ? "확인 중" : alerts > 0 ? `${alerts}건` : "없음",
-        hint: alerts > 0 ? "즉시 확인이 필요합니다." : "미처리 알림이 없습니다.",
-        accent: alerts > 0 ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-700",
-        badge: "ALERT",
-        detail:
-          alerts > 0
-            ? "비상 알림을 우선 처리하고 이용자에게 연락해 주세요."
-            : "처리 대기 중인 비상 알림이 없습니다.",
-        items: (dashboard?.clients ?? [])
-                .flatMap((c) => c.emergencyAlerts ?? [])
-                .slice(0, 5)
-                .map((a) => `알림 ${a.alertType ?? ""} / ${a.status ?? ""}`),
-      },
-    ];
-  }, [dashboard, dashboardLoading, upcomingTodayPlans]);
-
-  const emergencyAlerts = useMemo(
+  const emergencyAlertEntries = useMemo(
     () =>
       (dashboard?.clients ?? [])
         .flatMap((c) =>
           (c.emergencyAlerts ?? []).map((a) => {
             const time = a.alertTime ? a.alertTime.replace("T", " ").slice(0, 16) : "";
             const name = c.clientName != null ? `${c.clientName}` : "이용자";
-            return `${name} 긴급 호출 / ${time} / ${a.status ?? ""}`;
+            return {
+              alertId: a.alertId,
+              clientId: c.clientId,
+              label: `${name} 긴급 호출 / ${time} / ${a.status ?? ""}`,
+            };
           }),
-        ),
-    [dashboard],
+        )
+        .filter((entry) => !dismissedEmergencyIds.has(entry.alertId)),
+    [dashboard, dismissedEmergencyIds],
   );
+  const emergencyAlerts = useMemo(() => emergencyAlertEntries.map((entry) => entry.label), [emergencyAlertEntries]);
   const latestEmergencyAlertTime = useMemo(() => {
     let latest = 0;
     (dashboard?.clients ?? []).forEach((client) => {
@@ -1034,6 +1004,63 @@ export default function ManagerMyPage() {
       }, 0),
     [chatAlerts],
   );
+  const displayChatAlerts = useMemo(
+    () => chatAlerts.filter((alert) => !/긴급\s*호출/.test(alert.label ?? "")),
+    [chatAlerts],
+  );
+
+  const managerStats = useMemo(() => {
+    const total = dashboard?.clients.length ?? 0;
+    const pendingToday = upcomingTodayPlans.length;
+    const alerts = managerAlertsAcknowledged
+      ? 0
+      : displayChatAlerts.length + overdueAlertLabels.length + emergencyAlerts.length;
+    return [
+      {
+        key: "care",
+        label: "복약관리 인원",
+        value: dashboardLoading && !dashboard ? "확인 중" : `${total}명`,
+        hint: total > 0 ? "현재 담당 중인 이용자 수" : "담당 이용자가 없습니다.",
+        accent: "bg-indigo-100 text-indigo-700",
+        badge: "CARE",
+        detail:
+          total > 0
+            ? "담당 중인 이용자의 복약 일정과 알림을 정기적으로 점검해주세요."
+            : "아직 담당 인원이 없습니다. 관리자나 매칭을 통해 배정해 주세요.",
+        items: (dashboard?.clients ?? [])
+          .slice(0, 5)
+          .map((c) => `${c.clientName} / 일정 ${c.medicationPlans.length}건 / 알림 ${c.emergencyAlerts.length}건`),
+      },
+      {
+        key: "pending",
+        label: "대기 중 복약 일정",
+        value: dashboardLoading && !dashboard ? "확인 중" : `${pendingToday}건`,
+        hint: pendingToday > 0 ? "오늘 예정된 복약 일정이 있습니다." : "현재 시간 이후 예정된 일정이 없습니다.",
+        accent: "bg-amber-100 text-amber-700",
+        badge: "PLAN",
+        detail:
+          pendingToday > 0
+            ? "오늘 복약 시간이 아직 남은 이용자를 확인하고 대비하세요."
+            : "오늘 남은 복약 일정이 없습니다.",
+        items: upcomingTodayPlans
+          .slice(0, 5)
+          .map((p) => `${p.time} · ${p.clientName} / ${p.medicineName}`),
+      },
+      {
+        key: "alert",
+        label: "미처리 알림",
+        value: dashboardLoading && !dashboard ? "확인 중" : alerts > 0 ? `${alerts}건` : "없음",
+        hint: alerts > 0 ? "즉시 확인이 필요합니다." : "미처리 알림이 없습니다.",
+        accent: alerts > 0 ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-700",
+        badge: "ALERT",
+        detail:
+          alerts > 0
+            ? "비상 알림을 우선 처리하고 이용자에게 연락해 주세요."
+            : "처리 대기 중인 비상 알림이 없습니다.",
+        items: [],
+      },
+    ];
+  }, [dashboard, dashboardLoading, upcomingTodayPlans, displayChatAlerts.length, emergencyAlerts.length, managerAlertsAcknowledged, overdueAlertLabels.length]);
 
   useEffect(() => {
     const loadUnread = async () => {
@@ -1041,14 +1068,8 @@ export default function ManagerMyPage() {
       try {
         const res = await fetch(`${API_BASE_URL}/api/chat/threads?userId=${manager.userId}`);
         if (!res.ok) return;
-        const data: Array<{
-          roomId: number;
-          clientName?: string;
-          managerName?: string;
-          lastMessageSnippet?: string;
-          lastMessageAt?: string;
-          readByManager: boolean;
-        }> = await res.json();
+        const data: ChatThread[] = await res.json();
+        setChatThreads(data);
         const unread = data
           .filter((t) => !t.readByManager)
           .map((t) => ({
@@ -1072,13 +1093,13 @@ export default function ManagerMyPage() {
       case "overdue":
         return overdueAlertLabels;
       case "chat":
-        return chatAlerts.map((c) => c.label);
+        return displayChatAlerts.map((c) => c.label);
       case "emergency":
         return emergencyAlerts;
       default:
         return [];
     }
-  }, [managerAlertTab, overdueAlertLabels, chatAlerts, emergencyAlerts, managerAlertsAcknowledged]);
+  }, [managerAlertTab, overdueAlertLabels, displayChatAlerts, emergencyAlerts, managerAlertsAcknowledged]);
 
   const pagedAlerts = useMemo(() => {
     const page = alertPage[managerAlertTab] ?? 0;
@@ -1094,17 +1115,89 @@ export default function ManagerMyPage() {
       case "chat":
         return "미읽 메시지가 없습니다.";
       case "emergency":
-        return "긴급 알림이 없습니다.";
+        return "긴급 호출 알림이 없습니다.";
       default:
         return "알림이 없습니다.";
     }
   }, [managerAlertTab, managerAlertsAcknowledged]);
 
   const [ackLoading, setAckLoading] = useState(false);
+  const [clientEmergencySending, setClientEmergencySending] = useState<Record<number, boolean>>({});
+  const [clientEmergencyMessage, setClientEmergencyMessage] = useState<
+    Record<number, { type: "success" | "error"; text: string } | undefined>
+  >({});
+  const [chatThreads, setChatThreads] = useState<ChatThread[]>([]);
+  const markChatAsRead = useCallback(
+    async (roomId: number) => {
+      if (!manager.userId) return;
+      try {
+        await fetch(`${API_BASE_URL}/api/chat/rooms/${roomId}/read?userId=${manager.userId}`, {
+          method: "POST",
+        });
+      } catch {
+        // ignore read sync errors
+      }
+    },
+    [manager.userId],
+  );
+  const acknowledgeAllEmergency = useCallback(async () => {
+    if (!manager.userId) return;
+    try {
+      await fetch(
+        `${API_BASE_URL}/api/emergency/alerts/acknowledge-all?managerId=${manager.userId}`,
+        { method: "POST" },
+      );
+      const now = new Date();
+      setLastAcknowledgedAt(now);
+      if (typeof window !== "undefined" && alertAckKey) {
+        try {
+          window.localStorage.setItem(alertAckKey, now.toISOString());
+        } catch {
+          // ignore storage error
+        }
+      }
+    } catch {
+      // ignore silent ack errors
+    }
+  }, [alertAckKey, manager.userId]);
   const effectiveOverdueCount = managerAlertsAcknowledged ? 0 : overdueAlerts.length;
-  const effectiveChatCount = managerAlertsAcknowledged ? 0 : chatAlerts.length;
+  const effectiveChatCount = managerAlertsAcknowledged ? 0 : displayChatAlerts.length;
   const effectiveEmergencyCount = managerAlertsAcknowledged ? 0 : emergencyAlerts.length;
   const totalPendingManagerAlerts = effectiveOverdueCount + effectiveChatCount + effectiveEmergencyCount;
+
+  const handleSendClientEmergency = useCallback(async (clientId: number) => {
+    setClientEmergencyMessage((prev) => ({ ...prev, [clientId]: undefined }));
+    setClientEmergencySending((prev) => ({ ...prev, [clientId]: true }));
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/emergency/alerts`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clientId,
+          alertType: "MANAGER_REQUEST",
+          shareLocation: false,
+        }),
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || "긴급 호출을 전송하지 못했습니다.");
+      }
+      setClientEmergencyMessage((prev) => ({
+        ...prev,
+        [clientId]: { type: "success", text: "긴급 호출을 전송했습니다." },
+      }));
+    } catch (e) {
+      setClientEmergencyMessage((prev) => ({
+        ...prev,
+        [clientId]: {
+          type: "error",
+          text: e instanceof Error ? e.message : "긴급 호출을 전송하지 못했습니다.",
+        },
+      }));
+    } finally {
+      setClientEmergencySending((prev) => ({ ...prev, [clientId]: false }));
+    }
+  }, []);
 
   useEffect(() => {
     if (!manager.userId) return;
@@ -3498,29 +3591,41 @@ const WeeklyDayCard = ({
                                       key={`${managerAlertTab}-item-${idx}`}
                                       className="flex items-start gap-2 rounded-lg bg-white px-3 py-2 text-sm text-slate-800 shadow-sm transition hover:-translate-y-0.5 hover:shadow"
                                       onClick={() => {
-                                        if (managerAlertTab === "chat" && chatAlerts[absoluteIdx]) {
-                                          const target = chatAlerts[absoluteIdx];
-                                          setClientModalClientId(null);
-                                          setActivePanel("chat");
-                                          setTimeout(() => {
-                                            const el = document.querySelector(`[data-room-id='${target.roomId}']`);
-                                            if (el instanceof HTMLElement) {
-                                              el.scrollIntoView({ behavior: "smooth", block: "center" });
-                                            }
-                                          }, 100);
+                                        if (managerAlertTab === "chat" && displayChatAlerts[absoluteIdx]) {
+                                          const target = displayChatAlerts[absoluteIdx];
+                                          setChatAlerts((prev) =>
+                                            prev.filter((alert) => alert.roomId !== target.roomId),
+                                          );
+                                          void markChatAsRead(target.roomId);
+                                          router.push(`/chat/${target.roomId}`);
+                                          return;
                                         }
                                         if (managerAlertTab === "emergency") {
-                                          const label = item;
-                                          const roomId = label.match(/room (\\d+)/i)?.[1];
-                                          if (roomId) {
-                                            setClientModalClientId(null);
-                                            setActivePanel("chat");
-                                            setTimeout(() => {
-                                              const el = document.querySelector(`[data-room-id='${roomId}']`);
-                                              if (el instanceof HTMLElement) {
-                                                el.scrollIntoView({ behavior: "smooth", block: "center" });
-                                              }
-                                            }, 100);
+                                          const entry = emergencyAlertEntries[absoluteIdx];
+                                          if (entry) {
+                                            const relatedThread = chatThreads.find(
+                                              (thread) => thread.clientId === entry.clientId,
+                                            );
+                                            // 동일 클라이언트의 모든 긴급 호출 알림 제거
+                                            const toDismiss = emergencyAlertEntries
+                                              .filter((e) => e.clientId === entry.clientId)
+                                              .map((e) => e.alertId);
+                                            setDismissedEmergencyIds((prev) => {
+                                              const next = new Set(prev);
+                                              toDismiss.forEach((id) => next.add(id));
+                                              return next;
+                                            });
+                                            // 동일 채팅방의 미읽 메시지 알림도 제거
+                                            if (relatedThread) {
+                                              setChatAlerts((prev) =>
+                                                prev.filter((alert) => alert.roomId !== relatedThread.roomId),
+                                              );
+                                              void markChatAsRead(relatedThread.roomId);
+                                              void acknowledgeAllEmergency();
+                                              router.push(`/chat/${relatedThread.roomId}`);
+                                            } else {
+                                              window.alert("연결된 채팅방을 찾지 못했습니다. 매칭 상태를 확인해주세요.");
+                                            }
                                           }
                                         }
                                       }}
@@ -4017,19 +4122,58 @@ const WeeklyDayCard = ({
                           최근 복약 확인: {recentLogLabel}
                         </p>
                       </div>
-                      <span className="inline-flex items-center gap-2 text-sm font-semibold text-indigo-600">
-                        상세 관리 열기
-                        <svg
-                          aria-hidden="true"
-                          className="h-4 w-4"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth={2}
-                          viewBox="0 0 24 24"
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-2 rounded-full border border-rose-300 bg-rose-50 px-3 py-1.5 text-[13px] font-semibold text-rose-700 transition hover:-translate-y-0.5 hover:border-rose-400 hover:bg-rose-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleSendClientEmergency(client.clientId);
+                          }}
+                          disabled={clientEmergencySending[client.clientId]}
                         >
-                          <path d="M5 12h14M13 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                      </span>
+                          <svg
+                            aria-hidden="true"
+                            className="h-4 w-4"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth={2}
+                            viewBox="0 0 24 24"
+                          >
+                            <path d="M6.5 12h11l-.9-5.4a1 1 0 0 0-.99-.83H8.39a1 1 0 0 0-.99.83L6.5 12Z" strokeLinecap="round" strokeLinejoin="round" />
+                            <path d="M5 14h14v2H5z" strokeLinecap="round" strokeLinejoin="round" />
+                            <path d="M8 18a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-2H8v2Z" strokeLinecap="round" strokeLinejoin="round" />
+                            <path d="M12 4V2" strokeLinecap="round" strokeLinejoin="round" />
+                            <path d="M5.5 6.5 4 5" strokeLinecap="round" strokeLinejoin="round" />
+                            <path d="M18.5 6.5 20 5" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                          {clientEmergencySending[client.clientId] ? "전송 중..." : "긴급 호출"}
+                        </button>
+                        <span className="inline-flex items-center gap-2 text-sm font-semibold text-indigo-600">
+                          상세 관리 열기
+                          <svg
+                            aria-hidden="true"
+                            className="h-4 w-4"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth={2}
+                            viewBox="0 0 24 24"
+                          >
+                            <path d="M5 12h14M13 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        </span>
+                      </div>
+                      {clientEmergencyMessage[client.clientId] && (
+                        <p
+                          className={`text-xs ${
+                            clientEmergencyMessage[client.clientId]?.type === "success"
+                              ? "text-rose-600"
+                              : "text-red-600"
+                          }`}
+                        >
+                          {clientEmergencyMessage[client.clientId]?.text}
+                        </p>
+                      )}
                     </div>
                   </article>
                 );

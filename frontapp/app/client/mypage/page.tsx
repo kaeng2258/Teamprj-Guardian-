@@ -94,6 +94,12 @@ type UserSummary = {
   profileImageUrl?: string | null;
 };
 
+type ChatAlert = {
+  roomId: number;
+  label: string;
+  lastMessageAt?: string | null;
+};
+
 type WebPushConfigResponse = {
   enabled: boolean;
   publicKey: string;
@@ -644,74 +650,6 @@ export default function ClientMyPage() {
       .map((plan) => `${plan.medicineName} / ${plan.alarmTime.slice(0, 5)}`);
   }, [plans, todayToken]);
 
-  const serviceStats = useMemo(
-    () =>
-      [
-      {
-        key: "plans",
-        label: "복약 일정",
-        value: planLoading ? "확인 중" : `${plans.length}건`,
-        hint:
-          planLoading && plans.length === 0
-            ? "일정을 불러오는 중입니다."
-            : plans.length > 0
-            ? "등록된 복약 일정이 있습니다."
-            : "등록된 일정이 없습니다.",
-        accent: "bg-indigo-100 text-indigo-700",
-        badge: "PLAN",
-        detail:
-          plans.length > 0
-            ? `등록된 복약 일정 ${plans.length}건을 확인하고 필요하면 담당 매니저에게 수정을 요청하세요.`
-            : "아직 복약 일정이 없습니다. 담당 매니저에게 일정 등록을 요청해 주세요.",
-        items: planPreview.length > 0 ? planPreview : undefined,
-      },
-      {
-        key: "confirm",
-        label: "오늘 복약 확인",
-        value:
-          planLoading || plans.length === 0
-            ? "-"
-            : `${todayConfirmCount}/${plans.length}`,
-        hint:
-          plans.length === 0
-            ? "일정을 먼저 등록해주세요."
-            : "오늘 복용한 약을 확인해 주세요.",
-        accent: "bg-emerald-100 text-emerald-700",
-        badge: "TODAY",
-        detail:
-          plans.length === 0
-            ? "등록된 일정이 없어서 오늘 확인 건수가 없습니다."
-            : todayConfirmCount === plans.length
-            ? "오늘 모든 복약을 확인했습니다. 훌륭해요!"
-            : `오늘 ${plans.length - todayConfirmCount}건이 남아 있습니다. 복용 후 '복용 완료' 버튼으로 기록하세요.`,
-        items: todayDuePlans.length > 0 ? todayDuePlans : undefined,
-      },
-      {
-        key: "push",
-        label: "미처리 알림",
-        value: pushCapable ? "푸시 가능" : "푸시 불가",
-        hint: pushCapable ? "푸시를 켜면 매니저의 비상 알림을 받을 수 있습니다." : pushHelperText,
-        accent: pushCapable ? "bg-amber-100 text-amber-700" : "bg-slate-100 text-slate-500",
-        badge: "ALERT",
-        detail: pushCapable
-          ? "모바일 푸시를 활성화하여 매니저의 비상/안내 알림을 바로 받을 수 있습니다."
-          : "이 브라우저에서는 푸시 알림이 제한됩니다. 지원되는 환경에서 접속하거나 앱 설치를 고려해주세요.",
-      },
-    ] as ServiceStat[],
-    [
-      planLoading,
-      plans.length,
-      todayConfirmCount,
-      pushCapable,
-      pushHelperText,
-      planPreview,
-      todayDuePlans,
-      pushButtonDisabled,
-      handleEnablePush,
-      pushStatus,
-    ],
-  );
-
   type AlertTab = "overdue" | "chat" | "emergency";
   const [alertTab, setAlertTab] = useState<AlertTab>("overdue");
   const [alertPage, setAlertPage] = useState<Record<AlertTab, number>>({
@@ -724,6 +662,7 @@ export default function ClientMyPage() {
   const [emergencyAlerts, setEmergencyAlerts] = useState<string[]>([]);
   const [emergencyLoaded, setEmergencyLoaded] = useState(false);
   const [emergencyError, setEmergencyError] = useState("");
+  const [chatAlerts, setChatAlerts] = useState<ChatAlert[]>([]);
 
   const overdueAlerts = useMemo(() => {
     const now = new Date();
@@ -744,15 +683,104 @@ export default function ClientMyPage() {
       .map((plan) => `${plan.medicineName} / 알람 ${plan.alarmTime.slice(0, 5)} / 확인 필요`);
   }, [plans, todayLogs, todayToken]);
 
-  const chatAlerts = useMemo(
-    () => ["채팅 미읽음 알림 연동 준비 중입니다."],
-    [],
-  );
+  useEffect(() => {
+    const loadUnread = async () => {
+      if (!client.userId) return;
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/chat/threads?userId=${client.userId}`);
+        if (!res.ok) return;
+        const data: Array<{
+          roomId: number;
+          managerName?: string;
+          clientName?: string;
+          lastMessageSnippet?: string;
+          lastMessageAt?: string;
+          readByClient: boolean;
+        }> = await res.json();
+        const unread = data
+          .filter((t) => !t.readByClient)
+          .map((t) => ({
+            roomId: t.roomId,
+            label: `${t.managerName ?? "매니저"} / ${t.lastMessageSnippet ?? "새 메시지"}`,
+            lastMessageAt: t.lastMessageAt,
+          }));
+        setChatAlerts(unread);
+      } catch {
+        // ignore
+      }
+    };
+    void loadUnread();
+  }, [client.userId]);
 
   const effectiveOverdueCount = alertsAcknowledged ? 0 : overdueAlerts.length;
   const effectiveChatCount = alertsAcknowledged ? 0 : chatAlerts.length;
   const effectiveEmergencyCount = alertsAcknowledged ? 0 : emergencyAlerts.length;
   const totalPendingAlerts = effectiveOverdueCount + effectiveChatCount + effectiveEmergencyCount;
+
+  const serviceStats = useMemo(
+    () =>
+      [
+        {
+          key: "plans",
+          label: "복약 일정",
+          value: planLoading ? "확인 중" : `${plans.length}건`,
+          hint:
+            planLoading && plans.length === 0
+              ? "일정을 불러오는 중입니다."
+              : plans.length > 0
+              ? "등록된 복약 일정이 있습니다."
+              : "등록된 일정이 없습니다.",
+          accent: "bg-indigo-100 text-indigo-700",
+          badge: "PLAN",
+          detail:
+            plans.length > 0
+              ? `등록된 복약 일정 ${plans.length}건을 확인하고 필요하면 담당 매니저에게 수정을 요청하세요.`
+              : "아직 복약 일정이 없습니다. 담당 매니저에게 일정 등록을 요청해 주세요.",
+          items: planPreview.length > 0 ? planPreview : undefined,
+        },
+        {
+          key: "confirm",
+          label: "오늘 복약 확인",
+          value:
+            planLoading || plans.length === 0
+              ? "-"
+              : `${todayConfirmCount}/${plans.length}`,
+          hint:
+            plans.length === 0
+              ? "일정을 먼저 등록해주세요."
+              : "오늘 복용한 약을 확인해 주세요.",
+          accent: "bg-emerald-100 text-emerald-700",
+          badge: "TODAY",
+          detail:
+            plans.length === 0
+              ? "등록된 일정이 없어서 오늘 확인 건수가 없습니다."
+              : todayConfirmCount === plans.length
+              ? "오늘 모든 복약을 확인했습니다. 훌륭해요!"
+              : `오늘 ${plans.length - todayConfirmCount}건이 남아 있습니다. 복용 후 '복용 완료' 버튼으로 기록하세요.`,
+          items: todayDuePlans.length > 0 ? todayDuePlans : undefined,
+        },
+        {
+          key: "push",
+          label: "미처리 알림",
+          value: totalPendingAlerts > 0 ? `${totalPendingAlerts}건` : "없음",
+          hint: totalPendingAlerts > 0 ? "즉시 확인이 필요합니다." : "미처리 알림이 없습니다.",
+          accent: totalPendingAlerts > 0 ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-700",
+          badge: "ALERT",
+          detail:
+            totalPendingAlerts > 0
+              ? "미처리 알림이 있습니다. 확인 후 '전부 확인'으로 정리해 주세요."
+              : "알림이 없습니다. 문제가 있으면 담당 매니저에게 문의하세요.",
+        },
+      ] as ServiceStat[],
+    [
+      planLoading,
+      plans.length,
+      todayConfirmCount,
+      planPreview,
+      todayDuePlans,
+      totalPendingAlerts,
+    ],
+  );
 
   useEffect(() => {
     if (alertTab !== "emergency" || emergencyLoaded || !client.userId) return;
@@ -806,7 +834,7 @@ export default function ClientMyPage() {
       case "overdue":
         return "미복약 알림이 없습니다.";
       case "chat":
-        return "미읽 메세지 알림이 없습니다.";
+        return "메세지 알림이 없습니다.";
       case "emergency":
         return emergencyError || "긴급 알림이 없습니다.";
       default:
@@ -1108,7 +1136,7 @@ export default function ClientMyPage() {
       <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 rounded-3xl bg-white p-4 shadow-lg sm:p-8">
         <header className="flex flex-col gap-4 border-b border-slate-200 pb-5">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-3 sm:gap-4">
+            <div className="flex items-center gap-4 sm:gap-5">
               <div className="relative">
                 <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full border-2 border-indigo-200 bg-indigo-50 text-lg font-semibold text-indigo-700">
                   {client.profileImageUrl ? (
@@ -1122,14 +1150,27 @@ export default function ClientMyPage() {
                   )}
                 </div>
                 <button
-                  className={`${primaryActionButton} absolute -left-1 -bottom-1 h-9 px-3 text-xs`}
+                  className="absolute -left-1 -bottom-1 inline-flex h-8 w-8 items-center justify-center rounded-full bg-indigo-600 text-xs font-semibold text-white shadow-sm ring-4 ring-white transition hover:bg-indigo-700"
                   type="button"
                   onClick={() => router.push("/client/profile/edit")}
                 >
-                  Edit
+                  <svg
+                    aria-hidden="true"
+                    className="h-4 w-4"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    viewBox="0 0 24 24"
+                  >
+                    <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25z" />
+                    <path d="M14.06 4.69l3.75 3.75" />
+                  </svg>
+                  <span className="sr-only">프로필 편집</span>
                 </button>
               </div>
-              <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
+              <div className="flex flex-col gap-1">
                 <div className="flex items-center gap-2">
                   <img
                     src={logoImage}
@@ -1151,7 +1192,7 @@ export default function ClientMyPage() {
               </div>
             </div>
             <button
-              className="h-10 rounded-full border border-red-300 px-4 text-sm font-semibold text-red-600 transition hover:-translate-y-[1px] hover:border-red-400 hover:bg-red-50 hover:text-red-700"
+              className="h-10 rounded-md border border-red-400 px-4 text-sm font-semibold text-red-500 transition hover:border-red-500 hover:bg-red-50 hover:text-red-600"
               onClick={handleLogout}
               type="button"
             >
@@ -1167,34 +1208,36 @@ export default function ClientMyPage() {
               {avatarError || avatarMessage}
             </p>
           )}
-          <div className="flex gap-3 pb-2 sm:grid sm:grid-cols-3 sm:gap-3 sm:pb-0">
-            {clientQuickActions.map((action) => {
-              const isActive = activePanel === action.value;
-              return (
-                <button
-                  key={action.value}
-                  type="button"
-                  onClick={() => setActivePanel(action.value)}
-                  className={`group flex flex-1 min-w-0 flex-col gap-1 rounded-2xl border px-3 py-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow sm:px-4 ${
-                    isActive
-                      ? "border-indigo-500 bg-indigo-50"
-                      : "border-slate-200 bg-white hover:border-indigo-300"
-                  }`}
-                >
-                  <span
-                    className={`inline-flex h-8 w-8 items-center justify-center rounded-full text-[0.7rem] font-semibold text-white ${action.accent}`}
+          <div className="flex flex-col gap-3">
+            <div className="flex gap-3 pb-2 sm:grid sm:grid-cols-3 sm:gap-3 sm:pb-0">
+              {clientQuickActions.map((action) => {
+                const isActive = activePanel === action.value;
+                return (
+                  <button
+                    key={action.value}
+                    type="button"
+                    onClick={() => setActivePanel(action.value)}
+                    className={`group flex flex-1 min-w-0 flex-col gap-1 rounded-2xl border px-3 py-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow sm:px-4 ${
+                      isActive
+                        ? "border-indigo-500 bg-indigo-50"
+                        : "border-slate-200 bg-white hover:border-indigo-300"
+                    }`}
                   >
-                    {action.label.slice(0, 1)}
-                  </span>
-                  <span className="text-sm font-semibold text-slate-900">
-                    {action.label}
-                  </span>
-                  <span className="text-xs text-slate-500">
-                    {action.description}
-                  </span>
-                </button>
-              );
-            })}
+                    <span
+                      className={`inline-flex h-8 w-8 items-center justify-center rounded-full text-[0.7rem] font-semibold text-white ${action.accent}`}
+                    >
+                      {action.label.slice(0, 1)}
+                    </span>
+                    <span className="text-sm font-semibold text-slate-900">
+                      {action.label}
+                    </span>
+                    <span className="text-xs text-slate-500">
+                      {action.description}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </header>
 
@@ -1208,10 +1251,6 @@ export default function ClientMyPage() {
                 오늘의 복약 진행 상황과 알림 상태를 한눈에 확인하세요.
               </p>
             </div>
-                <div className="flex items-center gap-2 rounded-full bg-white px-3 py-1 text-xs font-semibold text-indigo-700 shadow-sm">
-                  <span className="h-2 w-2 rounded-full bg-indigo-500" />
-                  미처리 알림 포함
-                </div>
               </div>
           <div className="mt-4 grid gap-3 sm:grid-cols-3">
             {serviceStats.map((stat) => (
@@ -1264,28 +1303,38 @@ export default function ClientMyPage() {
                 <div className="space-y-3 p-5 sm:p-6">
                   {activeStat.key === "push" ? (
                     <>
-                      <div className="flex flex-wrap gap-2">
-                        {[
-                          { key: "overdue", label: "미복약", count: effectiveOverdueCount },
-                          { key: "chat", label: "미읽 메세지", count: effectiveChatCount },
-                          { key: "emergency", label: "긴급 호출", count: effectiveEmergencyCount },
-                        ].map((tab) => (
-                          <button
-                            key={tab.key}
-                            type="button"
-                            onClick={() => setAlertTab(tab.key as AlertTab)}
-                            className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
-                              alertTab === tab.key
-                                ? "border-indigo-500 bg-indigo-50 text-indigo-700"
-                                : "border-slate-200 bg-white text-slate-600 hover:border-indigo-300"
-                            }`}
-                          >
-                            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-indigo-700">
-                              {tab.count}
-                            </span>
-                            {tab.label}
-                          </button>
-                        ))}
+                      <div className="flex flex-wrap items-center gap-2">
+                        <div className="flex flex-wrap gap-2">
+                          {[
+                            { key: "overdue", label: "미복약", count: effectiveOverdueCount },
+                            { key: "chat", label: "메세지", count: effectiveChatCount },
+                            { key: "emergency", label: "긴급 호출", count: effectiveEmergencyCount },
+                          ].map((tab) => (
+                            <button
+                              key={tab.key}
+                              type="button"
+                              onClick={() => setAlertTab(tab.key as AlertTab)}
+                              className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                                alertTab === tab.key
+                                  ? "border-indigo-500 bg-indigo-50 text-indigo-700"
+                                  : "border-slate-200 bg-white text-slate-600 hover:border-indigo-300"
+                              }`}
+                            >
+                              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-indigo-700">
+                                {tab.count}
+                              </span>
+                              {tab.label}
+                            </button>
+                          ))}
+                        </div>
+                        <button
+                          className="ml-auto inline-flex h-10 items-center justify-center rounded-md border border-slate-200 px-3 text-xs font-semibold text-slate-700 transition hover:border-indigo-300 hover:text-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+                          type="button"
+                          disabled={alertsAcknowledged || totalPendingAlerts === 0}
+                          onClick={handleAcknowledgeAlerts}
+                        >
+                          전부 확인
+                        </button>
                       </div>
                       <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3">
                         {hasAlerts ? (
@@ -1316,7 +1365,7 @@ export default function ClientMyPage() {
                           <div className="flex gap-2">
                             <button
                               type="button"
-                              className="rounded-md border border-slate-200 px-2 py-1 hover:border-indigo-300"
+                              className="rounded-md border border-slate-200 px-3 py-1 transition hover:border-indigo-300 hover:text-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
                               disabled={(alertPage[alertTab] ?? 0) === 0}
                               onClick={() =>
                                 setAlertPage((prev) => ({
@@ -1329,7 +1378,7 @@ export default function ClientMyPage() {
                             </button>
                             <button
                               type="button"
-                              className="rounded-md border border-slate-200 px-2 py-1 hover:border-indigo-300"
+                              className="rounded-md border border-slate-200 px-3 py-1 transition hover:border-indigo-300 hover:text-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
                               disabled={(alertPage[alertTab] ?? 0) >= totalPages - 1}
                               onClick={() =>
                                 setAlertPage((prev) => ({
@@ -1343,16 +1392,8 @@ export default function ClientMyPage() {
                           </div>
                         </div>
                       )}
-                      <div className="flex items-center justify-between pt-1">
-                        <button
-                          className="inline-flex h-10 items-center justify-center rounded-md border border-slate-200 px-3 text-xs font-semibold text-slate-700 transition hover:border-indigo-300 hover:text-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
-                          type="button"
-                          disabled={alertsAcknowledged || totalPendingAlerts === 0}
-                          onClick={handleAcknowledgeAlerts}
-                        >
-                          전부 확인
-                        </button>
-                        {activeStat.actionLabel && (
+                      {activeStat.actionLabel && (
+                        <div className="flex items-center justify-end pt-1">
                           <button
                             className="inline-flex h-11 items-center justify-center rounded-xl bg-indigo-600 px-4 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-400"
                             disabled={activeStat.actionDisabled}
@@ -1361,8 +1402,8 @@ export default function ClientMyPage() {
                           >
                             {activeStat.actionLabel}
                           </button>
-                        )}
-                      </div>
+                        </div>
+                      )}
                     </>
                   ) : (
                     <>

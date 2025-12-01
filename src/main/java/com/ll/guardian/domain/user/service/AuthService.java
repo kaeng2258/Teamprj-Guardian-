@@ -56,15 +56,8 @@ public class AuthService {
             throw new GuardianException(HttpStatus.UNAUTHORIZED, "비밀번호가 올바르지 않습니다.");
         }
 
-        String accessToken = jwtTokenProvider.createAccessToken(
-                user.getEmail(),
-                user.getRole().name()   // ⭐ 스프링 권한 규칙에 맞게
-        );
-
-        String refreshTokenValue = jwtTokenProvider.createRefreshToken(
-                user.getEmail(),
-                user.getRole().name()
-        );
+        String accessToken = jwtTokenProvider.createAccessToken(user.getEmail());
+        String refreshTokenValue = jwtTokenProvider.createRefreshToken(user.getEmail());
         RefreshToken refreshToken = refreshTokenService.issue(user, refreshTokenValue, refreshTokenValidity);
 
         return new LoginResponse(
@@ -76,34 +69,19 @@ public class AuthService {
     }
 
     public RefreshTokenResponse refresh(RefreshTokenRequest request) {
-        // 1. 전달받은 리프레시 토큰이 유효한지 검증
         RefreshToken refreshToken = refreshTokenService.getValidToken(request.refreshToken());
-
-        // 2. 유저 정보 꺼내기
-        var user = refreshToken.getUser();
-        String email = user.getEmail();
-        String role = user.getRole().name(); // "ADMIN" / "CLIENT" / "MANAGER"
-
-        // 3. role까지 넣어서 새 액세스 토큰 발급
-        String newAccessToken = jwtTokenProvider.createAccessToken(email, role);
-
-        // 4. 새 리프레시 토큰 발급 (role을 안 쓸 거면 email만 써도 됨)
+        String email = refreshToken.getUser().getEmail();
+        String newAccessToken = jwtTokenProvider.createAccessToken(email);
         String newRefreshToken = jwtTokenProvider.createRefreshToken(email);
-
-        // 5. 리프레시 토큰 엔티티 재발급/저장
-        RefreshToken reissued =
-                refreshTokenService.issue(user, newRefreshToken, refreshTokenValidity);
-
-        // 6. 응답 DTO 리턴
+        RefreshToken reissued = refreshTokenService.issue(refreshToken.getUser(), newRefreshToken, refreshTokenValidity);
         return new RefreshTokenResponse(newAccessToken, reissued.getToken());
     }
-
 
     private String resolveRedirectPath(UserRole role) {
         return switch (role) {
             case CLIENT -> "/client/mypage";
             case MANAGER -> "/manager/mypage";
-            case ADMIN -> "/admin";
+            case ADMIN -> "/admin/dashboard";
         };
     }
 

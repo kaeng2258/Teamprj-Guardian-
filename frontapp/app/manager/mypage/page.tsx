@@ -9,6 +9,7 @@ import { ChatClientPicker } from "@/components/ChatClientPicker";
 import {
   ChangeEvent,
   FormEvent,
+  type JSX,
   useCallback,
   useEffect,
   useMemo,
@@ -115,6 +116,7 @@ type ManagerClientSearchResult = {
   birthDate?: string | null;
   gender?: string | null;
   medicationCycle?: string | null;
+  profileImageUrl?: string | null;
   currentlyAssigned: boolean;
   assignedManagerId?: number | null;
   assignedManagerName?: string | null;
@@ -402,7 +404,7 @@ export default function ManagerMyPage() {
     if (base && sub) return `${base} ${sub}`;
     return base || sub || "미등록";
   };
-  const authHeaders = () => {
+  const authHeaders = (): Record<string, string> => {
     if (typeof window === "undefined") return {};
     const token = window.localStorage.getItem("accessToken");
     return token ? { Authorization: `Bearer ${token}` } : {};

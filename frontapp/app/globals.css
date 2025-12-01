@@ -9,6 +9,10 @@
   --border: #e2e8f0;
   --muted: #64748b;
   --muted-strong: #334155;
+  --font-geist-sans: "Inter", "Noto Sans KR", system-ui, -apple-system, "Segoe UI",
+    Arial, sans-serif;
+  --font-geist-mono: "Roboto Mono", "SFMono-Regular", Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
 }
 
 @theme inline {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import SockJS from "sockjs-client";
 import { Client, StompSubscription } from "@stomp/stompjs";
@@ -135,7 +135,7 @@ function sortThreads(list: ChatThread[]) {
   });
 }
 
-export default function GuardianChatPage() {
+function GuardianChatPage() {
   const searchParams = useSearchParams();
   const [meId, setMeId] = useState<number | null>(null);
   const [clientIdInput, setClientIdInput] = useState<number | null>(null);
@@ -1383,5 +1383,13 @@ export default function GuardianChatPage() {
         </section>
       </div>
     </>
+  );
+}
+
+export default function GuardianChatPageWrapper() {
+  return (
+    <Suspense fallback={<div className="p-4 text-sm text-slate-600">채팅을 불러오는 중입니다...</div>}>
+      <GuardianChatPage />
+    </Suspense>
   );
 }

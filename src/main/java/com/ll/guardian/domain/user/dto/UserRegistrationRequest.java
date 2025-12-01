@@ -16,6 +16,7 @@ public record UserRegistrationRequest(
                 String password,
         @NotBlank(message = "이름을 입력해주세요.") String name,
         @NotNull(message = "생년월일을 입력해주세요.") LocalDate birthDate,
+        String gender,
         @NotBlank(message = "우편번호를 입력해주세요.") String zipCode,
         @NotBlank(message = "주소를 입력해주세요.") String address,
         String detailAddress,

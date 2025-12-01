@@ -707,6 +707,13 @@ export default function ClientMyPage() {
     ],
   );
 
+  const handleStatAction = useCallback(() => {
+    if (!activeStat) return;
+    if (activeStat.onAction) {
+      activeStat.onAction();
+    }
+  }, [activeStat]);
+
   type AlertTab = "overdue" | "chat" | "emergency";
   const [alertTab, setAlertTab] = useState<AlertTab>("overdue");
   const [alertPage, setAlertPage] = useState<Record<AlertTab, number>>({

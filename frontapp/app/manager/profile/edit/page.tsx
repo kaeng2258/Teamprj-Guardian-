@@ -9,18 +9,7 @@ const DEFAULT_PROFILE_IMG = "/image/픽토그램.png";
 type ThemeMode = "light" | "dark";
 type TextSizeMode = "normal" | "large";
 type IconProps = { className?: string };
-type DaumPostcodeData = {
-  zonecode: string;
-  roadAddress: string;
-  jibunAddress: string;
-};
-declare global {
-  interface Window {
-    daum?: {
-      Postcode: new (options: { oncomplete: (data: DaumPostcodeData) => void }) => void;
-    };
-  }
-}
+
 const normalizeBirthDate = (value?: string | null) => {
   if (!value) return "";
   if (value.length >= 10) {

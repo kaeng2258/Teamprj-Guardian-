@@ -1,4 +1,6 @@
 {
+  "/client/mypage/page": "app/client/mypage/page.js",
+  "/page": "app/page.js",
   "/manager/mypage/page": "app/manager/mypage/page.js",
   "/favicon.ico/route": "app/favicon.ico/route.js"
 }

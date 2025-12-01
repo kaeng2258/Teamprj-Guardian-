@@ -3957,7 +3957,7 @@ const WeeklyDayCard = ({
                           </button>
                         )}
                       </div>
-                      <div className="flex flex-col gap-1 sm:items-end">
+                      <div className="flex flex-col gap-2 sm:items-end">
                         {assignMessage && (
                           <p
                             className={`text-sm ${
@@ -3974,6 +3974,45 @@ const WeeklyDayCard = ({
                             다른 매니저에게 배정된 이용자입니다.
                           </p>
                         )}
+                        <div className="flex flex-col items-end gap-1">
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-2 rounded-full border border-rose-300 bg-rose-50 px-3 py-1.5 text-[13px] font-semibold text-rose-700 transition hover:-translate-y-0.5 hover:border-rose-400 hover:bg-rose-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleSendClientEmergency(result.clientId);
+                            }}
+                            disabled={clientEmergencySending[result.clientId]}
+                          >
+                            <svg
+                              aria-hidden="true"
+                              className="h-4 w-4"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth={2}
+                              viewBox="0 0 24 24"
+                            >
+                              <path d="M6.5 12h11l-.9-5.4a1 1 0 0 0-.99-.83H8.39a1 1 0 0 0-.99.83L6.5 12Z" strokeLinecap="round" strokeLinejoin="round" />
+                              <path d="M5 14h14v2H5z" strokeLinecap="round" strokeLinejoin="round" />
+                              <path d="M8 18a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-2H8v2Z" strokeLinecap="round" strokeLinejoin="round" />
+                              <path d="M12 4V2" strokeLinecap="round" strokeLinejoin="round" />
+                              <path d="M5.5 6.5 4 5" strokeLinecap="round" strokeLinejoin="round" />
+                              <path d="M18.5 6.5 20 5" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                            {clientEmergencySending[result.clientId] ? "전송 중..." : "긴급 호출"}
+                          </button>
+                          {clientEmergencyMessage[result.clientId] && (
+                            <p
+                              className={`text-xs ${
+                                clientEmergencyMessage[result.clientId]?.type === "success"
+                                  ? "text-emerald-700"
+                                  : "text-red-600"
+                              }`}
+                            >
+                              {clientEmergencyMessage[result.clientId]?.text}
+                            </p>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </article>
@@ -4081,8 +4120,8 @@ const WeeklyDayCard = ({
                       }}
                       type="button"
                     />
-                    <div className="flex flex-col gap-2 border-b border-slate-200 pb-4 sm:flex-row sm:items-center sm:justify-between pr-12">
-                      <div className="flex items-center gap-3">
+                    <div className="relative flex flex-col gap-2 border-b border-slate-200 pb-4 sm:flex-row sm:items-center sm:justify-between pr-12">
+                      <div className="flex items-center gap-3 flex-wrap">
                         <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-slate-50 text-sm font-semibold text-slate-700">
                           {avatarUrl ? (
                             <img
@@ -4094,10 +4133,49 @@ const WeeklyDayCard = ({
                             <span>{nameInitial}</span>
                           )}
                         </div>
-                        <div>
-                          <h3 className="text-base font-semibold text-slate-900 sm:text-lg">
-                            {client.clientName} 님
-                          </h3>
+                        <div className="flex flex-col gap-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h3 className="text-base font-semibold text-slate-900 sm:text-lg">
+                              {client.clientName} 님
+                            </h3>
+                            <button
+                              type="button"
+                              className="inline-flex items-center gap-2 rounded-full border border-rose-300 bg-rose-50 px-3 py-1.5 text-[13px] font-semibold text-rose-700 transition hover:-translate-y-0.5 hover:border-rose-400 hover:bg-rose-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleSendClientEmergency(client.clientId);
+                              }}
+                              disabled={clientEmergencySending[client.clientId]}
+                            >
+                              <svg
+                                aria-hidden="true"
+                                className="h-4 w-4"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth={2}
+                                viewBox="0 0 24 24"
+                              >
+                                <path d="M6.5 12h11l-.9-5.4a1 1 0 0 0-.99-.83H8.39a1 1 0 0 0-.99.83L6.5 12Z" strokeLinecap="round" strokeLinejoin="round" />
+                                <path d="M5 14h14v2H5z" strokeLinecap="round" strokeLinejoin="round" />
+                                <path d="M8 18a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-2H8v2Z" strokeLinecap="round" strokeLinejoin="round" />
+                                <path d="M12 4V2" strokeLinecap="round" strokeLinejoin="round" />
+                                <path d="M5.5 6.5 4 5" strokeLinecap="round" strokeLinejoin="round" />
+                                <path d="M18.5 6.5 20 5" strokeLinecap="round" strokeLinejoin="round" />
+                              </svg>
+                              {clientEmergencySending[client.clientId] ? "전송 중..." : "긴급 호출"}
+                            </button>
+                          </div>
+                          {clientEmergencyMessage[client.clientId] && (
+                            <p
+                              className={`text-xs ${
+                                clientEmergencyMessage[client.clientId]?.type === "success"
+                                  ? "text-emerald-700"
+                                  : "text-red-600"
+                              }`}
+                            >
+                              {clientEmergencyMessage[client.clientId]?.text}
+                            </p>
+                          )}
                           <p className="text-xs text-slate-500 sm:text-sm">
                             복약 일정 {client.medicationPlans.length}건 · 최근 확인{" "}
                             {client.latestMedicationLogs.length}건
@@ -4122,58 +4200,19 @@ const WeeklyDayCard = ({
                           최근 복약 확인: {recentLogLabel}
                         </p>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          className="inline-flex items-center gap-2 rounded-full border border-rose-300 bg-rose-50 px-3 py-1.5 text-[13px] font-semibold text-rose-700 transition hover:-translate-y-0.5 hover:border-rose-400 hover:bg-rose-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleSendClientEmergency(client.clientId);
-                          }}
-                          disabled={clientEmergencySending[client.clientId]}
+                      <span className="inline-flex items-center gap-2 self-start text-sm font-semibold text-indigo-600 sm:self-auto">
+                        상세 관리 열기
+                        <svg
+                          aria-hidden="true"
+                          className="h-4 w-4"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth={2}
+                          viewBox="0 0 24 24"
                         >
-                          <svg
-                            aria-hidden="true"
-                            className="h-4 w-4"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth={2}
-                            viewBox="0 0 24 24"
-                          >
-                            <path d="M6.5 12h11l-.9-5.4a1 1 0 0 0-.99-.83H8.39a1 1 0 0 0-.99.83L6.5 12Z" strokeLinecap="round" strokeLinejoin="round" />
-                            <path d="M5 14h14v2H5z" strokeLinecap="round" strokeLinejoin="round" />
-                            <path d="M8 18a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-2H8v2Z" strokeLinecap="round" strokeLinejoin="round" />
-                            <path d="M12 4V2" strokeLinecap="round" strokeLinejoin="round" />
-                            <path d="M5.5 6.5 4 5" strokeLinecap="round" strokeLinejoin="round" />
-                            <path d="M18.5 6.5 20 5" strokeLinecap="round" strokeLinejoin="round" />
-                          </svg>
-                          {clientEmergencySending[client.clientId] ? "전송 중..." : "긴급 호출"}
-                        </button>
-                        <span className="inline-flex items-center gap-2 text-sm font-semibold text-indigo-600">
-                          상세 관리 열기
-                          <svg
-                            aria-hidden="true"
-                            className="h-4 w-4"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth={2}
-                            viewBox="0 0 24 24"
-                          >
-                            <path d="M5 12h14M13 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round" />
-                          </svg>
-                        </span>
-                      </div>
-                      {clientEmergencyMessage[client.clientId] && (
-                        <p
-                          className={`text-xs ${
-                            clientEmergencyMessage[client.clientId]?.type === "success"
-                              ? "text-rose-600"
-                              : "text-red-600"
-                          }`}
-                        >
-                          {clientEmergencyMessage[client.clientId]?.text}
-                        </p>
-                      )}
+                          <path d="M5 12h14M13 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      </span>
                     </div>
                   </article>
                 );

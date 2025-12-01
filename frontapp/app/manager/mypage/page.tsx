@@ -3488,28 +3488,36 @@ const WeeklyDayCard = ({
                           ? `${pendingAlerts}건`
                           : "없음"
                         : stat.value;
-                      const hint = isAlert
-                        ? pendingAlerts > 0
-                          ? "즉시 확인이 필요합니다."
-                          : "미처리 알림이 없습니다."
-                        : stat.hint;
-                      const accent = isAlert
-                        ? pendingAlerts > 0
-                          ? "bg-rose-100 text-rose-700"
-                          : "bg-emerald-100 text-emerald-700"
-                        : stat.accent;
-                      return (
-                        <>
-                          <div className="flex items-center justify-between">
-                            <p className="text-sm font-semibold text-slate-700">{stat.label}</p>
-                            <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${accent}`}>
-                              {stat.badge}
-                            </span>
-                          </div>
-                          <p className="text-2xl font-bold text-slate-900">{value}</p>
-                          <p className="text-xs text-slate-500 leading-relaxed">{hint}</p>
-                        </>
-                      );
+                          const hint = isAlert
+                            ? pendingAlerts > 0
+                              ? "즉시 확인이 필요합니다."
+                              : "미처리 알림이 없습니다."
+                            : stat.hint;
+                          const accent = isAlert
+                            ? pendingAlerts > 0
+                              ? "bg-rose-100 text-rose-700"
+                              : "bg-emerald-100 text-emerald-700"
+                            : stat.accent;
+                          const showEmergencyBadge = stat.key === "alert" && effectiveEmergencyCount > 0;
+                          return (
+                            <>
+                              <div className="flex items-center justify-between">
+                                <p className="text-sm font-semibold text-slate-700">{stat.label}</p>
+                                <span className="flex items-center gap-1">
+                                  {showEmergencyBadge && (
+                                    <span className="flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[10px] font-bold text-white">
+                                      !
+                                    </span>
+                                  )}
+                                  <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${accent}`}>
+                                    {stat.badge}
+                                  </span>
+                                </span>
+                              </div>
+                              <p className="text-2xl font-bold text-slate-900">{value}</p>
+                              <p className="text-xs text-slate-500 leading-relaxed">{hint}</p>
+                            </>
+                          );
                     })()}
                   </button>
                 ))}
@@ -3553,6 +3561,7 @@ const WeeklyDayCard = ({
                                 { key: "emergency", label: "긴급 호출", count: effectiveEmergencyCount },
                               ].map((tab) => {
                                 const active = managerAlertTab === tab.key;
+                                const showEmergencyBadge = tab.key === "emergency" && effectiveEmergencyCount > 0;
                                 return (
                                   <button
                                     key={tab.key}
@@ -3568,6 +3577,11 @@ const WeeklyDayCard = ({
                                       {tab.count}
                                     </span>
                                     {tab.label}
+                                    {showEmergencyBadge && (
+                                      <span className="flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[10px] font-bold text-white">
+                                        !
+                                      </span>
+                                    )}
                                   </button>
                                 );
                               })}

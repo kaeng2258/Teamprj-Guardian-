@@ -618,7 +618,7 @@ export default function ClientMyPage() {
     accent: string;
     badge: string;
     detail: string;
-    items?: string[];
+    items?: Array<{ label: string; planId?: number }>;
     actionLabel?: string;
     actionDisabled?: boolean;
     onAction?: () => void;
@@ -635,7 +635,7 @@ export default function ClientMyPage() {
     () =>
       plans.slice(0, 4).map((plan) => {
         const days = plan.daysOfWeek?.map(mapDayToLabel).join(", ") || "요일 정보 없음";
-        return `${plan.medicineName} / ${days} / ${plan.alarmTime.slice(0, 5)}`;
+        return { label: `${plan.medicineName} / ${days} / ${plan.alarmTime.slice(0, 5)}` };
       }),
     [plans, mapDayToLabel],
   );
@@ -647,7 +647,7 @@ export default function ClientMyPage() {
         return normalized.includes("ALL") || normalized.includes(todayToken);
       })
       .slice(0, 5)
-      .map((plan) => `${plan.medicineName} / ${plan.alarmTime.slice(0, 5)}`);
+      .map((plan) => ({ label: `${plan.medicineName} / ${plan.alarmTime.slice(0, 5)}`, planId: plan.id }));
   }, [plans, todayToken]);
 
   type AlertTab = "overdue" | "chat" | "emergency";
@@ -721,22 +721,20 @@ export default function ClientMyPage() {
     () =>
       [
         {
-          key: "plans",
-          label: "복약 일정",
-          value: planLoading ? "확인 중" : `${plans.length}건`,
+          key: "emergency",
+          label: "긴급 호출",
+          value: Object.values(emergencySending).some(Boolean) ? "전송 중" : `${Object.keys(emergencySending).length}건`,
           hint:
-            planLoading && plans.length === 0
-              ? "일정을 불러오는 중입니다."
-              : plans.length > 0
-              ? "등록된 복약 일정이 있습니다."
-              : "등록된 일정이 없습니다.",
-          accent: "bg-indigo-100 text-indigo-700",
-          badge: "PLAN",
+            Object.keys(emergencySending).length > 0
+              ? "최근 호출 기록을 확인하세요."
+              : "등록된 호출 내역이 없습니다.",
+          accent: "bg-rose-100 text-rose-700",
+          badge: "SOS",
           detail:
-            plans.length > 0
-              ? `등록된 복약 일정 ${plans.length}건을 확인하고 필요하면 담당 매니저에게 수정을 요청하세요.`
-              : "아직 복약 일정이 없습니다. 담당 매니저에게 일정 등록을 요청해 주세요.",
-          items: planPreview.length > 0 ? planPreview : undefined,
+            Object.keys(emergencySending).length > 0
+              ? "최근 비상 호출 기록을 확인하고, 필요 시 담당 매니저에게 연락하세요."
+              : "아직 비상 호출 기록이 없습니다.",
+          items: emergencyAlerts.slice(0, 5),
         },
         {
           key: "confirm",
@@ -868,6 +866,22 @@ export default function ClientMyPage() {
     const minute = String(date.getMinutes()).padStart(2, "0");
     return `${hour}:${minute}`;
   };
+
+  const canConfirmNow = useCallback(
+    (plan: MedicationPlan) => {
+      const now = new Date();
+      const planTime = new Date();
+      const [hour, minute] = plan.alarmTime.split(":").map(Number);
+      planTime.setHours(hour ?? 0, minute ?? 0, 0, 0);
+      const diffMs = now.getTime() - planTime.getTime();
+      const currentDayToken = ["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"][
+        now.getDay()
+      ];
+      const isSameDay = plan.daysOfWeek.includes(currentDayToken);
+      return isSameDay && diffMs >= 0 && diffMs <= 60 * 60 * 1000;
+    },
+    [],
+  );
 
   const formatWeekdayLabel = useCallback((value: string) => {
     const day = new Date(`${value}T00:00:00`);
@@ -1409,17 +1423,37 @@ export default function ClientMyPage() {
                     <>
                       {activeStat.items && activeStat.items.length > 0 && (
                         <ul className="space-y-2 rounded-xl border border-slate-200 bg-slate-50/80 p-3 text-sm text-slate-700">
-                          {activeStat.items.map((item, idx) => (
-                            <li
-                              key={`${activeStat.key}-item-${idx}`}
-                              className="flex items-start gap-2 rounded-lg bg-white px-3 py-2 shadow-sm"
-                            >
-                              <span className="mt-0.5 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-indigo-100 px-2 text-[10px] font-bold text-indigo-700">
-                                {idx + 1}
-                              </span>
-                              <span className="leading-relaxed">{item}</span>
-                            </li>
-                          ))}
+                          {activeStat.items.map((item, idx) => {
+                            const plan = item.planId ? plans.find((p) => p.id === item.planId) : null;
+                            const confirmable = plan ? canConfirmNow(plan) : false;
+                            return (
+                              <li
+                                key={`${activeStat.key}-item-${idx}`}
+                                className="flex items-center justify-between gap-3 rounded-lg bg-white px-3 py-2 shadow-sm"
+                              >
+                                <div className="flex items-start gap-2">
+                                  <span className="mt-0.5 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-indigo-100 px-2 text-[10px] font-bold text-indigo-700">
+                                    {idx + 1}
+                                  </span>
+                                  <span className="leading-relaxed">{item.label}</span>
+                                </div>
+                                {plan && activeStat.key === "confirm" && (
+                                  <button
+                                    className={`${primaryActionButton} w-auto`}
+                                    disabled={
+                                      confirmationState[plan.id] === "confirming" ||
+                                      !confirmable ||
+                                      alertsAcknowledged
+                                    }
+                                    onClick={() => handleMedicationConfirm(plan)}
+                                    type="button"
+                                  >
+                                    {confirmationState[plan.id] === "confirming" ? "저장 중..." : "복용 완료"}
+                                  </button>
+                                )}
+                              </li>
+                            );
+                          })}
                         </ul>
                       )}
                       {activeStat.actionLabel && (
@@ -1608,18 +1642,21 @@ export default function ClientMyPage() {
                     </div>
                     <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                       {withinWindow ? (
-                        <button
-                          className={`${primaryActionButton} w-full sm:w-auto`}
-                          disabled={confirmationState[plan.id] === "confirming"}
-                          onClick={() => handleMedicationConfirm(plan)}
-                          type="button"
-                        >
-                          {confirmationState[plan.id] === "confirming"
-                            ? "저장 중..."
-                            : alreadyConfirmed
-                            ? "복용 완료"
-                            : "복용 완료"}
-                        </button>
+                        <div className="flex w-full items-center justify-between gap-3">
+                          <p className="text-sm font-semibold text-slate-700">
+                            {alreadyConfirmed ? "복용 완료" : "복용 확인 대기"}
+                          </p>
+                          <button
+                            className={`${primaryActionButton} w-auto`}
+                            disabled={confirmationState[plan.id] === "confirming"}
+                            onClick={() => handleMedicationConfirm(plan)}
+                            type="button"
+                          >
+                            {confirmationState[plan.id] === "confirming"
+                              ? "저장 중..."
+                              : "복용 완료"}
+                          </button>
+                        </div>
                       ) : (
                         <p className="text-sm text-slate-500">
                           아직 복용시간이 아닙니다

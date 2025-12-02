@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "";
@@ -98,16 +98,22 @@ export default function Home() {
   const [registerDetailAddress, setRegisterDetailAddress] = useState("");
   const [registerError, setRegisterError] = useState("");
   const [registerLoading, setRegisterLoading] = useState(false);
-
-  const tabClassName = useMemo(
-    () => ({
-      base:
-        "relative z-10 flex-1 rounded-2xl px-4 py-2 text-sm font-semibold uppercase tracking-[0.2em] transition-all duration-300 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-slate-50/70 hover:shadow-lg hover:shadow-slate-900/20 active:shadow-inner",
-      active: "text-slate-900",
-      inactive: "text-slate-100/80 hover:text-white",
-    }),
-    []
-  );
+  const inputClassName =
+    "w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-[15px] transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 focus:outline-none placeholder:text-slate-400";
+  const labelClassName = "flex flex-col gap-2 text-sm font-medium text-slate-800";
+  const sectionCardClass =
+    "rounded-2xl border border-slate-100 bg-slate-50/70 px-4 py-4 sm:px-5 sm:py-5";
+  const statusClassName = {
+    success:
+      "rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-800",
+    error: "rounded-xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-700",
+  };
+  const tabButtonClassName = (mode: AuthMode) =>
+    `flex-1 rounded-full px-4 py-2 text-sm font-semibold transition ${
+      activeTab === mode
+        ? "bg-white text-slate-900 shadow-sm shadow-slate-200"
+        : "text-slate-500 hover:text-slate-900"
+    } focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-100`;
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -328,321 +334,386 @@ export default function Home() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
-      <main className="w-full max-w-xl rounded-2xl bg-white p-8 shadow-lg">
-        <h1 className="mb-6 text-2xl font-semibold text-gray-900">
-          Guardian 서비스
-        </h1>
-        <div className="relative mb-8 flex overflow-hidden rounded-2xl bg-slate-900/90 p-1 text-sm shadow-lg shadow-slate-900/40">
-          <span
-            aria-hidden
-            className={`pointer-events-none absolute inset-y-1 left-1 w-[calc((100%-0.5rem)/2)] rounded-2xl bg-slate-50/95 shadow-lg shadow-slate-900/30 transition-transform duration-500 ease-out will-change-transform ${
-              activeTab === "login" ? "translate-x-0" : "translate-x-full"
-            }`}
-          />
-          <button
-            className={`${tabClassName.base} ${
-              activeTab === "login" ? tabClassName.active : tabClassName.inactive
-            }`}
-            onClick={() => {
-              setActiveTab("login");
-              setLoginError("");
-              setRegisterMessage("");
-            }}
-            type="button"
-          >
-            로그인
-          </button>
-          <button
-            className={`${tabClassName.base} ${
-              activeTab === "register"
-                ? tabClassName.active
-                : tabClassName.inactive
-            }`}
-            onClick={() => {
-              setActiveTab("register");
-              setRegisterError("");
-              setLoginMessage("");
-            }}
-            type="button"
-          >
-            회원가입
-          </button>
-        </div>
+    <div className="relative flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-50 via-white to-indigo-50 px-4 py-10 text-slate-900">
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="absolute left-12 top-10 h-48 w-48 rounded-full bg-indigo-100 blur-3xl" />
+        <div className="absolute bottom-12 right-16 h-56 w-56 rounded-full bg-sky-100 blur-3xl" />
+      </div>
 
-        <div className="relative overflow-hidden">
-          <div
-            key={activeTab}
-            className={`rounded-2xl border border-slate-100 bg-white/90 p-6 shadow-inner shadow-slate-200 backdrop-blur ${
-              activeTab === "login"
-                ? "animate-panel-from-left"
-                : "animate-panel-from-right"
-            }`}
-          >
-            {activeTab === "login" ? (
-              <form className="flex flex-col gap-4" onSubmit={handleLoginSubmit}>
-              <label className="flex flex-col gap-1">
-                <span className="text-sm text-gray-600">이메일</span>
-                <input
-                  aria-label="이메일"
-                  autoComplete="email"
-                  className="rounded-md border border-gray-300 px-3 py-2 focus:border-black focus:outline-none"
-                  onChange={(event) => setLoginEmail(event.target.value)}
-                  placeholder="you@example.com"
-                  required
-                  type="email"
-                  value={loginEmail}
-                />
-              </label>
-              <label className="flex flex-col gap-1">
-                <span className="text-sm text-gray-600">비밀번호</span>
-                <input
-                  aria-label="비밀번호"
-                  autoComplete="current-password"
-                  className="rounded-md border border-gray-300 px-3 py-2 focus:border-black focus:outline-none"
-                  onChange={(event) => setLoginPassword(event.target.value)}
-                  placeholder="비밀번호를 입력하세요"
-                  required
-                  type="password"
-                  value={loginPassword}
-                />
-              </label>
-              <button
-                className="rounded-md bg-black px-4 py-2 text-white transition hover:bg-gray-800 disabled:opacity-50"
-                disabled={loginLoading}
-                type="submit"
-              >
-                {loginLoading ? "로그인 중..." : "로그인"}
-              </button>
-              {loginMessage && (
-                <pre className="whitespace-pre-wrap rounded-md bg-green-50 px-3 py-2 text-sm text-green-700">
-                  {loginMessage}
-                </pre>
-              )}
-              {loginError && (
-                <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">
-                  {loginError}
+      <main className="relative z-10 w-full max-w-5xl overflow-hidden rounded-3xl border border-slate-100 bg-white/90 shadow-2xl backdrop-blur">
+        <div className="grid gap-0 md:grid-cols-[0.9fr_1.1fr]">
+          <section className="relative hidden flex-col justify-between bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-800 px-10 py-12 text-slate-100 md:flex">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.06),transparent_35%),radial-gradient(circle_at_78%_28%,rgba(79,70,229,0.18),transparent_32%)]" />
+            <div className="relative space-y-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.35em] text-indigo-100">
+                Guardian
+              </p>
+              <h1 className="text-3xl font-semibold leading-tight">
+                간병 관리와 간병인을 위한 안정적인 시작
+              </h1>
+              <p className="text-sm text-slate-200/90">
+                한 계정으로 일정을 확인하고 필요한 서비스를 바로 이용하세요.
+              </p>
+            </div>
+            <div className="relative mt-8 grid gap-3 text-sm">
+              <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 backdrop-blur">
+                <p className="font-semibold text-white">깔끔한 흐름</p>
+                <p className="mt-1 text-slate-200/90">
+                  로그인과 회원가입을 동일한 레이아웃으로 제공합니다.
                 </p>
-              )}
-              </form>
-            ) : (
-              <form
-                className="flex flex-col gap-4"
-                onSubmit={handleRegisterSubmit}
-              >
-              <label className="flex flex-col gap-1">
-                <span className="text-sm text-gray-600">이름</span>
-                <input
-                  aria-label="이름"
-                  autoComplete="name"
-                  className="rounded-md border border-gray-300 px-3 py-2 focus:border-black focus:outline-none"
-                  onChange={(event) => setRegisterName(event.target.value)}
-                  placeholder="홍길동"
-                  required
-                  type="text"
-                  value={registerName}
-                />
-              </label>
-              <label className="flex flex-col gap-1">
-                <span className="text-sm text-gray-600">생년월일</span>
-                <input
-                  aria-label="생년월일"
-                  className={`rounded-md border border-gray-300 px-3 py-2 focus:border-black focus:outline-none ${
-                    registerBirthDate ? "text-black" : "text-gray-400"
-                  }`}
-                  onChange={(event) => setRegisterBirthDate(event.target.value)}
-                  placeholder="YYYY-MM-DD"
-                  required
-                  type="date"
-                  value={registerBirthDate}
-                />
-              </label>
-              <label className="flex flex-col gap-1">
-                <span className="text-sm text-gray-600">성별</span>
-                <select
-                  aria-label="성별"
-                  className={`rounded-md border border-gray-300 px-3 py-2 focus:border-black focus:outline-none ${registerGender ? "text-black" : "text-gray-400"}`}
-                  value={registerGender}
-                  onChange={(event) => setRegisterGender(event.target.value)}
-                  required
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 backdrop-blur">
+                <p className="font-semibold text-white">필수 정보만</p>
+                <p className="mt-1 text-slate-200/90">
+                  필요한 항목만 간결하게 배치해 빠르게 완료할 수 있습니다.
+                </p>
+              </div>
+            </div>
+          </section>
+
+          <section className="p-7 sm:p-10">
+            <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.28em] text-indigo-600">
+                  Account
+                </p>
+                <h2 className="mt-2 text-2xl font-semibold text-slate-900">
+                  {activeTab === "login" ? "로그인" : "회원가입"}
+                </h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  {activeTab === "login"
+                    ? "등록된 이메일과 비밀번호로 로그인하세요."
+                    : "필수 정보를 입력하고 가입을 완료하세요."}
+                </p>
+              </div>
+              <div className="flex items-center rounded-full border border-slate-200 bg-slate-50 p-1 shadow-sm">
+                <button
+                  className={tabButtonClassName("login")}
+                  onClick={() => {
+                    setActiveTab("login");
+                    setLoginError("");
+                    setRegisterMessage("");
+                  }}
+                  type="button"
                 >
-                  <option value="" className="text-gray-400">
-                    선택해주세요
-                  </option>
-                  <option value="MALE" className="text-black">남성</option>
-                  <option value="FEMALE" className="text-black">여성</option>
-                </select>
-              </label>
-              <label className="flex flex-col gap-1">
-                <span className="text-sm text-gray-600">이메일</span>
-                <div className="flex flex-col gap-2 sm:flex-row">
-                  <input
-                    aria-label="회원가입 이메일"
-                    autoComplete="email"
-                    className="flex-1 rounded-md border border-gray-300 px-3 py-2 focus:border-black focus:outline-none"
-                    onChange={(event) => {
-                      const value = event.target.value;
-                      setRegisterEmail(value);
-                      if (value !== checkedEmail) {
-                        setEmailCheckStatus("idle");
-                        setEmailCheckMessage("");
-                      }
-                    }}
-                    placeholder="you@example.com"
-                    required
-                    type="email"
-                    value={registerEmail}
-                  />
-                  <button
-                    className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-700 transition hover:border-black disabled:cursor-not-allowed disabled:opacity-60"
-                    disabled={emailCheckStatus === "checking" || !registerEmail}
-                    onClick={handleEmailCheck}
-                    type="button"
-                  >
-                    {emailCheckStatus === "checking" ? "확인 중..." : "중복 확인"}
-                  </button>
-                </div>
-                {emailCheckMessage && (
-                  <p
-                    className={`text-sm ${
-                      emailCheckStatus === "available" ? "text-green-600" : "text-red-600"
-                    }`}
-                  >
-                    {emailCheckMessage}
-                  </p>
+                  로그인
+                </button>
+                <button
+                  className={tabButtonClassName("register")}
+                  onClick={() => {
+                    setActiveTab("register");
+                    setRegisterError("");
+                    setLoginMessage("");
+                  }}
+                  type="button"
+                >
+                  회원가입
+                </button>
+              </div>
+            </header>
+
+            <div className="mt-8">
+              <div
+                key={activeTab}
+                className={`rounded-2xl border border-slate-100 bg-white/90 p-6 shadow-inner shadow-slate-200 backdrop-blur ${
+                  activeTab === "login"
+                    ? "animate-panel-from-left"
+                    : "animate-panel-from-right"
+                }`}
+              >
+                {activeTab === "login" ? (
+                  <form className="grid gap-5" onSubmit={handleLoginSubmit}>
+                    <label className={labelClassName}>
+                      <span>이메일</span>
+                      <input
+                        aria-label="이메일"
+                        autoComplete="email"
+                        className={inputClassName}
+                        onChange={(event) => setLoginEmail(event.target.value)}
+                        placeholder="you@example.com"
+                        required
+                        type="email"
+                        value={loginEmail}
+                      />
+                    </label>
+                    <label className={labelClassName}>
+                      <span>비밀번호</span>
+                      <input
+                        aria-label="비밀번호"
+                        autoComplete="current-password"
+                        className={inputClassName}
+                        onChange={(event) => setLoginPassword(event.target.value)}
+                        placeholder="비밀번호를 입력하세요"
+                        required
+                        type="password"
+                        value={loginPassword}
+                      />
+                    </label>
+                    <button
+                      className="mt-1 w-full rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-slate-900/15 transition hover:-translate-y-0.5 hover:bg-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+                      disabled={loginLoading}
+                      type="submit"
+                    >
+                      {loginLoading ? "로그인 중..." : "로그인"}
+                    </button>
+                    {loginMessage && (
+                      <p className={statusClassName.success}>{loginMessage}</p>
+                    )}
+                    {loginError && <p className={statusClassName.error}>{loginError}</p>}
+                  </form>
+                ) : (
+                  <form className="space-y-6" onSubmit={handleRegisterSubmit}>
+                    <div className={sectionCardClass}>
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-sm font-semibold text-slate-800">기본 정보</p>
+                        <span className="text-xs text-slate-500">필수 입력</span>
+                      </div>
+                      <div className="mt-4 grid gap-4 md:grid-cols-2">
+                        <label className={labelClassName}>
+                          <span>이름</span>
+                          <input
+                            aria-label="이름"
+                            autoComplete="name"
+                            className={inputClassName}
+                            onChange={(event) => setRegisterName(event.target.value)}
+                            placeholder="홍길동"
+                            required
+                            type="text"
+                            value={registerName}
+                          />
+                        </label>
+                        <label className={labelClassName}>
+                          <span>생년월일</span>
+                          <input
+                            aria-label="생년월일"
+                            className={`${inputClassName} ${
+                              registerBirthDate ? "text-slate-900" : "text-slate-400"
+                            }`}
+                            onChange={(event) => setRegisterBirthDate(event.target.value)}
+                            placeholder="YYYY-MM-DD"
+                            required
+                            type="date"
+                            value={registerBirthDate}
+                          />
+                        </label>
+                        <label className={`${labelClassName} md:col-span-2`}>
+                          <span>성별</span>
+                          <select
+                            aria-label="성별"
+                            className={`${inputClassName} ${
+                              registerGender ? "text-slate-900" : "text-slate-400"
+                            }`}
+                            value={registerGender}
+                            onChange={(event) => setRegisterGender(event.target.value)}
+                            required
+                          >
+                            <option value="" className="text-slate-400">
+                              선택해주세요
+                            </option>
+                            <option value="MALE" className="text-slate-900">
+                              남성
+                            </option>
+                            <option value="FEMALE" className="text-slate-900">
+                              여성
+                            </option>
+                          </select>
+                        </label>
+                      </div>
+                    </div>
+
+                    <div className={sectionCardClass}>
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-sm font-semibold text-slate-800">계정 정보</p>
+                        <span className="text-xs text-slate-500">필수 입력</span>
+                      </div>
+                      <div className="mt-4 grid gap-4">
+                        <label className={labelClassName}>
+                          <span>이메일</span>
+                          <div className="flex flex-col gap-3 sm:flex-row">
+                            <input
+                              aria-label="회원가입 이메일"
+                              autoComplete="email"
+                              className={`${inputClassName} sm:flex-1`}
+                              onChange={(event) => {
+                                const value = event.target.value;
+                                setRegisterEmail(value);
+                                if (value !== checkedEmail) {
+                                  setEmailCheckStatus("idle");
+                                  setEmailCheckMessage("");
+                                }
+                              }}
+                              placeholder="you@example.com"
+                              required
+                              type="email"
+                              value={registerEmail}
+                            />
+                            <button
+                              className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 transition hover:border-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-100 disabled:cursor-not-allowed disabled:opacity-60"
+                              disabled={emailCheckStatus === "checking" || !registerEmail}
+                              onClick={handleEmailCheck}
+                              type="button"
+                            >
+                              {emailCheckStatus === "checking" ? "확인 중..." : "중복 확인"}
+                            </button>
+                          </div>
+                          {emailCheckMessage && (
+                            <p
+                              className={`text-sm ${
+                                emailCheckStatus === "available"
+                                  ? "text-emerald-700"
+                                  : "text-rose-700"
+                              }`}
+                            >
+                              {emailCheckMessage}
+                            </p>
+                          )}
+                        </label>
+
+                        <div className="grid gap-4 md:grid-cols-2">
+                          <label className={labelClassName}>
+                            <span>비밀번호</span>
+                            <input
+                              aria-label="회원가입 비밀번호"
+                              autoComplete="new-password"
+                              className={inputClassName}
+                              onChange={(event) => setRegisterPassword(event.target.value)}
+                              placeholder="영문, 숫자 포함 8자 이상"
+                              required
+                              type="password"
+                              value={registerPassword}
+                            />
+                          </label>
+                          <label className={labelClassName}>
+                            <span>비밀번호 확인</span>
+                            <input
+                              aria-label="비밀번호 확인"
+                              autoComplete="new-password"
+                              className={inputClassName}
+                              onChange={(event) =>
+                                setRegisterConfirmPassword(event.target.value)
+                              }
+                              placeholder="비밀번호를 다시 입력하세요"
+                              required
+                              type="password"
+                              value={registerConfirmPassword}
+                            />
+                          </label>
+                        </div>
+
+                        <label className={labelClassName}>
+                          <span>가입 유형</span>
+                          <select
+                            aria-label="가입 유형"
+                            className={`${inputClassName} ${
+                              registerRole ? "text-slate-900" : "text-slate-400"
+                            }`}
+                            onChange={(event) =>
+                              setRegisterRole(event.target.value as RegisterRoleValue)
+                            }
+                            value={registerRole}
+                          >
+                            <option disabled value="" className="text-slate-400">
+                              회원 유형을 선택하세요
+                            </option>
+                            {Object.entries(roleLabels).map(([value, label]) => (
+                              <option key={value} value={value} className="text-slate-900">
+                                {label}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      </div>
+                    </div>
+
+                    <div className={sectionCardClass}>
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-sm font-semibold text-slate-800">주소</p>
+                        <span className="text-xs text-slate-500">필수 입력</span>
+                      </div>
+                      <div className="mt-4 grid gap-3">
+                        <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
+                          <input
+                            aria-label="우편번호"
+                            className={inputClassName}
+                            placeholder="우편번호"
+                            readOnly
+                            required
+                            value={registerZipCode}
+                          />
+                          <button
+                            className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 transition hover:border-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-100"
+                            onClick={handleAddressSearch}
+                            type="button"
+                          >
+                            주소 검색
+                          </button>
+                        </div>
+                        <input
+                          aria-label="기본 주소"
+                          className={inputClassName}
+                          placeholder="기본 주소"
+                          readOnly
+                          required
+                          value={registerAddress}
+                        />
+                        <input
+                          aria-label="상세 주소"
+                          className={inputClassName}
+                          onChange={(event) => setRegisterDetailAddress(event.target.value)}
+                          placeholder="상세 주소를 입력하세요"
+                          value={registerDetailAddress}
+                        />
+                      </div>
+                    </div>
+
+                    <div className={sectionCardClass}>
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-sm font-semibold text-slate-800">약관 동의</p>
+                        <span className="text-xs text-slate-500">필수 입력</span>
+                      </div>
+                      <div className="mt-4 grid gap-3">
+                        <label className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 shadow-inner shadow-slate-50">
+                          <input
+                            checked={registerTermsAgreed}
+                            className="mt-1 h-4 w-4 accent-slate-900"
+                            onChange={(event) => setRegisterTermsAgreed(event.target.checked)}
+                            type="checkbox"
+                          />
+                          <span>이용약관(필수)을 확인하고 동의합니다.</span>
+                        </label>
+                        <label className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 shadow-inner shadow-slate-50">
+                          <input
+                            checked={registerPrivacyAgreed}
+                            className="mt-1 h-4 w-4 accent-slate-900"
+                            onChange={(event) =>
+                              setRegisterPrivacyAgreed(event.target.checked)
+                            }
+                            type="checkbox"
+                          />
+                          <span>개인정보 처리방침(필수)에 동의합니다.</span>
+                        </label>
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      <button
+                        className="w-full rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-slate-900/15 transition hover:-translate-y-0.5 hover:bg-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+                        disabled={registerLoading}
+                        type="submit"
+                      >
+                        {registerLoading ? "가입 중..." : "회원가입"}
+                      </button>
+
+                      {registerMessage && (
+                        <p className={statusClassName.success}>{registerMessage}</p>
+                      )}
+                      {registerError && <p className={statusClassName.error}>{registerError}</p>}
+                    </div>
+                  </form>
                 )}
-              </label>
-              <div className="grid gap-4 md:grid-cols-2">
-                <label className="flex flex-col gap-1">
-                  <span className="text-sm text-gray-600">비밀번호</span>
-                  <input
-                    aria-label="회원가입 비밀번호"
-                    autoComplete="new-password"
-                    className="rounded-md border border-gray-300 px-3 py-2 focus:border-black focus:outline-none"
-                    onChange={(event) => setRegisterPassword(event.target.value)}
-                    placeholder="영문, 숫자 포함 8자 이상"
-                    required
-                    type="password"
-                    value={registerPassword}
-                  />
-                </label>
-                <label className="flex flex-col gap-1">
-                  <span className="text-sm text-gray-600">비밀번호 확인</span>
-                  <input
-                    aria-label="비밀번호 확인"
-                    autoComplete="new-password"
-                    className="rounded-md border border-gray-300 px-3 py-2 focus:border-black focus:outline-none"
-                    onChange={(event) =>
-                      setRegisterConfirmPassword(event.target.value)
-                    }
-                    placeholder="비밀번호를 다시 입력하세요"
-                    required
-                    type="password"
-                    value={registerConfirmPassword}
-                  />
-                </label>
               </div>
-  
-              <label className="flex flex-col gap-1">
-                <span className="text-sm text-gray-600">가입 유형</span>
-                <select
-                  aria-label="가입 유형"
-                  className={`rounded-md border border-gray-300 px-3 py-2 focus:border-black focus:outline-none ${registerRole ? "text-black" : "text-gray-400"}`}
-                  onChange={(event) =>
-                    setRegisterRole(event.target.value as RegisterRoleValue)
-                  }
-                  value={registerRole}
-                >
-                  <option disabled value="" className="text-gray-400">
-                    회원 유형을 선택하세요
-                  </option>
-                  {Object.entries(roleLabels).map(([value, label]) => (
-                    <option key={value} value={value} className="text-black">
-                      {label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-  
-              <div className="flex flex-col gap-2">
-                <span className="text-sm text-gray-600">주소</span>
-                <div className="flex flex-col gap-2 sm:flex-row">
-                  <input
-                    aria-label="우편번호"
-                    className="flex-1 rounded-md border border-gray-300 px-3 py-2 focus:border-black focus:outline-none sm:max-w-[180px]"
-                    placeholder="우편번호"
-                    readOnly
-                    required
-                    value={registerZipCode}
-                  />
-                  <button
-                    className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-700 transition hover:border-black"
-                    onClick={handleAddressSearch}
-                    type="button"
-                  >
-                    주소 검색
-                  </button>
-                </div>
-                <input
-                  aria-label="기본 주소"
-                  className="rounded-md border border-gray-300 px-3 py-2 focus:border-black focus:outline-none"
-                  placeholder="기본 주소"
-                  readOnly
-                  required
-                  value={registerAddress}
-                />
-                <input
-                  aria-label="상세 주소"
-                  className="rounded-md border border-gray-300 px-3 py-2 focus:border-black focus:outline-none"
-                  onChange={(event) => setRegisterDetailAddress(event.target.value)}
-                  placeholder="상세 주소를 입력하세요"
-                  value={registerDetailAddress}
-                />
-              </div>
-  
-              <label className="flex items-start gap-2 text-sm text-gray-600">
-                <input
-                  checked={registerTermsAgreed}
-                  className="mt-1"
-                  onChange={(event) => setRegisterTermsAgreed(event.target.checked)}
-                  type="checkbox"
-                />
-                <span>이용약관(필수)을 확인하고 동의합니다.</span>
-              </label>
-  
-              <label className="flex items-start gap-2 text-sm text-gray-600">
-                <input
-                  checked={registerPrivacyAgreed}
-                  className="mt-1"
-                  onChange={(event) =>
-                    setRegisterPrivacyAgreed(event.target.checked)
-                  }
-                  type="checkbox"
-                />
-                <span>개인정보 처리방침(필수)에 동의합니다.</span>
-              </label>
-  
-              <button
-                className="rounded-md bg-black px-4 py-2 text-white transition hover:bg-gray-800 disabled:opacity-50"
-                disabled={registerLoading}
-                type="submit"
-              >
-                {registerLoading ? "가입 중..." : "회원가입"}
-              </button>
-  
-              {registerMessage && (
-                <p className="rounded-md bg-green-50 px-3 py-2 text-sm text-green-700">
-                  {registerMessage}
-                </p>
-              )}
-              {registerError && (
-                <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">
-                  {registerError}
-                </p>
-              )}
-              </form>
-            )}
-          </div>
+            </div>
+          </section>
         </div>
       </main>
     </div>

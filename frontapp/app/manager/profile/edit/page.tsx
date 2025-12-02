@@ -103,6 +103,12 @@ export default function ManagerProfileEditPage() {
   const [pushStatus, setPushStatus] = useState<"idle" | "requesting" | "error">("idle");
   const [pushMessage, setPushMessage] = useState("");
   const [pushEnabled, setPushEnabled] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [profileLocked, setProfileLocked] = useState(true);
+  const [unlockModalOpen, setUnlockModalOpen] = useState(true);
+  const [unlockPassword, setUnlockPassword] = useState("");
+  const [unlockError, setUnlockError] = useState("");
+  const [unlocking, setUnlocking] = useState(false);
   const [imageMenuOpen, setImageMenuOpen] = useState(false);
   const [theme, setTheme] = useState<ThemeMode>("light");
   const [textSize, setTextSize] = useState<TextSizeMode>("normal");
@@ -131,7 +137,13 @@ export default function ManagerProfileEditPage() {
     const id = Number(idStr);
     const load = async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/api/users/${id}`);
+        const res = await fetch(`${API_BASE_URL}/api/users/${id}`, {
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+            ...authHeaders(),
+          },
+        });
         if (!res.ok) {
           throw new Error("내 정보를 불러오지 못했습니다.");
         }
@@ -184,6 +196,12 @@ export default function ManagerProfileEditPage() {
     }
   }, []);
 
+  const authHeaders = () => {
+    if (typeof window === "undefined") return {};
+    const token = window.localStorage.getItem("accessToken");
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  };
+
   useEffect(() => {
     if (typeof document === "undefined") return;
     const saved =
@@ -232,13 +250,18 @@ export default function ManagerProfileEditPage() {
       setError("이름을 입력해주세요.");
       return;
     }
+    if (!currentPassword.trim()) {
+      setError("비밀번호를 입력해야 개인정보를 수정할 수 있습니다.");
+      return;
+    }
     setSaving(true);
     setError("");
     setMessage("");
     try {
       const res = await fetch(`${API_BASE_URL}/api/users/${user.id}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
         body: JSON.stringify({
           name: name.trim(),
           birthDate: birthDate || null,
@@ -248,6 +271,7 @@ export default function ManagerProfileEditPage() {
           detailAddress: detailAddress || null,
           profileImageUrl: profileImageUrl || DEFAULT_PROFILE_IMG,
           status: null,
+          currentPassword: currentPassword.trim(),
         }),
       });
       if (!res.ok) {
@@ -259,6 +283,7 @@ export default function ManagerProfileEditPage() {
       setProfileImageUrl(resolveProfileImageUrl(data.profileImageUrl) || DEFAULT_PROFILE_IMG);
       setBirthDate(normalizeBirthDate(data.birthDate));
       setMessage("개인정보가 저장되었습니다.");
+      setCurrentPassword("");
     } catch (e: any) {
       setError(e instanceof Error ? e.message : "저장에 실패했습니다.");
     } finally {
@@ -268,13 +293,18 @@ export default function ManagerProfileEditPage() {
 
   const handleResetImage = async () => {
     if (!user) return;
+    if (!currentPassword.trim()) {
+      setError("비밀번호를 입력해야 개인정보를 수정할 수 있습니다.");
+      return;
+    }
     setSaving(true);
     setError("");
     setMessage("");
     try {
       const res = await fetch(`${API_BASE_URL}/api/users/${user.id}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
         body: JSON.stringify({
           name: name.trim(),
           birthDate: birthDate || null,
@@ -284,6 +314,7 @@ export default function ManagerProfileEditPage() {
           detailAddress: detailAddress || null,
           profileImageUrl: DEFAULT_PROFILE_IMG,
           status: null,
+          currentPassword: currentPassword.trim(),
         }),
       });
       if (!res.ok) {
@@ -294,6 +325,7 @@ export default function ManagerProfileEditPage() {
       setUser(data);
       setProfileImageUrl(resolveProfileImageUrl(data.profileImageUrl) || DEFAULT_PROFILE_IMG);
       setMessage("기본 이미지로 변경되었습니다.");
+      setCurrentPassword("");
     } catch (e: any) {
       setError(e instanceof Error ? e.message : "기본 이미지로 변경에 실패했습니다.");
     } finally {
@@ -315,6 +347,10 @@ export default function ManagerProfileEditPage() {
       form.append("file", file);
       const res = await fetch(`${API_BASE_URL}/api/users/${user.id}/profile-image`, {
         method: "POST",
+        credentials: "include",
+        headers: {
+          ...authHeaders(),
+        },
         body: form,
       });
       if (!res.ok) {
@@ -426,7 +462,8 @@ export default function ManagerProfileEditPage() {
 
       const res = await fetch(`${API_BASE_URL}/api/users/${user.id}/push/subscriptions`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
         body: JSON.stringify({
           endpoint: subscription.endpoint,
           expirationTime: subscription.expirationTime,
@@ -462,6 +499,49 @@ export default function ManagerProfileEditPage() {
     applyTextSize(textSize === "large" ? "normal" : "large");
   };
 
+  const handleUnlockProfile = async () => {
+    if (!email || !unlockPassword.trim()) {
+      setUnlockError("비밀번호를 입력해주세요.");
+      return;
+    }
+    setUnlocking(true);
+    setUnlockError("");
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password: unlockPassword }),
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || "비밀번호가 올바르지 않습니다.");
+      }
+      type LoginPayload = {
+        userId: number;
+        role: string;
+        accessToken: string;
+        refreshToken: string;
+        redirectPath?: string;
+      };
+      const payload: LoginPayload = await res.json();
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem("accessToken", payload.accessToken);
+        window.localStorage.setItem("refreshToken", payload.refreshToken);
+        window.localStorage.setItem("userRole", payload.role);
+        window.localStorage.setItem("userId", String(payload.userId));
+        window.localStorage.setItem("userEmail", email);
+      }
+      setCurrentPassword(unlockPassword);
+      setProfileLocked(false);
+      setUnlockModalOpen(false);
+      setUnlockPassword("");
+    } catch (e: any) {
+      setUnlockError(e instanceof Error ? e.message : "비밀번호가 올바르지 않습니다.");
+    } finally {
+      setUnlocking(false);
+    }
+  };
+
   if (loading) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-slate-50">
@@ -473,8 +553,9 @@ export default function ManagerProfileEditPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 px-3 py-6 dark:bg-slate-900 sm:px-6 sm:py-10">
-      <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 rounded-3xl bg-white p-4 shadow-lg dark:bg-slate-800 dark:text-slate-100 sm:p-8">
+    <>
+      <div className="min-h-screen bg-slate-50 px-3 py-6 dark:bg-slate-900 sm:px-6 sm:py-10">
+        <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 rounded-3xl bg-white p-4 shadow-lg dark:bg-slate-800 dark:text-slate-100 sm:p-8">
         <header className="flex flex-col gap-4 border-b border-slate-200 pb-4">
           <div className="flex items-start gap-4 sm:gap-6">
             <div className="relative">
@@ -529,21 +610,44 @@ export default function ManagerProfileEditPage() {
                 }}
               />
             </div>
-            <div className="flex flex-col gap-1">
+            <div className="flex flex-1 flex-col gap-1">
               <p className="text-sm font-semibold uppercase tracking-[0.08em] text-indigo-600">Manager</p>
               <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">
                 {user?.name ? `${user.name} 매니저` : "매니저"}
               </h1>
               <p className="text-sm text-slate-600">이름과 프로필 이미지를 변경할 수 있습니다.</p>
             </div>
+            <button
+              className="ml-auto inline-flex h-10 items-center justify-center rounded-lg border border-slate-300 px-4 text-sm font-semibold text-slate-700 transition hover:border-indigo-400 hover:text-indigo-900"
+              type="button"
+              onClick={() => router.back()}
+            >
+              이전 페이지로
+            </button>
           </div>
         </header>
 
-        <div className="space-y-4">
-          <section className="rounded-2xl border border-slate-200 bg-white/80 p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+        <div className="relative space-y-4">
+          {profileLocked && (
+            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center rounded-2xl bg-white/70 backdrop-blur-sm">
+              <p className="text-sm font-semibold text-slate-700">비밀번호를 입력하면 개인정보를 수정할 수 있습니다.</p>
+              <button
+                type="button"
+                className="mt-3 inline-flex items-center justify-center rounded-full border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm font-semibold text-indigo-700 transition hover:-translate-y-0.5 hover:border-indigo-300 hover:shadow-sm"
+                onClick={() => setUnlockModalOpen(true)}
+              >
+                비밀번호 입력하기
+              </button>
+            </div>
+          )}
+          <section
+            className={`rounded-2xl border border-slate-200 bg-white/80 p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800 ${
+              profileLocked ? "pointer-events-none select-none blur-[2px] opacity-60" : ""
+            }`}
+          >
             <div className="flex items-center justify-between pb-3">
-              <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">기본 정보</h2>
-              <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">계정</span>
+              <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">개인정보</h2>
+              <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">계정/연락처</span>
             </div>
             <div className="space-y-3">
               <label className="flex flex-col gap-1 text-sm text-slate-700 dark:text-slate-200">
@@ -589,58 +693,54 @@ export default function ManagerProfileEditPage() {
                   <option value="FEMALE">여성</option>
                 </select>
               </label>
-            </div>
-          </section>
-
-          <section className="rounded-2xl border border-slate-200 bg-white/80 p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800">
-            <div className="flex items-center justify-between pb-3">
-              <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">주소</h2>
-              <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">연락처</span>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-3">
-              <label className="flex flex-col gap-1 text-sm text-slate-700 dark:text-slate-200 sm:col-span-1">
-                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">우편번호</span>
-                <input
-                  value={zipCode}
-                  onChange={(e) => setZipCode(e.target.value)}
-                  className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900/60"
-                  placeholder="우편번호"
-                />
-              </label>
-              <label className="flex flex-col gap-1 text-sm text-slate-700 dark:text-slate-200 sm:col-span-2">
-                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">주소</span>
-                <input
-                  value={address}
-                  onChange={(e) => setAddress(e.target.value)}
-                  className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900/60"
-                  placeholder="주소"
-                />
-              </label>
-              <div className="sm:col-span-3">
-                <button
-                  type="button"
-                  onClick={handleAddressSearch}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-indigo-400 hover:text-indigo-900 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-200"
-                >
-                  주소 검색 (다음)
-                </button>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <label className="flex flex-col gap-1 text-sm text-slate-700 dark:text-slate-200 sm:col-span-1">
+                  <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">우편번호</span>
+                  <input
+                    value={zipCode}
+                    onChange={(e) => setZipCode(e.target.value)}
+                    className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900/60"
+                    placeholder="우편번호"
+                  />
+                </label>
+                <label className="flex flex-col gap-1 text-sm text-slate-700 dark:text-slate-200 sm:col-span-2">
+                  <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">주소</span>
+                  <input
+                    value={address}
+                    onChange={(e) => setAddress(e.target.value)}
+                    className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900/60"
+                    placeholder="주소"
+                  />
+                </label>
+                <div className="sm:col-span-3">
+                  <button
+                    type="button"
+                    onClick={handleAddressSearch}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-indigo-400 hover:text-indigo-900 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-200"
+                  >
+                    주소 검색
+                  </button>
+                </div>
+                <label className="flex flex-col gap-1 text-sm text-slate-700 dark:text-slate-200 sm:col-span-3">
+                  <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">상세 주소</span>
+                  <input
+                    value={detailAddress}
+                    onChange={(e) => setDetailAddress(e.target.value)}
+                    className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900/60"
+                    placeholder="동/호 등"
+                  />
+                </label>
               </div>
-              <label className="flex flex-col gap-1 text-sm text-slate-700 dark:text-slate-200 sm:col-span-3">
-                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">상세 주소</span>
-                <input
-                  value={detailAddress}
-                  onChange={(e) => setDetailAddress(e.target.value)}
-                  className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900/60"
-                  placeholder="동/호 등"
-                />
-              </label>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                현재 주소: {zipCode || "미등록"} / {address || "미등록"} {detailAddress || ""}
+              </p>
             </div>
-            <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-              현재 주소: {zipCode || "미등록"} / {address || "미등록"} {detailAddress || ""}
-            </p>
           </section>
 
-          <section className="rounded-2xl border border-slate-200 bg-white/80 p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+
+          <section
+            className="rounded-2xl border border-slate-200 bg-white/80 p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800"
+          >
             <div className="flex items-center justify-between pb-3">
               <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">환경 설정</h2>
               <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">보기·알림</span>
@@ -662,9 +762,9 @@ export default function ManagerProfileEditPage() {
                   disabled={pushStatus === "requesting"}
                   className={`relative inline-flex h-10 w-32 items-center justify-between rounded-full border px-3 text-[11px] font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${
                     pushEnabled
-                      ? "border-indigo-500 bg-gradient-to-r from-indigo-500 to-violet-500 text-white shadow-sm"
-                      : "border-slate-200 bg-slate-200 text-slate-700 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
-                  } ${pushStatus === "requesting" ? "opacity-60" : "hover:shadow-sm"}`}
+                      ? "border-indigo-500 bg-indigo-50 text-indigo-700 shadow-sm"
+                      : "border-slate-200 bg-slate-100 text-slate-700 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
+                  } ${pushStatus === "requesting" ? "opacity-60" : "hover:-translate-y-[1px] hover:shadow-sm"}`}
                   aria-pressed={pushEnabled}
                   aria-label="모바일 푸시 알림 설정"
                 >
@@ -676,22 +776,18 @@ export default function ManagerProfileEditPage() {
                     >
                       <BellIcon className="h-4 w-4" />
                     </span>
-                    <span>{pushEnabled ? "알림 켜짐" : "알림 꺼짐"}</span>
+                    <span className="sr-only">{pushEnabled ? "알림 켜짐" : "알림 꺼짐"}</span>
                   </span>
-                  <span className="relative flex h-6 w-14 items-center rounded-full border border-indigo-100 bg-white/90 text-[10px] font-bold uppercase tracking-wide text-indigo-600 shadow-inner">
+                  <span
+                    className={`relative flex h-7 w-14 items-center rounded-full transition ${pushEnabled ? "bg-indigo-100" : "bg-slate-200/90"}`}
+                  >
                     <span
-                      className={`absolute left-0 top-0 h-full w-full rounded-full bg-indigo-200/40 transition-opacity ${
-                        pushEnabled ? "opacity-100" : "opacity-0"
+                      className={`absolute left-1 h-5 w-5 rounded-full ring-1 ring-slate-200 transition-all duration-200 ${
+                        pushEnabled
+                          ? "translate-x-7 bg-indigo-600 shadow-lg"
+                          : "translate-x-0 bg-white shadow-sm"
                       }`}
-                      aria-hidden="true"
                     />
-                    <span
-                      className={`relative inline-flex h-5 w-5 items-center justify-center rounded-full bg-indigo-500 text-white shadow transition-transform duration-200 ${
-                        pushEnabled ? "translate-x-[18px]" : "translate-x-0"
-                      }`}
-                    >
-                      {pushEnabled ? "On" : "Off"}
-                    </span>
                   </span>
                   <span className="sr-only">{pushEnabled ? "푸시 켜짐" : "푸시 꺼짐"}</span>
                 </button>
@@ -709,7 +805,7 @@ export default function ManagerProfileEditPage() {
                   className={`relative inline-flex h-10 w-32 items-center justify-between rounded-full border px-3 text-[11px] font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${
                     theme === "dark"
                       ? "border-indigo-500 bg-gradient-to-r from-slate-800 to-indigo-600 text-white shadow-sm"
-                      : "border-slate-300 bg-slate-200 text-slate-700 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
+                      : "border-slate-300 bg-slate-100 text-slate-700 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
                   }`}
                   aria-pressed={theme === "dark"}
                   aria-label="다크 모드 토글"
@@ -722,22 +818,18 @@ export default function ManagerProfileEditPage() {
                     >
                       <ThemeIcon mode={theme} className="h-4 w-4" />
                     </span>
-                    <span>{theme === "dark" ? "다크 모드" : "라이트 모드"}</span>
+                    <span className="sr-only">{theme === "dark" ? "다크 모드" : "라이트 모드"}</span>
                   </span>
-                  <span className="relative flex h-6 w-14 items-center rounded-full border border-indigo-100 bg-white/90 text-[10px] font-bold uppercase tracking-wide text-indigo-600 shadow-inner">
+                  <span
+                    className={`relative flex h-7 w-14 items-center rounded-full transition ${theme === "dark" ? "bg-indigo-200/60" : "bg-slate-200/90"}`}
+                  >
                     <span
-                      className={`absolute left-0 top-0 h-full w-full rounded-full bg-indigo-200/40 transition-opacity ${
-                        theme === "dark" ? "opacity-100" : "opacity-0"
+                      className={`absolute left-1 h-5 w-5 rounded-full ring-1 ring-slate-200 transition-all duration-200 ${
+                        theme === "dark"
+                          ? "translate-x-7 bg-indigo-700 shadow-lg"
+                          : "translate-x-0 bg-white shadow-sm"
                       }`}
-                      aria-hidden="true"
                     />
-                    <span
-                      className={`relative inline-flex h-5 w-5 items-center justify-center rounded-full bg-indigo-500 text-white shadow transition-transform duration-200 ${
-                        theme === "dark" ? "translate-x-[18px]" : "translate-x-0"
-                      }`}
-                    >
-                      {theme === "dark" ? "On" : "Off"}
-                    </span>
                   </span>
                 </button>
               </div>
@@ -752,7 +844,7 @@ export default function ManagerProfileEditPage() {
                   className={`relative inline-flex h-10 w-32 items-center justify-between rounded-full border px-3 text-[11px] font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${
                     textSize === "large"
                       ? "border-indigo-500 bg-gradient-to-r from-indigo-500 to-blue-600 text-white shadow-sm"
-                      : "border-slate-300 bg-slate-200 text-slate-700 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
+                      : "border-slate-300 bg-slate-100 text-slate-700 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
                   }`}
                   aria-pressed={textSize === "large"}
                   aria-label="큰 글씨 모드 토글"
@@ -765,22 +857,18 @@ export default function ManagerProfileEditPage() {
                     >
                       <TextSizeIcon large={textSize === "large"} className="h-4 w-4" />
                     </span>
-                    <span>{textSize === "large" ? "큰 글씨" : "보통 글씨"}</span>
+                    <span className="sr-only">{textSize === "large" ? "큰 글씨" : "보통 글씨"}</span>
                   </span>
-                  <span className="relative flex h-6 w-14 items-center rounded-full border border-indigo-100 bg-white/90 text-[10px] font-bold uppercase tracking-wide text-indigo-600 shadow-inner">
+                  <span
+                    className={`relative flex h-7 w-14 items-center rounded-full transition ${textSize === "large" ? "bg-indigo-200/60" : "bg-slate-200/90"}`}
+                  >
                     <span
-                      className={`absolute left-0 top-0 h-full w-full rounded-full bg-indigo-200/40 transition-opacity ${
-                        textSize === "large" ? "opacity-100" : "opacity-0"
+                      className={`absolute left-1 h-5 w-5 rounded-full ring-1 ring-slate-200 transition-all duration-200 ${
+                        textSize === "large"
+                          ? "translate-x-7 bg-indigo-700 shadow-lg"
+                          : "translate-x-0 bg-white shadow-sm"
                       }`}
-                      aria-hidden="true"
                     />
-                    <span
-                      className={`relative inline-flex h-5 w-5 items-center justify-center rounded-full bg-indigo-500 text-white shadow transition-transform duration-200 ${
-                        textSize === "large" ? "translate-x-[18px]" : "translate-x-0"
-                      }`}
-                    >
-                      {textSize === "large" ? "On" : "Off"}
-                    </span>
                   </span>
                 </button>
               </div>
@@ -792,14 +880,7 @@ export default function ManagerProfileEditPage() {
           <p className={`text-sm ${error ? "text-rose-600" : "text-emerald-700"}`}>{error || message}</p>
         )}
 
-        <div className="flex justify-between gap-2">
-          <button
-            className="inline-flex h-11 items-center justify-center rounded-lg border border-slate-300 px-4 text-sm font-semibold text-slate-700 transition hover:border-indigo-400 hover:text-indigo-900"
-            type="button"
-            onClick={() => router.back()}
-          >
-            이전 페이지로
-          </button>
+        <div className={`flex justify-start gap-2 ${profileLocked ? "pointer-events-none select-none opacity-60" : ""}`}>
           <button
             className="inline-flex h-11 items-center justify-center rounded-lg bg-indigo-600 px-4 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-400"
             disabled={saving || !user}
@@ -810,6 +891,52 @@ export default function ManagerProfileEditPage() {
           </button>
         </div>
       </main>
-    </div>
+      </div>
+
+      {unlockModalOpen && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center px-4">
+          <div
+            className="absolute inset-0 bg-slate-900/50"
+            onClick={() => {
+              if (!unlocking) setUnlockModalOpen(false);
+            }}
+          />
+          <div className="relative w-full max-w-md rounded-2xl bg-white p-5 shadow-xl dark:bg-slate-800">
+            <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">비밀번호 확인</h3>
+            <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+              개인정보 수정을 위해 현재 비밀번호를 입력해주세요.
+            </p>
+            <div className="mt-4 space-y-2">
+              <input
+                type="password"
+                value={unlockPassword}
+                onChange={(e) => setUnlockPassword(e.target.value)}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none dark:border-slate-600 dark:bg-slate-900/60 dark:text-slate-50"
+                placeholder="비밀번호"
+              />
+              {unlockError && <p className="text-sm text-rose-600">{unlockError}</p>}
+            </div>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                className="h-10 rounded-md border border-slate-300 px-3 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:text-slate-900 dark:border-slate-600 dark:text-slate-200"
+                onClick={() => setUnlockModalOpen(false)}
+                disabled={unlocking}
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                className="h-10 rounded-md bg-indigo-600 px-4 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-indigo-300"
+                onClick={() => void handleUnlockProfile()}
+                disabled={unlocking}
+              >
+                {unlocking ? "확인 중..." : "확인"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

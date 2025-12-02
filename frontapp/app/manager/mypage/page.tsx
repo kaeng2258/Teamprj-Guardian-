@@ -5,6 +5,9 @@ import { DrugDetailModal } from "@/components/DrugDetailModal";
 import { resolveProfileImageUrl } from "@/lib/image";
 import { useRouter } from "next/navigation";
 import { ChatClientPicker } from "@/components/ChatClientPicker";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faMagnifyingGlass, faPen, faRotateRight } from "@fortawesome/free-solid-svg-icons";
+import { faComment } from "@fortawesome/free-regular-svg-icons";
 
 import {
   ChangeEvent,
@@ -19,6 +22,27 @@ import {
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "";
 
+const PillIcon = ({ className = "h-6 w-6" }: { className?: string }) => (
+  <img
+    src="/image/medicine.png"
+    alt="복약 아이콘"
+    className={className}
+    style={{ filter: "brightness(0) invert(1)" }}
+    width={24}
+    height={24}
+  />
+);
+
+const byPrefixAndName = {
+  fas: {
+    "magnifying-glass": faMagnifyingGlass,
+    pen: faPen,
+    "rotate-right": faRotateRight,
+  },
+  far: {
+    comment: faComment,
+  },
+};
 type ManagerOverview = {
   userId: number | null;
   email: string;
@@ -133,6 +157,27 @@ type UserSummary = {
   profileImageUrl?: string | null;
 };
 
+type ChatAlert = {
+  roomId: number;
+  label: string;
+  lastMessageAt?: string | null;
+};
+type ChatThread = {
+  roomId: number;
+  clientId: number;
+  managerId: number;
+  clientName?: string | null;
+  managerName?: string | null;
+  lastMessageSnippet?: string | null;
+  lastMessageAt?: string | null;
+  readByManager?: boolean;
+};
+
+type OverdueAlertItem = {
+  label: string;
+  dueTime: number;
+};
+
 type ManualMedicineForm = {
   name: string;
   productCode: string;
@@ -224,24 +269,28 @@ const managerQuickActions: Array<{
   label: string;
   description: string;
   accent: string;
+  icon?: JSX.Element;
 }> = [
   {
     value: "client",
     label: "복약 관리",
     description: "배정 및 복약 일정",
     accent: "bg-indigo-600",
+    icon: <PillIcon className="h-4 w-4" />,
   },
   {
     value: "drug",
     label: "약 검색",
     description: "e약은요 기반 약품 조회",
     accent: "bg-emerald-500",
+    icon: <FontAwesomeIcon icon={byPrefixAndName.fas["magnifying-glass"]} className="h-4 w-4" />,
   },
   {
     value: "chat",
     label: "채팅방",
     description: "실시간 상담 및 공지",
     accent: "bg-sky-500",
+    icon: <FontAwesomeIcon icon={byPrefixAndName.far["comment"]} className="h-4 w-4" />,
   },
 ];
 
@@ -343,6 +392,9 @@ export default function ManagerMyPage() {
     Record<number, PlanActionMessage | undefined>
   >({});
   const [deleteProcessing, setDeleteProcessing] = useState<
+    Record<number, "idle" | "loading">
+  >({});
+  const [planUpdateProcessing, setPlanUpdateProcessing] = useState<
     Record<number, "idle" | "loading">
   >({});
   const [editingPlanId, setEditingPlanId] = useState<number | null>(null);
@@ -475,6 +527,31 @@ export default function ManagerMyPage() {
     });
   };
 
+  const applyPlanPatch = useCallback(
+    (clientId: number, planId: number, patch: Partial<MedicationPlan>) => {
+      setDashboard((prev) => {
+        if (!prev) {
+          return prev;
+        }
+        return {
+          ...prev,
+          clients: prev.clients.map((client) => {
+            if (client.clientId !== clientId) {
+              return client;
+            }
+            return {
+              ...client,
+              medicationPlans: client.medicationPlans.map((plan) =>
+                plan.id === planId ? { ...plan, ...patch } : plan
+              ),
+            };
+          }),
+        };
+      });
+    },
+    [],
+  );
+
   const loadWeeklySummaryForClient = useCallback(
     async (clientId: number) => {
       setWeeklySummaryLoading((prev) => ({ ...prev, [clientId]: true }));
@@ -552,6 +629,7 @@ export default function ManagerMyPage() {
   }, [router]);
 
   const favoritesKey = manager.userId ? `managerFavoriteClients:${manager.userId}` : null;
+  const alertAckKey = manager.userId ? `managerAlertsAcknowledgedAt:${manager.userId}` : null;
 
   // 즐겨찾기 로드 (사용자 기준)
   useEffect(() => {
@@ -597,6 +675,23 @@ export default function ManagerMyPage() {
       // ignore storage error
     }
   }, [favoriteClientIds, favoritesKey]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!alertAckKey) {
+      setLastAcknowledgedAt(null);
+      return;
+    }
+    const stored = window.localStorage.getItem(alertAckKey);
+    if (stored) {
+      const parsed = Date.parse(stored);
+      if (!Number.isNaN(parsed)) {
+        setLastAcknowledgedAt(new Date(parsed));
+        return;
+      }
+    }
+    setLastAcknowledgedAt(null);
+  }, [alertAckKey]);
 
   const loadDashboard = useCallback(async () => {
     if (!manager.userId) {
@@ -789,8 +884,10 @@ export default function ManagerMyPage() {
     chat: 0,
     emergency: 0,
   });
+  const [lastAcknowledgedAt, setLastAcknowledgedAt] = useState<Date | null>(null);
   const [managerAlertsAcknowledged, setManagerAlertsAcknowledged] = useState(false);
   const PAGE_SIZE = 10;
+  const [dismissedEmergencyIds, setDismissedEmergencyIds] = useState<Set<number>>(new Set());
 
   const todayToken = useMemo(() => {
     const tokens = ["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"];
@@ -807,6 +904,13 @@ export default function ManagerMyPage() {
         const days = (plan.daysOfWeek ?? []).map((d) => d.toUpperCase());
         const dueToday = days.includes("ALL") || days.includes(todayToken);
         if (!dueToday) return;
+        const hasTodayLog = (client.latestMedicationLogs ?? []).some((log) => {
+          const logDate = (log.logTimestamp ?? "").split("T")[0];
+          if (logDate !== todayDateString) return false;
+          if (log.planId && plan.id) return log.planId === plan.id;
+          return log.medicineId === plan.medicineId;
+        });
+        if (hasTodayLog) return;
         const [h, m] = (plan.alarmTime ?? "").split(":");
         const alarm = new Date(now);
         alarm.setHours(Number(h) || 0, Number(m) || 0, 0, 0);
@@ -823,76 +927,40 @@ export default function ManagerMyPage() {
     return list.sort((a, b) => a.time.localeCompare(b.time));
   }, [dashboard, todayToken]);
 
-  const managerStats = useMemo(() => {
-    const total = dashboard?.clients.length ?? 0;
-    const pendingToday = upcomingTodayPlans.length;
-    const alerts = managerAlertsAcknowledged ? 0 : dashboard?.activeAlertCount ?? 0;
-    return [
-      {
-        key: "care",
-        label: "복약관리 인원",
-        value: dashboardLoading && !dashboard ? "확인 중" : `${total}명`,
-        hint: total > 0 ? "현재 담당 중인 이용자 수" : "담당 이용자가 없습니다.",
-        accent: "bg-indigo-100 text-indigo-700",
-        badge: "CARE",
-        detail:
-          total > 0
-            ? "담당 중인 이용자의 복약 일정과 알림을 정기적으로 점검해주세요."
-            : "아직 담당 인원이 없습니다. 관리자나 매칭을 통해 배정해 주세요.",
-        items: (dashboard?.clients ?? [])
-                .slice(0, 5)
-                .map((c) => `${c.clientName} / 일정 ${c.medicationPlans.length}건 / 알림 ${c.emergencyAlerts.length}건`),
-      },
-      {
-        key: "pending",
-        label: "대기 중 복약 일정",
-        value: dashboardLoading && !dashboard ? "확인 중" : `${pendingToday}건`,
-        hint: pendingToday > 0 ? "오늘 예정된 복약 일정이 있습니다." : "현재 시간 이후 예정된 일정이 없습니다.",
-        accent: "bg-amber-100 text-amber-700",
-        badge: "PLAN",
-        detail:
-          pendingToday > 0
-            ? "오늘 복약 시간이 아직 남은 이용자를 확인하고 대비하세요."
-            : "오늘 남은 복약 일정이 없습니다.",
-        items: upcomingTodayPlans
-                .slice(0, 5)
-                .map((p) => `${p.time} · ${p.clientName} / ${p.medicineName}`),
-      },
-      {
-        key: "alert",
-        label: "미처리 알림",
-        value: dashboardLoading && !dashboard ? "확인 중" : alerts > 0 ? `${alerts}건` : "없음",
-        hint: alerts > 0 ? "즉시 확인이 필요합니다." : "미처리 알림이 없습니다.",
-        accent: alerts > 0 ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-700",
-        badge: "ALERT",
-        detail:
-          alerts > 0
-            ? "비상 알림을 우선 처리하고 이용자에게 연락해 주세요."
-            : "처리 대기 중인 비상 알림이 없습니다.",
-        items: (dashboard?.clients ?? [])
-                .flatMap((c) => c.emergencyAlerts ?? [])
-                .slice(0, 5)
-                .map((a) => `알림 ${a.alertType ?? ""} / ${a.status ?? ""}`),
-      },
-    ];
-  }, [dashboard, dashboardLoading, upcomingTodayPlans]);
-
-  const emergencyAlerts = useMemo(
+  const emergencyAlertEntries = useMemo(
     () =>
       (dashboard?.clients ?? [])
         .flatMap((c) =>
           (c.emergencyAlerts ?? []).map((a) => {
             const time = a.alertTime ? a.alertTime.replace("T", " ").slice(0, 16) : "";
             const name = c.clientName != null ? `${c.clientName}` : "이용자";
-            return `${name} 긴급 호출 / ${time} / ${a.status ?? ""}`;
+            return {
+              alertId: a.alertId,
+              clientId: c.clientId,
+              label: `${name} 긴급 호출 / ${time} / ${a.status ?? ""}`,
+            };
           }),
-        ),
-    [dashboard],
+        )
+        .filter((entry) => !dismissedEmergencyIds.has(entry.alertId)),
+    [dashboard, dismissedEmergencyIds],
   );
+  const emergencyAlerts = useMemo(() => emergencyAlertEntries.map((entry) => entry.label), [emergencyAlertEntries]);
+  const latestEmergencyAlertTime = useMemo(() => {
+    let latest = 0;
+    (dashboard?.clients ?? []).forEach((client) => {
+      (client.emergencyAlerts ?? []).forEach((alert) => {
+        const time = alert.alertTime ? new Date(alert.alertTime).getTime() : 0;
+        if (!Number.isNaN(time)) {
+          latest = Math.max(latest, time);
+        }
+      });
+    });
+    return latest;
+  }, [dashboard]);
 
-  const overdueAlerts = useMemo(() => {
+  const overdueAlerts = useMemo<OverdueAlertItem[]>(() => {
     const now = new Date();
-    const list: string[] = [];
+    const list: OverdueAlertItem[] = [];
     (dashboard?.clients ?? []).forEach((client) => {
       (client.medicationPlans ?? []).forEach((plan) => {
         if (!plan.active) return;
@@ -912,14 +980,89 @@ export default function ManagerMyPage() {
           return log.medicineId === plan.medicineId;
         });
         if (!hasTodayLog) {
-          list.push(`${client.clientName} / ${plan.medicineName} / ${plan.alarmTime?.slice(0, 5) ?? ""} 확인 필요`);
+          list.push({
+            label: `${client.clientName} / ${plan.medicineName} / ${plan.alarmTime?.slice(0, 5) ?? ""} 확인 필요`,
+            dueTime: alarm.getTime(),
+          });
         }
       });
     });
     return list;
   }, [dashboard, todayDateString, todayToken]);
 
-  const [chatAlerts, setChatAlerts] = useState<Array<{ roomId: number; label: string }>>([]);
+  const overdueAlertLabels = useMemo(() => overdueAlerts.map((item) => item.label), [overdueAlerts]);
+  const latestOverdueAlertTime = useMemo(
+    () => overdueAlerts.reduce((latest, item) => Math.max(latest, item.dueTime), 0),
+    [overdueAlerts],
+  );
+
+  const [chatAlerts, setChatAlerts] = useState<ChatAlert[]>([]);
+  const latestChatAlertTime = useMemo(
+    () =>
+      chatAlerts.reduce((latest, alert) => {
+        const time = alert.lastMessageAt ? new Date(alert.lastMessageAt).getTime() : 0;
+        if (Number.isNaN(time)) return latest;
+        return Math.max(latest, time);
+      }, 0),
+    [chatAlerts],
+  );
+  const displayChatAlerts = useMemo(
+    () => chatAlerts.filter((alert) => !/긴급\s*호출/.test(alert.label ?? "")),
+    [chatAlerts],
+  );
+
+  const managerStats = useMemo(() => {
+    const total = dashboard?.clients.length ?? 0;
+    const pendingToday = upcomingTodayPlans.length;
+    const alerts = managerAlertsAcknowledged
+      ? 0
+      : displayChatAlerts.length + overdueAlertLabels.length + emergencyAlerts.length;
+    return [
+      {
+        key: "care",
+        label: "복약관리 인원",
+        value: dashboardLoading && !dashboard ? "확인 중" : `${total}명`,
+        hint: total > 0 ? "현재 담당 중인 이용자 수" : "담당 이용자가 없습니다.",
+        accent: "bg-indigo-100 text-indigo-700",
+        badge: "CARE",
+        detail:
+          total > 0
+            ? "담당 중인 이용자의 복약 일정과 알림을 정기적으로 점검해주세요."
+            : "아직 담당 인원이 없습니다. 관리자나 매칭을 통해 배정해 주세요.",
+        items: (dashboard?.clients ?? [])
+          .slice(0, 5)
+          .map((c) => `${c.clientName} / 일정 ${c.medicationPlans.length}건 / 알림 ${c.emergencyAlerts.length}건`),
+      },
+      {
+        key: "pending",
+        label: "대기 중 복약 일정",
+        value: dashboardLoading && !dashboard ? "확인 중" : `${pendingToday}건`,
+        hint: pendingToday > 0 ? "오늘 예정된 복약 일정이 있습니다." : "현재 시간 이후 예정된 일정이 없습니다.",
+        accent: "bg-amber-100 text-amber-700",
+        badge: "PLAN",
+        detail:
+          pendingToday > 0
+            ? "오늘 복약 시간이 아직 남은 이용자를 확인하고 대비하세요."
+            : "오늘 남은 복약 일정이 없습니다.",
+        items: upcomingTodayPlans
+          .slice(0, 5)
+          .map((p) => `${p.time} · ${p.clientName} / ${p.medicineName}`),
+      },
+      {
+        key: "alert",
+        label: "미처리 알림",
+        value: dashboardLoading && !dashboard ? "확인 중" : alerts > 0 ? `${alerts}건` : "없음",
+        hint: alerts > 0 ? "즉시 확인이 필요합니다." : "미처리 알림이 없습니다.",
+        accent: alerts > 0 ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-700",
+        badge: "ALERT",
+        detail:
+          alerts > 0
+            ? "비상 알림을 우선 처리하고 이용자에게 연락해 주세요."
+            : "처리 대기 중인 비상 알림이 없습니다.",
+        items: [],
+      },
+    ];
+  }, [dashboard, dashboardLoading, upcomingTodayPlans, displayChatAlerts.length, emergencyAlerts.length, managerAlertsAcknowledged, overdueAlertLabels.length]);
 
   useEffect(() => {
     const loadUnread = async () => {
@@ -927,18 +1070,14 @@ export default function ManagerMyPage() {
       try {
         const res = await fetch(`${API_BASE_URL}/api/chat/threads?userId=${manager.userId}`);
         if (!res.ok) return;
-        const data: Array<{
-          roomId: number;
-          clientName?: string;
-          managerName?: string;
-          lastMessageSnippet?: string;
-          readByManager: boolean;
-        }> = await res.json();
+        const data: ChatThread[] = await res.json();
+        setChatThreads(data);
         const unread = data
           .filter((t) => !t.readByManager)
           .map((t) => ({
             roomId: t.roomId,
             label: `${t.clientName ?? "이용자"} / ${t.lastMessageSnippet ?? "새 메시지"}`,
+            lastMessageAt: t.lastMessageAt,
           }));
         setChatAlerts(unread);
       } catch {
@@ -954,15 +1093,15 @@ export default function ManagerMyPage() {
     }
     switch (managerAlertTab) {
       case "overdue":
-        return overdueAlerts;
+        return overdueAlertLabels;
       case "chat":
-        return chatAlerts.map((c) => c.label);
+        return displayChatAlerts.map((c) => c.label);
       case "emergency":
         return emergencyAlerts;
       default:
         return [];
     }
-  }, [managerAlertTab, overdueAlerts, chatAlerts, emergencyAlerts, managerAlertsAcknowledged]);
+  }, [managerAlertTab, overdueAlertLabels, displayChatAlerts, emergencyAlerts, managerAlertsAcknowledged]);
 
   const pagedAlerts = useMemo(() => {
     const page = alertPage[managerAlertTab] ?? 0;
@@ -978,17 +1117,107 @@ export default function ManagerMyPage() {
       case "chat":
         return "미읽 메시지가 없습니다.";
       case "emergency":
-        return "긴급 알림이 없습니다.";
+        return "긴급 호출 알림이 없습니다.";
       default:
         return "알림이 없습니다.";
     }
   }, [managerAlertTab, managerAlertsAcknowledged]);
 
   const [ackLoading, setAckLoading] = useState(false);
+  const [clientEmergencySending, setClientEmergencySending] = useState<Record<number, boolean>>({});
+  const [clientEmergencyMessage, setClientEmergencyMessage] = useState<
+    Record<number, { type: "success" | "error"; text: string } | undefined>
+  >({});
+  const [chatThreads, setChatThreads] = useState<ChatThread[]>([]);
+  const markChatAsRead = useCallback(
+    async (roomId: number) => {
+      if (!manager.userId) return;
+      try {
+        await fetch(`${API_BASE_URL}/api/chat/rooms/${roomId}/read?userId=${manager.userId}`, {
+          method: "POST",
+        });
+      } catch {
+        // ignore read sync errors
+      }
+    },
+    [manager.userId],
+  );
+  const acknowledgeAllEmergency = useCallback(async () => {
+    if (!manager.userId) return;
+    try {
+      await fetch(
+        `${API_BASE_URL}/api/emergency/alerts/acknowledge-all?managerId=${manager.userId}`,
+        { method: "POST" },
+      );
+      const now = new Date();
+      setLastAcknowledgedAt(now);
+      if (typeof window !== "undefined" && alertAckKey) {
+        try {
+          window.localStorage.setItem(alertAckKey, now.toISOString());
+        } catch {
+          // ignore storage error
+        }
+      }
+    } catch {
+      // ignore silent ack errors
+    }
+  }, [alertAckKey, manager.userId]);
   const effectiveOverdueCount = managerAlertsAcknowledged ? 0 : overdueAlerts.length;
-  const effectiveChatCount = managerAlertsAcknowledged ? 0 : chatAlerts.length;
+  const effectiveChatCount = managerAlertsAcknowledged ? 0 : displayChatAlerts.length;
   const effectiveEmergencyCount = managerAlertsAcknowledged ? 0 : emergencyAlerts.length;
   const totalPendingManagerAlerts = effectiveOverdueCount + effectiveChatCount + effectiveEmergencyCount;
+
+  const handleSendClientEmergency = useCallback(async (clientId: number) => {
+    setClientEmergencyMessage((prev) => ({ ...prev, [clientId]: undefined }));
+    setClientEmergencySending((prev) => ({ ...prev, [clientId]: true }));
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/emergency/alerts`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clientId,
+          alertType: "MANAGER_REQUEST",
+          shareLocation: false,
+        }),
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || "긴급 호출을 전송하지 못했습니다.");
+      }
+      setClientEmergencyMessage((prev) => ({
+        ...prev,
+        [clientId]: { type: "success", text: "긴급 호출을 전송했습니다." },
+      }));
+    } catch (e) {
+      setClientEmergencyMessage((prev) => ({
+        ...prev,
+        [clientId]: {
+          type: "error",
+          text: e instanceof Error ? e.message : "긴급 호출을 전송하지 못했습니다.",
+        },
+      }));
+    } finally {
+      setClientEmergencySending((prev) => ({ ...prev, [clientId]: false }));
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!manager.userId) return;
+    if (!lastAcknowledgedAt) {
+      setManagerAlertsAcknowledged(false);
+      return;
+    }
+    const latestAlertTime = Math.max(
+      latestOverdueAlertTime,
+      latestChatAlertTime,
+      latestEmergencyAlertTime,
+    );
+    if (latestAlertTime === 0) {
+      setManagerAlertsAcknowledged(true);
+      return;
+    }
+    setManagerAlertsAcknowledged(lastAcknowledgedAt.getTime() >= latestAlertTime);
+  }, [manager.userId, lastAcknowledgedAt, latestOverdueAlertTime, latestChatAlertTime, latestEmergencyAlertTime]);
 
   const handleManagerAcknowledgeAlerts = useCallback(async () => {
     if (!manager.userId) return;
@@ -1002,6 +1231,15 @@ export default function ManagerMyPage() {
         const message = await extractApiError(response, "알림을 확인 처리하지 못했습니다.");
         throw new Error(message);
       }
+      const now = new Date();
+      setLastAcknowledgedAt(now);
+      if (typeof window !== "undefined" && alertAckKey) {
+        try {
+          window.localStorage.setItem(alertAckKey, now.toISOString());
+        } catch {
+          // ignore storage error
+        }
+      }
       setManagerAlertsAcknowledged(true);
       setAlertPage({ overdue: 0, chat: 0, emergency: 0 });
       setChatAlerts([]);
@@ -1012,7 +1250,7 @@ export default function ManagerMyPage() {
     } finally {
       setAckLoading(false);
     }
-  }, [manager.userId, loadDashboard]);
+  }, [manager.userId, alertAckKey, loadDashboard]);
 
   const totalPages = useMemo(() => Math.max(1, Math.ceil(currentAlerts.length / PAGE_SIZE)), [currentAlerts.length]);
 
@@ -1043,6 +1281,10 @@ export default function ManagerMyPage() {
     (clientId: number) => favoriteClientIds.includes(clientId),
     [favoriteClientIds],
   );
+
+  const removeFavorite = useCallback((clientId: number) => {
+    setFavoriteClientIds((prev) => prev.filter((id) => id !== clientId));
+  }, []);
 
   const toggleFavorite = useCallback((clientId: number) => {
     setFavoriteClientIds((prev) => {
@@ -1606,6 +1848,7 @@ const WeeklyDayCard = ({
         await handleClientSearch();
       }
 
+      removeFavorite(clientId);
       setAssignmentMessages((prev) => ({
         ...prev,
         [clientId]: { type: "success", text: "배정을 취소했습니다." },
@@ -2094,6 +2337,36 @@ const WeeklyDayCard = ({
       error: "",
       message: "",
     }));
+    setPlanUpdateProcessing((prev) => ({ ...prev, [planId]: "loading" }));
+    const currentPlan =
+      dashboard?.clients
+        ?.find((client) => client.clientId === clientId)
+        ?.medicationPlans.find((plan) => plan.id === planId) ?? null;
+    const previousSnapshot = currentPlan
+      ? { ...currentPlan, daysOfWeek: [...currentPlan.daysOfWeek] }
+      : null;
+    const planPatch: Partial<MedicationPlan> = {};
+    if (payload.dosageAmount !== undefined) {
+      planPatch.dosageAmount = payload.dosageAmount;
+    }
+    if (payload.dosageUnit !== undefined) {
+      planPatch.dosageUnit = payload.dosageUnit;
+    }
+    if (payload.alarmTime !== undefined) {
+      planPatch.alarmTime = payload.alarmTime;
+    }
+    if (payload.daysOfWeek !== undefined) {
+      planPatch.daysOfWeek = [...payload.daysOfWeek];
+    }
+    if (payload.active !== undefined) {
+      planPatch.active = payload.active;
+    }
+    if (payload.medicineId !== undefined) {
+      planPatch.medicineId = payload.medicineId;
+    }
+    if (previousSnapshot && Object.keys(planPatch).length > 0) {
+      applyPlanPatch(clientId, planId, planPatch);
+    }
     try {
       const response = await fetch(
         `${API_BASE_URL}/api/clients/${clientId}/medication/plans/${planId}`,
@@ -2121,6 +2394,9 @@ const WeeklyDayCard = ({
       }));
       setEditingPlanId(null);
     } catch (error) {
+      if (previousSnapshot) {
+        applyPlanPatch(clientId, planId, previousSnapshot);
+      }
       const message =
         error instanceof Error
           ? error.message
@@ -2134,6 +2410,7 @@ const WeeklyDayCard = ({
         ...current,
         submitting: false,
       }));
+      setPlanUpdateProcessing((prev) => ({ ...prev, [planId]: "idle" }));
     }
   };
 
@@ -2292,16 +2569,13 @@ const WeeklyDayCard = ({
               onClick={() => loadWeeklySummaryForClient(client.clientId)}
               type="button"
             >
-              <span
-                aria-hidden="true"
-                className={`inline-flex h-6 w-6 items-center justify-center rounded-full border text-[11px] ${
-                  summaryLoadingState
-                    ? "animate-spin border-indigo-100 bg-indigo-50 text-indigo-700"
-                    : "border-slate-200 bg-slate-100 text-slate-600"
+              <FontAwesomeIcon
+                icon={byPrefixAndName.fas["rotate-right"]}
+                className={`h-4 w-4 ${
+                  summaryLoadingState ? "animate-spin text-indigo-700" : "text-slate-600"
                 }`}
-              >
-                ↻
-              </span>
+                aria-hidden
+              />
               <span>{summaryLoadingState ? "갱신 중..." : "주간 현황 새로고침"}</span>
             </button>
           </div>
@@ -2362,6 +2636,7 @@ const WeeklyDayCard = ({
                   client.latestMedicationLogs.find(
                     (log) => !log.planId && log.medicineId === plan.medicineId,
                   );
+                const planUpdating = planUpdateProcessing[plan.id] === "loading";
                 return (
                   <div
                     key={plan.id}
@@ -2442,11 +2717,9 @@ const WeeklyDayCard = ({
                       </p>
                       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
                         <button
-                          className={`${subtleActionButton} ${
-                            plan.active
-                              ? "border-emerald-200 bg-emerald-50 text-emerald-700 hover:border-emerald-300 hover:text-emerald-800"
-                              : ""
-                          }`}
+                          type="button"
+                          aria-pressed={plan.active}
+                          disabled={planUpdating}
                           onClick={() =>
                             handleUpdatePlan(client.clientId, plan.id, {
                               active: !plan.active,
@@ -2457,29 +2730,21 @@ const WeeklyDayCard = ({
                               medicineId: plan.medicineId,
                             })
                           }
-                          type="button"
+                          className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold shadow-sm transition ${
+                            plan.active
+                              ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                              : "border-slate-200 bg-white text-slate-700"
+                          } ${planUpdating ? "cursor-wait opacity-70" : "hover:-translate-y-[1px] hover:border-indigo-200 hover:shadow-sm"}`}
                         >
                           <span
-                            aria-hidden="true"
-                            className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] ${
-                              plan.active
-                                ? "bg-emerald-100 text-emerald-700"
-                                : "bg-slate-100 text-slate-600"
+                            className={`flex h-6 w-6 items-center justify-center rounded-full text-[11px] ${
+                              plan.active ? "bg-emerald-500 text-white" : "bg-slate-200 text-slate-600"
                             }`}
+                            aria-hidden="true"
                           >
-                            <svg
-                              className="h-3.5 w-3.5"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              viewBox="0 0 24 24"
-                            >
-                              <path d="M5 13l4 4L19 7" />
-                            </svg>
+                            {planUpdating ? "…" : plan.active ? "ON" : "OFF"}
                           </span>
-                          {plan.active ? "비활성화" : "활성화"}
+                          <span>{plan.active ? "활성화" : "비활성화"}</span>
                         </button>
                         <button
                           className={`${primaryActionButton} w-full sm:w-auto`}
@@ -3118,7 +3383,13 @@ const WeeklyDayCard = ({
                   type="button"
                   onClick={() => router.push("/manager/profile/edit")}
                 >
-                  Edit
+                  <FontAwesomeIcon
+                    icon={byPrefixAndName.fas["pen"]}
+                    className="h-4 w-4"
+                    aria-hidden
+                    style={{ transform: "scaleX(-1)" }}
+                  />
+                  <span className="sr-only">프로필 편집</span>
                 </button>
               </div>
               <div className="flex flex-col gap-1">
@@ -3177,7 +3448,7 @@ const WeeklyDayCard = ({
                       <span
                         className={`inline-flex h-8 w-8 items-center justify-center rounded-full text-[0.7rem] font-semibold text-white ${action.accent}`}
                       >
-                        {action.label.slice(0, 1)}
+                        {action.icon ?? action.label.slice(0, 1)}
                       </span>
                       <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">
                         {action.label}
@@ -3219,28 +3490,36 @@ const WeeklyDayCard = ({
                           ? `${pendingAlerts}건`
                           : "없음"
                         : stat.value;
-                      const hint = isAlert
-                        ? pendingAlerts > 0
-                          ? "즉시 확인이 필요합니다."
-                          : "미처리 알림이 없습니다."
-                        : stat.hint;
-                      const accent = isAlert
-                        ? pendingAlerts > 0
-                          ? "bg-rose-100 text-rose-700"
-                          : "bg-emerald-100 text-emerald-700"
-                        : stat.accent;
-                      return (
-                        <>
-                          <div className="flex items-center justify-between">
-                            <p className="text-sm font-semibold text-slate-700">{stat.label}</p>
-                            <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${accent}`}>
-                              {stat.badge}
-                            </span>
-                          </div>
-                          <p className="text-2xl font-bold text-slate-900">{value}</p>
-                          <p className="text-xs text-slate-500 leading-relaxed">{hint}</p>
-                        </>
-                      );
+                          const hint = isAlert
+                            ? pendingAlerts > 0
+                              ? "즉시 확인이 필요합니다."
+                              : "미처리 알림이 없습니다."
+                            : stat.hint;
+                          const accent = isAlert
+                            ? pendingAlerts > 0
+                              ? "bg-rose-100 text-rose-700"
+                              : "bg-emerald-100 text-emerald-700"
+                            : stat.accent;
+                          const showEmergencyBadge = stat.key === "alert" && effectiveEmergencyCount > 0;
+                          return (
+                            <>
+                              <div className="flex items-center justify-between">
+                                <p className="text-sm font-semibold text-slate-700">{stat.label}</p>
+                                <span className="flex items-center gap-1">
+                                  {showEmergencyBadge && (
+                                    <span className="flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[10px] font-bold text-white">
+                                      !
+                                    </span>
+                                  )}
+                                  <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${accent}`}>
+                                    {stat.badge}
+                                  </span>
+                                </span>
+                              </div>
+                              <p className="text-2xl font-bold text-slate-900">{value}</p>
+                              <p className="text-xs text-slate-500 leading-relaxed">{hint}</p>
+                            </>
+                          );
                     })()}
                   </button>
                 ))}
@@ -3284,6 +3563,7 @@ const WeeklyDayCard = ({
                                 { key: "emergency", label: "긴급 호출", count: effectiveEmergencyCount },
                               ].map((tab) => {
                                 const active = managerAlertTab === tab.key;
+                                const showEmergencyBadge = tab.key === "emergency" && effectiveEmergencyCount > 0;
                                 return (
                                   <button
                                     key={tab.key}
@@ -3299,6 +3579,11 @@ const WeeklyDayCard = ({
                                       {tab.count}
                                     </span>
                                     {tab.label}
+                                    {showEmergencyBadge && (
+                                      <span className="flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[10px] font-bold text-white">
+                                        !
+                                      </span>
+                                    )}
                                   </button>
                                 );
                               })}
@@ -3322,29 +3607,41 @@ const WeeklyDayCard = ({
                                       key={`${managerAlertTab}-item-${idx}`}
                                       className="flex items-start gap-2 rounded-lg bg-white px-3 py-2 text-sm text-slate-800 shadow-sm transition hover:-translate-y-0.5 hover:shadow"
                                       onClick={() => {
-                                        if (managerAlertTab === "chat" && chatAlerts[absoluteIdx]) {
-                                          const target = chatAlerts[absoluteIdx];
-                                          setClientModalClientId(null);
-                                          setActivePanel("chat");
-                                          setTimeout(() => {
-                                            const el = document.querySelector(`[data-room-id='${target.roomId}']`);
-                                            if (el instanceof HTMLElement) {
-                                              el.scrollIntoView({ behavior: "smooth", block: "center" });
-                                            }
-                                          }, 100);
+                                        if (managerAlertTab === "chat" && displayChatAlerts[absoluteIdx]) {
+                                          const target = displayChatAlerts[absoluteIdx];
+                                          setChatAlerts((prev) =>
+                                            prev.filter((alert) => alert.roomId !== target.roomId),
+                                          );
+                                          void markChatAsRead(target.roomId);
+                                          router.push(`/chat/${target.roomId}`);
+                                          return;
                                         }
                                         if (managerAlertTab === "emergency") {
-                                          const label = item;
-                                          const roomId = label.match(/room (\\d+)/i)?.[1];
-                                          if (roomId) {
-                                            setClientModalClientId(null);
-                                            setActivePanel("chat");
-                                            setTimeout(() => {
-                                              const el = document.querySelector(`[data-room-id='${roomId}']`);
-                                              if (el instanceof HTMLElement) {
-                                                el.scrollIntoView({ behavior: "smooth", block: "center" });
-                                              }
-                                            }, 100);
+                                          const entry = emergencyAlertEntries[absoluteIdx];
+                                          if (entry) {
+                                            const relatedThread = chatThreads.find(
+                                              (thread) => thread.clientId === entry.clientId,
+                                            );
+                                            // 동일 클라이언트의 모든 긴급 호출 알림 제거
+                                            const toDismiss = emergencyAlertEntries
+                                              .filter((e) => e.clientId === entry.clientId)
+                                              .map((e) => e.alertId);
+                                            setDismissedEmergencyIds((prev) => {
+                                              const next = new Set(prev);
+                                              toDismiss.forEach((id) => next.add(id));
+                                              return next;
+                                            });
+                                            // 동일 채팅방의 미읽 메시지 알림도 제거
+                                            if (relatedThread) {
+                                              setChatAlerts((prev) =>
+                                                prev.filter((alert) => alert.roomId !== relatedThread.roomId),
+                                              );
+                                              void markChatAsRead(relatedThread.roomId);
+                                              void acknowledgeAllEmergency();
+                                              router.push(`/chat/${relatedThread.roomId}`);
+                                            } else {
+                                              window.alert("연결된 채팅방을 찾지 못했습니다. 매칭 상태를 확인해주세요.");
+                                            }
                                           }
                                         }
                                       }}
@@ -3676,7 +3973,7 @@ const WeeklyDayCard = ({
                           </button>
                         )}
                       </div>
-                      <div className="flex flex-col gap-1 sm:items-end">
+                      <div className="flex flex-col gap-2 sm:items-end">
                         {assignMessage && (
                           <p
                             className={`text-sm ${
@@ -3693,6 +3990,45 @@ const WeeklyDayCard = ({
                             다른 매니저에게 배정된 이용자입니다.
                           </p>
                         )}
+                        <div className="flex flex-col items-end gap-1">
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-2 rounded-full border border-rose-300 bg-rose-50 px-3 py-1.5 text-[13px] font-semibold text-rose-700 transition hover:-translate-y-0.5 hover:border-rose-400 hover:bg-rose-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleSendClientEmergency(result.clientId);
+                            }}
+                            disabled={clientEmergencySending[result.clientId]}
+                          >
+                            <svg
+                              aria-hidden="true"
+                              className="h-4 w-4"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth={2}
+                              viewBox="0 0 24 24"
+                            >
+                              <path d="M6.5 12h11l-.9-5.4a1 1 0 0 0-.99-.83H8.39a1 1 0 0 0-.99.83L6.5 12Z" strokeLinecap="round" strokeLinejoin="round" />
+                              <path d="M5 14h14v2H5z" strokeLinecap="round" strokeLinejoin="round" />
+                              <path d="M8 18a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-2H8v2Z" strokeLinecap="round" strokeLinejoin="round" />
+                              <path d="M12 4V2" strokeLinecap="round" strokeLinejoin="round" />
+                              <path d="M5.5 6.5 4 5" strokeLinecap="round" strokeLinejoin="round" />
+                              <path d="M18.5 6.5 20 5" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                            {clientEmergencySending[result.clientId] ? "전송 중..." : "긴급 호출"}
+                          </button>
+                          {clientEmergencyMessage[result.clientId] && (
+                            <p
+                              className={`text-xs ${
+                                clientEmergencyMessage[result.clientId]?.type === "success"
+                                  ? "text-emerald-700"
+                                  : "text-red-600"
+                              }`}
+                            >
+                              {clientEmergencyMessage[result.clientId]?.text}
+                            </p>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </article>
@@ -3709,9 +4045,7 @@ const WeeklyDayCard = ({
         <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:p-6">
           <div className="flex flex-col gap-2 border-b border-slate-200 pb-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-lg font-semibold text-slate-900">
-                복약 관리
-              </h2>
+              <h2 className="text-lg font-semibold text-slate-900">복약 관리</h2>
               <p className="text-sm text-slate-600">
                 복약 스케줄을 등록하거나 복약 여부를 대신 기록할 수 있습니다.
               </p>
@@ -3722,14 +4056,13 @@ const WeeklyDayCard = ({
               onClick={loadDashboard}
               type="button"
             >
-              <span
-                className={`inline-flex h-5 w-5 items-center justify-center rounded-full ${
-                  dashboardLoading ? "animate-spin bg-indigo-100 text-indigo-700" : "bg-slate-100 text-slate-600"
+              <FontAwesomeIcon
+                icon={byPrefixAndName.fas["rotate-right"]}
+                className={`h-4 w-4 rounded-full ${
+                  dashboardLoading ? "animate-spin text-indigo-700" : "text-slate-600"
                 }`}
-                aria-hidden="true"
-              >
-                ↻
-              </span>
+                aria-hidden
+              />
               {dashboardLoading ? "새로고침 중..." : "새로고침"}
             </button>
           </div>
@@ -3803,8 +4136,8 @@ const WeeklyDayCard = ({
                       }}
                       type="button"
                     />
-                    <div className="flex flex-col gap-2 border-b border-slate-200 pb-4 sm:flex-row sm:items-center sm:justify-between pr-12">
-                      <div className="flex items-center gap-3">
+                    <div className="relative flex flex-col gap-2 border-b border-slate-200 pb-4 sm:flex-row sm:items-center sm:justify-between pr-12">
+                      <div className="flex items-center gap-3 flex-wrap">
                         <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-slate-50 text-sm font-semibold text-slate-700">
                           {avatarUrl ? (
                             <img
@@ -3816,10 +4149,49 @@ const WeeklyDayCard = ({
                             <span>{nameInitial}</span>
                           )}
                         </div>
-                        <div>
-                          <h3 className="text-base font-semibold text-slate-900 sm:text-lg">
-                            {client.clientName} 님
-                          </h3>
+                        <div className="flex flex-col gap-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h3 className="text-base font-semibold text-slate-900 sm:text-lg">
+                              {client.clientName} 님
+                            </h3>
+                            <button
+                              type="button"
+                              className="inline-flex items-center gap-2 rounded-full border border-rose-300 bg-rose-50 px-3 py-1.5 text-[13px] font-semibold text-rose-700 transition hover:-translate-y-0.5 hover:border-rose-400 hover:bg-rose-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleSendClientEmergency(client.clientId);
+                              }}
+                              disabled={clientEmergencySending[client.clientId]}
+                            >
+                              <svg
+                                aria-hidden="true"
+                                className="h-4 w-4"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth={2}
+                                viewBox="0 0 24 24"
+                              >
+                                <path d="M6.5 12h11l-.9-5.4a1 1 0 0 0-.99-.83H8.39a1 1 0 0 0-.99.83L6.5 12Z" strokeLinecap="round" strokeLinejoin="round" />
+                                <path d="M5 14h14v2H5z" strokeLinecap="round" strokeLinejoin="round" />
+                                <path d="M8 18a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-2H8v2Z" strokeLinecap="round" strokeLinejoin="round" />
+                                <path d="M12 4V2" strokeLinecap="round" strokeLinejoin="round" />
+                                <path d="M5.5 6.5 4 5" strokeLinecap="round" strokeLinejoin="round" />
+                                <path d="M18.5 6.5 20 5" strokeLinecap="round" strokeLinejoin="round" />
+                              </svg>
+                              {clientEmergencySending[client.clientId] ? "전송 중..." : "긴급 호출"}
+                            </button>
+                          </div>
+                          {clientEmergencyMessage[client.clientId] && (
+                            <p
+                              className={`text-xs ${
+                                clientEmergencyMessage[client.clientId]?.type === "success"
+                                  ? "text-emerald-700"
+                                  : "text-red-600"
+                              }`}
+                            >
+                              {clientEmergencyMessage[client.clientId]?.text}
+                            </p>
+                          )}
                           <p className="text-xs text-slate-500 sm:text-sm">
                             복약 일정 {client.medicationPlans.length}건 · 최근 확인{" "}
                             {client.latestMedicationLogs.length}건
@@ -3844,7 +4216,7 @@ const WeeklyDayCard = ({
                           최근 복약 확인: {recentLogLabel}
                         </p>
                       </div>
-                      <span className="inline-flex items-center gap-2 text-sm font-semibold text-indigo-600">
+                      <span className="inline-flex items-center gap-2 self-start text-sm font-semibold text-indigo-600 sm:self-auto">
                         상세 관리 열기
                         <svg
                           aria-hidden="true"

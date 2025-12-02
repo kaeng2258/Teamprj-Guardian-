@@ -570,7 +570,7 @@ export default function ClientProfileEditPage() {
                 )}
               </div>
               <button
-                className={`${primaryActionButton} absolute -left-1 -bottom-1 h-9 px-3 text-xs`}
+                className="absolute -left-1 -bottom-1 inline-flex h-8 w-8 items-center justify-center rounded-full bg-slate-200 text-xs font-semibold text-slate-700 shadow-sm ring-4 ring-white transition hover:bg-slate-300"
                 type="button"
                 onClick={() => setImageMenuOpen((prev) => !prev)}
               >
@@ -920,19 +920,19 @@ export default function ClientProfileEditPage() {
             <div className="mt-4 flex justify-end gap-2">
               <button
                 type="button"
-                className="h-10 rounded-md border border-slate-300 px-3 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:text-slate-900 dark:border-slate-600 dark:text-slate-200"
-                onClick={() => setUnlockModalOpen(false)}
-                disabled={unlocking}
-              >
-                취소
-              </button>
-              <button
-                type="button"
                 className="h-10 rounded-md bg-indigo-600 px-4 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-indigo-300"
                 onClick={() => void handleUnlockProfile()}
                 disabled={unlocking}
               >
                 {unlocking ? "확인 중..." : "확인"}
+              </button>
+              <button
+                type="button"
+                className="h-10 rounded-md border border-slate-300 px-3 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:text-slate-900 dark:border-slate-600 dark:text-slate-200"
+                onClick={() => setUnlockModalOpen(false)}
+                disabled={unlocking}
+              >
+                취소
               </button>
             </div>
           </div>

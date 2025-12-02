@@ -919,19 +919,19 @@ export default function ManagerProfileEditPage() {
             <div className="mt-4 flex justify-end gap-2">
               <button
                 type="button"
-                className="h-10 rounded-md border border-slate-300 px-3 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:text-slate-900 dark:border-slate-600 dark:text-slate-200"
-                onClick={() => setUnlockModalOpen(false)}
-                disabled={unlocking}
-              >
-                취소
-              </button>
-              <button
-                type="button"
                 className="h-10 rounded-md bg-indigo-600 px-4 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-indigo-300"
                 onClick={() => void handleUnlockProfile()}
                 disabled={unlocking}
               >
                 {unlocking ? "확인 중..." : "확인"}
+              </button>
+              <button
+                type="button"
+                className="h-10 rounded-md border border-slate-300 px-3 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:text-slate-900 dark:border-slate-600 dark:text-slate-200"
+                onClick={() => setUnlockModalOpen(false)}
+                disabled={unlocking}
+              >
+                취소
               </button>
             </div>
           </div>

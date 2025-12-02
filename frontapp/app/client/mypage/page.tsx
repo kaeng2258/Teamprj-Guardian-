@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faPen, faMagnifyingGlass } from "@fortawesome/free-solid-svg-icons";
 import { faComment } from "@fortawesome/free-regular-svg-icons";
+import type { ReactNode } from "react";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "";
@@ -136,7 +137,7 @@ const clientQuickActions: Array<{
   label: string;
   description: string;
   accent: string;
-  icon?: JSX.Element;
+  icon?: ReactNode;
 }> = [
   {
     value: "schedule",

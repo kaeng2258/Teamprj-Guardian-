@@ -6,6 +6,7 @@
  "scripts": {
   "dev": "next dev -p 3000",
   "build": "next build",
+  "export": "next export",
   "start": "next start -p 3000",
   "lint": "eslint",
   "dev:https": "node server.js"

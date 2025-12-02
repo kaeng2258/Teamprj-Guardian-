@@ -1,17 +1,21 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import SockJS from "sockjs-client";
 import { Client, StompSubscription } from "@stomp/stompjs";
 
 const API_BASE =
-  (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8081").replace(
-    /\/$/,
-    ""
-  );
-const WS_BASE =
-  process.env.NEXT_PUBLIC_WS_URL ?? "ws://localhost:8081/ws";
+  (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "");
+const WS_BASE = (() => {
+  const env = process.env.NEXT_PUBLIC_WS_URL;
+  if (env) {
+    return env.startsWith("http") ? env : env.replace(/^ws/, "http");
+  }
+  if (typeof window === "undefined") return "/ws";
+  const protocol = window.location.protocol === "https:" ? "https" : "http";
+  return `${protocol}://${window.location.host}/ws`;
+})();
 
 type ChatThread = {
   roomId: number;
@@ -131,7 +135,7 @@ function sortThreads(list: ChatThread[]) {
   });
 }
 
-export default function GuardianChatPage() {
+function GuardianChatPage() {
   const searchParams = useSearchParams();
   const [meId, setMeId] = useState<number | null>(null);
   const [clientIdInput, setClientIdInput] = useState<number | null>(null);
@@ -1379,5 +1383,13 @@ export default function GuardianChatPage() {
         </section>
       </div>
     </>
+  );
+}
+
+export default function GuardianChatPageWrapper() {
+  return (
+    <Suspense fallback={<div className="p-4 text-sm text-slate-600">채팅을 불러오는 중입니다...</div>}>
+      <GuardianChatPage />
+    </Suspense>
   );
 }

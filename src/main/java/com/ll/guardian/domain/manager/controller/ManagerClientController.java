@@ -7,9 +7,12 @@ import com.ll.guardian.domain.manager.dto.ManagerAssignRequest;
 import com.ll.guardian.domain.manager.dto.ManagerClientSearchResponse;
 import com.ll.guardian.domain.manager.service.ManagerClientService;
 import jakarta.validation.Valid;
+import java.time.LocalDate;
 import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -53,5 +56,16 @@ public class ManagerClientController {
         CareAssignmentResponse response = careAssignmentService.assign(
                 new CareAssignmentRequest(request.clientId(), managerId, request.startDate(), request.endDate()));
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    @DeleteMapping("/assignments/{clientId}")
+    public ResponseEntity<Void> unassignClient(
+            @PathVariable Long managerId,
+            @PathVariable Long clientId,
+            @RequestParam(name = "endDate", required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+            LocalDate endDate) {
+        careAssignmentService.unassign(clientId, managerId, endDate);
+        return ResponseEntity.noContent().build();
     }
 }

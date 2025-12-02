@@ -6,11 +6,15 @@ import { Client, IMessage } from "@stomp/stompjs";
 import SockJS from "sockjs-client";
 
 // 환경변수에 ws://, wss:// 를 넣어도 SockJS 에서 쓸 수 있게 변환
-const rawWs =
-  process.env.NEXT_PUBLIC_WS_URL ?? "ws://localhost:8081/ws";
-const WS_ENDPOINT = rawWs.startsWith("http")
-  ? rawWs
-  : rawWs.replace(/^ws/, "http"); // ws → http, wss → https
+const WS_ENDPOINT = (() => {
+  const env = process.env.NEXT_PUBLIC_WS_URL;
+  if (env) {
+    return env.startsWith("http") ? env : env.replace(/^ws/, "http"); // ws → http, wss → https
+  }
+  if (typeof window === "undefined") return "/ws";
+  const protocol = window.location.protocol === "https:" ? "https" : "http";
+  return `${protocol}://${window.location.host}/ws`;
+})();
 
 // 백엔드 ChatMessageResponse 형태에 맞춰서 사용
 export type ChatMessage = {

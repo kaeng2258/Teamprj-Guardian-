@@ -1,7 +1,7 @@
 // frontapp/lib/api.ts
 
 export const API_BASE =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8081";
+  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "";
 
 // 공통 fetch 래퍼
 async function req<T>(path: string, init?: RequestInit): Promise<T> {

@@ -3,6 +3,7 @@ package com.ll.guardian.domain.user.controller;
 import com.ll.guardian.domain.user.dto.EmailCheckResponse;
 import com.ll.guardian.domain.user.dto.UserRegistrationRequest;
 import com.ll.guardian.domain.user.dto.UserResponse;
+import com.ll.guardian.domain.user.dto.UserUpdateRequest;
 import com.ll.guardian.domain.user.service.UserService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
@@ -13,10 +14,12 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/api/users")
@@ -46,6 +49,20 @@ public class UserController {
     @GetMapping("/{userId}")
     public ResponseEntity<UserResponse> findUser(@PathVariable Long userId) {
         UserResponse response = userService.findUser(userId);
+        return ResponseEntity.ok(response);
+    }
+
+    @PutMapping("/{userId}")
+    public ResponseEntity<UserResponse> updateUser(
+            @PathVariable Long userId, @Valid @RequestBody UserUpdateRequest request) {
+        UserResponse response = userService.updateUser(userId, request);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/{userId}/profile-image")
+    public ResponseEntity<UserResponse> uploadProfileImage(
+            @PathVariable Long userId, @RequestParam("file") MultipartFile file) {
+        UserResponse response = userService.updateProfileImage(userId, file);
         return ResponseEntity.ok(response);
     }
 }

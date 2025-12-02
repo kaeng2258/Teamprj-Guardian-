@@ -4,15 +4,22 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { ChatMessage, useStomp } from "@/hooks/useStomp";
 import { Client } from "@stomp/stompjs";
 import SockJS from "sockjs-client";
+import { useRouter } from "next/navigation";
+import { resolveProfileImageUrl } from "@/lib/image";
 
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8081";
+  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "";
 
 // RTC용 STOMP 엔드포인트 (SockJS는 http/https 스킴만 허용)
-const rawWs = process.env.NEXT_PUBLIC_WS_URL ?? "ws://localhost:8081/ws";
-const WS_ENDPOINT = rawWs.startsWith("http")
-  ? rawWs
-  : rawWs.replace(/^ws/, "http"); // ws → http, wss → https
+const WS_ENDPOINT = (() => {
+  const env = process.env.NEXT_PUBLIC_WS_URL;
+  if (env) {
+    return env.startsWith("http") ? env : env.replace(/^ws/, "http"); // ws → http, wss → https
+  }
+  if (typeof window === "undefined") return "/ws";
+  const protocol = window.location.protocol === "https:" ? "https" : "http";
+  return `${protocol}://${window.location.host}/ws`;
+})();
 
 type Props = {
   roomId: number;
@@ -26,6 +33,8 @@ type ThreadInfo = {
   managerId: number;
   clientName?: string | null;
   managerName?: string | null;
+  clientProfileImageUrl?: string | null;
+  managerProfileImageUrl?: string | null;
   lastMessageSnippet?: string | null;
   lastMessageAt?: string | null;
 };
@@ -40,12 +49,31 @@ const buildKey = (m: ChatMessage) => {
 
 // --------- 컴포넌트 ---------
 export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
+  const router = useRouter();
+  const [resolvedMe, setResolvedMe] = useState(me);
   // ===== 채팅 관련 =====
   const [thread, setThread] = useState<ThreadInfo | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
   const [input, setInput] = useState("");
+  const [camOn, setCamOn] = useState(false);
+  const [micOn, setMicOn] = useState(false);
+  const [rtcStatus, setRtcStatus] = useState<
+    "disconnected" | "connecting" | "connected"
+  >("disconnected");
   const logRef = useRef<HTMLDivElement | null>(null);
   const seen = useRef<Set<string>>(new Set());
+  const [participantProfiles, setParticipantProfiles] = useState<Record<number, string>>({});
+  const defaultProfileImage =
+    resolveProfileImageUrl("/image/픽토그램.png") || "/image/픽토그램.png";
+  const getProfileImage = useCallback(
+    (url?: string | null) => {
+      if (url && typeof url === "string" && url.trim().length > 0) {
+        return resolveProfileImageUrl(url) || defaultProfileImage;
+      }
+      return defaultProfileImage;
+    },
+    [defaultProfileImage]
+  );
 
   // 초기 메시지 + seen 초기화
   useEffect(() => {
@@ -54,6 +82,11 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
     initialMessages.forEach((m) => s.add(buildKey(m)));
     seen.current = s;
   }, [initialMessages]);
+
+  // me prop이 변경되면 내부 상태도 동기화
+  useEffect(() => {
+    setResolvedMe(me);
+  }, [me]);
 
   // 채팅방 정보 로딩 (클라이언트/매니저 이름 포함)
   useEffect(() => {
@@ -70,6 +103,70 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
     })();
   }, [roomId]);
 
+  // 내 정보 보정: 로그인 정보나 스레드 정보로 id/name을 확보해 버튼이 비활성화되지 않도록 함
+  useEffect(() => {
+    if (!thread) return;
+    const storedId =
+      typeof window !== "undefined"
+        ? Number(window.localStorage.getItem("userId") ?? 0)
+        : 0;
+    const storedRole =
+      typeof window !== "undefined"
+        ? window.localStorage.getItem("userRole")
+        : null;
+    const storedName =
+      (typeof window !== "undefined" && window.localStorage.getItem("userName")) ||
+      (typeof window !== "undefined" && window.localStorage.getItem("userEmail")) ||
+      "";
+
+    const candidateId =
+      (storedId && Number.isFinite(storedId) ? storedId : 0) ||
+      (storedRole === "MANAGER" ? thread.managerId : 0) ||
+      (storedRole === "CLIENT" ? thread.clientId : 0);
+
+    if (candidateId && candidateId !== resolvedMe.id) {
+      const nameFromThread =
+        candidateId === thread.managerId
+          ? thread.managerName
+          : candidateId === thread.clientId
+          ? thread.clientName
+          : null;
+      const nextName =
+        nameFromThread && nameFromThread.trim().length > 0
+          ? nameFromThread
+          : storedName && storedName.trim().length > 0
+          ? storedName
+          : resolvedMe.name || `사용자#${candidateId}`;
+      setResolvedMe({ id: candidateId, name: nextName });
+    }
+  }, [thread, resolvedMe.id, resolvedMe.name]);
+
+  // 프로필 이미지 보강 로딩
+  useEffect(() => {
+    const loadProfiles = async () => {
+      if (!thread) return;
+      const targets = [thread.clientId, thread.managerId].filter(
+        (id) => !participantProfiles[id]
+      );
+      if (targets.length === 0) return;
+
+      for (const id of targets) {
+        try {
+          const res = await fetch(`${API_BASE_URL}/api/users/${id}`);
+          if (!res.ok) continue;
+          const detail: { profileImageUrl?: string | null } = await res.json();
+          setParticipantProfiles((prev) => ({
+            ...prev,
+            [id]: getProfileImage(detail.profileImageUrl),
+          }));
+        } catch {
+          // ignore
+        }
+      }
+    };
+    void loadProfiles();
+  }, [thread, participantProfiles, getProfileImage]);
+
   // STOMP 채팅 연결
   const onMessageHandler = useCallback((msg: ChatMessage) => {
     const key = buildKey(msg);
@@ -80,7 +177,7 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
 
   const { connected, sendMessage } = useStomp({
     roomId,
-    me,
+    me: resolvedMe,
     onMessage: onMessageHandler,
   });
 
@@ -140,14 +237,29 @@ useEffect(() => {
   };
 
   const displayMeName = useMemo(
-    () => resolveName(me.id, me.name),
-    [thread, me.id, me.name]
+    () => resolveName(resolvedMe.id, resolvedMe.name),
+    [thread, resolvedMe.id, resolvedMe.name]
+  );
+  const resolveAvatar = useCallback(
+    (senderId: number) => {
+      if (!thread) return defaultProfileImage;
+      const detailAvatar = participantProfiles[senderId];
+      if (detailAvatar) return detailAvatar;
+      if (senderId === thread.clientId) {
+        return getProfileImage(thread.clientProfileImageUrl);
+      }
+      if (senderId === thread.managerId) {
+        return getProfileImage(thread.managerProfileImageUrl);
+      }
+      return defaultProfileImage;
+    },
+    [thread, getProfileImage, participantProfiles]
   );
 
   const handleSend = (e: React.FormEvent) => {
     e.preventDefault();
     const text = input.trim();
-    if (!text || !me.id) return;
+    if (!text || !resolvedMe.id) return;
     setInput("");
     // 실제 메시지 추가는 STOMP/폴링에서만 처리 (중복 방지)
     sendMessage(text);
@@ -173,6 +285,12 @@ useEffect(() => {
         : `실시간 채팅방 #${roomId}`,
     [thread, roomId]
   );
+
+  const localVideoRef = useRef<HTMLVideoElement | null>(null);
+  const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
+  const pcRef = useRef<RTCPeerConnection | null>(null);
+  const localStreamRef = useRef<MediaStream | null>(null);
+  const rtcClientRef = useRef<Client | null>(null);
 
   const sendRtc = useCallback((type: string, payload: any = {}) => {
     const client = rtcClientRef.current;
@@ -235,18 +353,10 @@ useEffect(() => {
     }
   }, [ensurePc, sendRtc]);
 
-  // ===== WebRTC + RTC STOMP =====
-  const localVideoRef = useRef<HTMLVideoElement | null>(null);
-  const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
-  const pcRef = useRef<RTCPeerConnection | null>(null);
-  const localStreamRef = useRef<MediaStream | null>(null);
-  const [camOn, setCamOn] = useState(false);
-  const [micOn, setMicOn] = useState(false);
-  const [rtcStatus, setRtcStatus] = useState<"disconnected" | "connecting" | "connected">(
-    "disconnected"
-  );
-
-  const rtcClientRef = useRef<Client | null>(null);
+  const handleRtcSignalRef = useRef(handleRtcSignal);
+  useEffect(() => {
+    handleRtcSignalRef.current = handleRtcSignal;
+  }, [handleRtcSignal]);
 
   // STOMP 연결 + 시그널 구독
   useEffect(() => {
@@ -263,7 +373,7 @@ useEffect(() => {
           try {
             const msg = JSON.parse(frame.body) as any;
             if (!msg || msg.from === me.id) return;
-            await handleRtcSignal(msg);
+            await handleRtcSignalRef.current(msg);
           } catch (e) {
             console.error("RTC 메시지 파싱 실패", e);
           }
@@ -288,7 +398,7 @@ useEffect(() => {
       rtcClientRef.current = null;
       setRtcStatus("disconnected");
     };
-  }, [roomId, me.id, handleRtcSignal]);
+  }, [roomId, me.id]);
 
   const startCamera = async () => {
     if (camOn) return;
@@ -358,18 +468,29 @@ const rtcTextClass = connected ? "text-emerald-700" : "text-slate-500";
     <section className="flex flex-col gap-4">
       {/* 상단 헤더 */}
 <header className="flex flex-col gap-2 border-b border-slate-200 pb-4 md:flex-row md:items-center md:justify-between">
-  <div>
-    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-600">
-      GUARDIAN CHAT
-    </p>
-    <h1 className="text-2xl font-bold text-slate-900">
-      실시간 채팅방 #{roomId}
-    </h1>
-    <p className="text-xs text-slate-500">
-      담당자와 클라이언트가 실시간으로 소통합니다.
-    </p>
-  </div>
-
+          <div className="flex items-center gap-3"> {/* Added a flex container for button and title */}
+            <button
+              type="button"
+              onClick={() => router.back()}
+              className="rounded-full bg-slate-100 p-2 text-slate-600 hover:bg-slate-200 transition-colors"
+              aria-label="뒤로가기"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+              </svg>
+            </button>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-600">
+                GUARDIAN CHAT
+              </p>
+              <h1 className="text-2xl font-bold text-slate-900">
+                실시간 채팅방 #{roomId}
+              </h1>
+              <p className="text-xs text-slate-500">
+                담당자와 클라이언트가 실시간으로 소통합니다.
+              </p>
+            </div>
+          </div>
   {/* 🔽 여기 상태 뱃지 영역 */}
   <div className="mt-2 flex items-center gap-3 text-xs md:mt-0">
     <span className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1">
@@ -469,6 +590,7 @@ const rtcTextClass = connected ? "text-emerald-700" : "text-slate-500";
                 {messages.map((m, idx) => {
                   const mine = m.senderId === me.id;
                   const name = resolveName(m.senderId, m.senderName);
+                  const avatar = resolveAvatar(m.senderId);
                   return (
                     <li
                       key={idx}
@@ -484,8 +606,17 @@ const rtcTextClass = connected ? "text-emerald-700" : "text-slate-500";
                         }`}
                       >
                         {!mine && (
-                          <div className="mb-0.5 text-xs font-semibold text-emerald-700">
-                            {name}
+                          <div className="mb-0.5 flex items-center gap-2">
+                            <span className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-slate-100 text-[11px] font-semibold text-emerald-700">
+                              <img
+                                src={avatar}
+                                alt={`${name} 프로필`}
+                                className="h-full w-full object-cover"
+                              />
+                            </span>
+                            <span className="text-xs font-semibold text-emerald-700">
+                              {name}
+                            </span>
                           </div>
                         )}
                         <div className="whitespace-pre-wrap break-words">

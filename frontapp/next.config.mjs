@@ -7,6 +7,8 @@ const nextConfig = {
   return [
     { source: "/api/:path*", destination: "http://localhost:8081/api/:path*" },
     { source: "/ws", destination: "http://localhost:8081/ws" },
+    { source: "/image/:path*", destination: "http://localhost:8081/image/:path*" },
+    { source: "/files/:path*", destination: "http://localhost:8081/files/:path*" },
   ];
 }
 };

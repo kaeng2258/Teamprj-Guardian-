@@ -2,11 +2,17 @@
 import MyChatRooms from "@/components/MyChatRooms";
 import { InlineDrugSearch } from "@/components/InlineDrugSearch";
 import { DrugDetailModal } from "@/components/DrugDetailModal";
+import { resolveProfileImageUrl } from "@/lib/image";
 import { useRouter } from "next/navigation";
+import { ChatClientPicker } from "@/components/ChatClientPicker";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faMagnifyingGlass, faPen, faRotateRight } from "@fortawesome/free-solid-svg-icons";
+import { faComment } from "@fortawesome/free-regular-svg-icons";
 
 import {
   ChangeEvent,
   FormEvent,
+  type JSX,
   useCallback,
   useEffect,
   useMemo,
@@ -14,12 +20,34 @@ import {
 } from "react";
 
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8081";
+  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "";
 
+const PillIcon = ({ className = "h-6 w-6" }: { className?: string }) => (
+  <img
+    src="/image/medicine.png"
+    alt="복약 아이콘"
+    className={className}
+    style={{ filter: "brightness(0) invert(1)" }}
+    width={24}
+    height={24}
+  />
+);
+
+const byPrefixAndName = {
+  fas: {
+    "magnifying-glass": faMagnifyingGlass,
+    pen: faPen,
+    "rotate-right": faRotateRight,
+  },
+  far: {
+    comment: faComment,
+  },
+};
 type ManagerOverview = {
   userId: number | null;
   email: string;
   name: string;
+  profileImageUrl?: string | null;
 };
 
 type ManagerDashboardResponse = {
@@ -32,9 +60,28 @@ type ManagerDashboardResponse = {
 type ManagerClientSummary = {
   clientId: number;
   clientName: string;
+  email?: string | null;
+  address?: string | null;
+  detailAddress?: string | null;
+  zipCode?: string | null;
+  birthDate?: string | null;
+  gender?: string | null;
+  age?: number | null;
+  profileImageUrl?: string | null;
   medicationPlans: MedicationPlan[];
   latestMedicationLogs: MedicationLog[];
   emergencyAlerts: EmergencyAlertInfo[];
+};
+
+type ClientDetail = {
+  email?: string | null;
+  address?: string | null;
+  detailAddress?: string | null;
+  zipCode?: string | null;
+  birthDate?: string | null;
+  gender?: string | null;
+  age?: number | null;
+  profileImageUrl?: string | null;
 };
 
 type MedicationPlan = {
@@ -62,6 +109,8 @@ type EmergencyAlertInfo = {
   alertType: string;
   status: string;
   alertTime: string;
+  clientName?: string;
+  clientBirthDate?: string;
 };
 
 type MedicineSummary = {
@@ -86,8 +135,12 @@ type ManagerClientSearchResult = {
   email: string;
   status: string;
   address?: string | null;
+  detailAddress?: string | null;
   age?: number | null;
+  birthDate?: string | null;
+  gender?: string | null;
   medicationCycle?: string | null;
+  profileImageUrl?: string | null;
   currentlyAssigned: boolean;
   assignedManagerId?: number | null;
   assignedManagerName?: string | null;
@@ -101,6 +154,28 @@ type UserSummary = {
   name: string;
   role: string;
   status: string;
+  profileImageUrl?: string | null;
+};
+
+type ChatAlert = {
+  roomId: number;
+  label: string;
+  lastMessageAt?: string | null;
+};
+type ChatThread = {
+  roomId: number;
+  clientId: number;
+  managerId: number;
+  clientName?: string | null;
+  managerName?: string | null;
+  lastMessageSnippet?: string | null;
+  lastMessageAt?: string | null;
+  readByManager?: boolean;
+};
+
+type OverdueAlertItem = {
+  label: string;
+  dueTime: number;
 };
 
 type ManualMedicineForm = {
@@ -194,26 +269,35 @@ const managerQuickActions: Array<{
   label: string;
   description: string;
   accent: string;
+  icon?: JSX.Element;
 }> = [
   {
     value: "client",
     label: "복약 관리",
-    description: "이용자 배정 및 복약 일정",
+    description: "배정 및 복약 일정",
     accent: "bg-indigo-600",
+    icon: <PillIcon className="h-4 w-4" />,
   },
   {
     value: "drug",
     label: "약 검색",
     description: "e약은요 기반 약품 조회",
     accent: "bg-emerald-500",
+    icon: <FontAwesomeIcon icon={byPrefixAndName.fas["magnifying-glass"]} className="h-4 w-4" />,
   },
   {
     value: "chat",
     label: "채팅방",
     description: "실시간 상담 및 공지",
     accent: "bg-sky-500",
+    icon: <FontAwesomeIcon icon={byPrefixAndName.far["comment"]} className="h-4 w-4" />,
   },
 ];
+
+const subtleActionButton =
+  "flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition hover:-translate-y-[1px] hover:border-indigo-200 hover:text-indigo-800 hover:shadow-sm disabled:cursor-not-allowed disabled:opacity-60";
+const primaryActionButton =
+  "flex items-center gap-2 rounded-full bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-[1px] hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-indigo-300";
 
 const allDays = [
   { value: "MONDAY", label: "월" },
@@ -287,6 +371,7 @@ export default function ManagerMyPage() {
     userId: null,
     email: "",
     name: "",
+    profileImageUrl: "",
   });
   const [dashboard, setDashboard] = useState<ManagerDashboardResponse | null>(
     null
@@ -309,17 +394,34 @@ export default function ManagerMyPage() {
   const [deleteProcessing, setDeleteProcessing] = useState<
     Record<number, "idle" | "loading">
   >({});
+  const [planUpdateProcessing, setPlanUpdateProcessing] = useState<
+    Record<number, "idle" | "loading">
+  >({});
+  const [editingPlanId, setEditingPlanId] = useState<number | null>(null);
+  const [editingForms, setEditingForms] = useState<
+    Record<
+      number,
+      {
+        dosageAmount: string;
+        dosageUnit: string;
+        alarmTime: string;
+        days: Set<string>;
+        active: boolean;
+      }
+    >
+  >({});
   const [searchKeyword, setSearchKeyword] = useState("");
   const [searchResults, setSearchResults] = useState<ManagerClientSearchResult[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState("");
   const [searchMessage, setSearchMessage] = useState("");
   const [assignmentStates, setAssignmentStates] = useState<
-    Record<number, "idle" | "loading">
+    Record<number, "idle" | "assigning" | "unassigning">
   >({});
   const [assignmentMessages, setAssignmentMessages] = useState<
     Record<number, PlanActionMessage | undefined>
   >({});
+  const [favoriteClientIds, setFavoriteClientIds] = useState<number[]>([]);
   const [weeklySummaries, setWeeklySummaries] = useState<
     Record<number, MedicationWeeklySummary | null>
   >({});
@@ -336,6 +438,63 @@ export default function ManagerMyPage() {
   const [selectedDrugDetailSeq, setSelectedDrugDetailSeq] = useState<
     string | null
   >(null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [avatarError, setAvatarError] = useState("");
+  const [avatarMessage, setAvatarMessage] = useState("");
+  const [clientDetails, setClientDetails] = useState<Record<number, ClientDetail>>({});
+  const [chatRefreshToken, setChatRefreshToken] = useState(0);
+  const [chatView, setChatView] = useState<"rooms" | "search">("rooms");
+  const defaultProfileImage = resolveProfileImageUrl("/image/픽토그램.png") || "/image/픽토그램.png";
+  const logoImage = resolveProfileImageUrl("/image/logo.png") || "/image/logo.png";
+  const getProfileImage = (url?: string | null) =>
+    url && url.trim().length > 0
+      ? resolveProfileImageUrl(url) || defaultProfileImage
+      : defaultProfileImage;
+  const formatAddress = (addr?: string | null, detail?: string | null) => {
+    const base = addr?.trim() ?? "";
+    const sub = detail?.trim() ?? "";
+    if (base && sub) return `${base} ${sub}`;
+    return base || sub || "미등록";
+  };
+  const authHeaders = (): Record<string, string> => {
+    if (typeof window === "undefined") return {};
+    const token = window.localStorage.getItem("accessToken");
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  };
+  const InfoChip = ({
+    label,
+    value,
+    truncate,
+  }: {
+    label: string;
+    value: string;
+    truncate?: boolean;
+  }) => (
+    <div className="flex flex-col gap-0.5 rounded-lg bg-white px-3 py-2 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
+      <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+        {label}
+      </span>
+      <span
+        className={`text-sm font-semibold text-slate-900 ${truncate ? "truncate" : ""}`}
+        title={value}
+      >
+        {value}
+      </span>
+    </div>
+  );
+  const computeInternationalAge = (birthDate?: string | null) => {
+    if (!birthDate) return null;
+    const birth = new Date(birthDate);
+    if (Number.isNaN(birth.getTime())) return null;
+    const today = new Date();
+    let age = today.getFullYear() - birth.getFullYear();
+    const monthDiff = today.getMonth() - birth.getMonth();
+    const dayDiff = today.getDate() - birth.getDate();
+    if (monthDiff < 0 || (monthDiff === 0 && dayDiff < 0)) {
+      age -= 1;
+    }
+    return age >= 0 ? age : null;
+  };
   const updatePlanForm = (
     clientId: number,
     updater: (current: PlanFormState) => PlanFormState
@@ -367,6 +526,31 @@ export default function ManagerMyPage() {
       };
     });
   };
+
+  const applyPlanPatch = useCallback(
+    (clientId: number, planId: number, patch: Partial<MedicationPlan>) => {
+      setDashboard((prev) => {
+        if (!prev) {
+          return prev;
+        }
+        return {
+          ...prev,
+          clients: prev.clients.map((client) => {
+            if (client.clientId !== clientId) {
+              return client;
+            }
+            return {
+              ...client,
+              medicationPlans: client.medicationPlans.map((plan) =>
+                plan.id === planId ? { ...plan, ...patch } : plan
+              ),
+            };
+          }),
+        };
+      });
+    },
+    [],
+  );
 
   const loadWeeklySummaryForClient = useCallback(
     async (clientId: number) => {
@@ -419,6 +603,7 @@ export default function ManagerMyPage() {
       email: storedEmail,
       userId,
       name: "",
+      profileImageUrl: defaultProfileImage,
     });
     if (userId) {
       (async () => {
@@ -431,6 +616,9 @@ export default function ManagerMyPage() {
           setManager((prev) => ({
             ...prev,
             name: data.name ?? "",
+            profileImageUrl:
+              resolveProfileImageUrl(data.profileImageUrl) ||
+              defaultProfileImage,
           }));
         } catch (error) {
           // ignore profile fetch errors
@@ -439,6 +627,71 @@ export default function ManagerMyPage() {
     }
     setIsReady(true);
   }, [router]);
+
+  const favoritesKey = manager.userId ? `managerFavoriteClients:${manager.userId}` : null;
+  const alertAckKey = manager.userId ? `managerAlertsAcknowledgedAt:${manager.userId}` : null;
+
+  // 즐겨찾기 로드 (사용자 기준)
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    if (!manager.userId) {
+      setFavoriteClientIds([]);
+      return;
+    }
+    try {
+      const key = favoritesKey ?? "managerFavoriteClients";
+      const storedFavorites = window.localStorage.getItem(key);
+      const legacy = window.localStorage.getItem("managerFavoriteClients");
+      const source = storedFavorites ?? legacy;
+      if (source) {
+        const parsed = JSON.parse(source);
+        if (Array.isArray(parsed)) {
+          const normalized = Array.from(
+            new Set(
+              parsed
+                .map((id) => Number(id))
+                .filter((id) => Number.isFinite(id) && id > 0),
+            ),
+          );
+          setFavoriteClientIds(normalized);
+        }
+      }
+    } catch {
+      // ignore parse error
+    }
+  }, [manager.userId, favoritesKey]);
+
+  // 즐겨찾기 저장
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const key = favoritesKey ?? "managerFavoriteClients";
+    try {
+      window.localStorage.setItem(key, JSON.stringify(favoriteClientIds));
+    } catch {
+      // ignore storage error
+    }
+  }, [favoriteClientIds, favoritesKey]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!alertAckKey) {
+      setLastAcknowledgedAt(null);
+      return;
+    }
+    const stored = window.localStorage.getItem(alertAckKey);
+    if (stored) {
+      const parsed = Date.parse(stored);
+      if (!Number.isNaN(parsed)) {
+        setLastAcknowledgedAt(new Date(parsed));
+        return;
+      }
+    }
+    setLastAcknowledgedAt(null);
+  }, [alertAckKey]);
 
   const loadDashboard = useCallback(async () => {
     if (!manager.userId) {
@@ -461,17 +714,75 @@ export default function ManagerMyPage() {
       }
 
       const data: ManagerDashboardResponse = await response.json();
+      const normalizedClients = data.clients.map((client) => ({
+        ...client,
+        latestMedicationLogs: [...(client.latestMedicationLogs ?? [])].sort(
+          (a, b) =>
+            new Date(b.logTimestamp).getTime() -
+            new Date(a.logTimestamp).getTime()
+        ),
+      }));
+
+      const mergedClients: ManagerClientSummary[] = await Promise.all(
+        normalizedClients.map(async (client) => {
+          try {
+            const res = await fetch(`${API_BASE_URL}/api/users/${client.clientId}`, {
+              credentials: "include",
+              headers: {
+                "Content-Type": "application/json",
+                ...authHeaders(),
+              },
+            });
+            if (!res.ok) return client;
+            const detail: ClientDetail = await res.json();
+            const birthDate = detail.birthDate ?? client.birthDate ?? null;
+            const computedAge = computeInternationalAge(birthDate);
+            return {
+              ...client,
+              email: detail.email ?? client.email,
+              birthDate,
+              gender: detail.gender ?? client.gender,
+              address: detail.address ?? client.address,
+              detailAddress: detail.detailAddress ?? client.detailAddress,
+              zipCode: detail.zipCode ?? client.zipCode,
+              profileImageUrl: detail.profileImageUrl ?? client.profileImageUrl,
+              age:
+                typeof detail.age === "number" && detail.age > 0
+                  ? detail.age
+                  : typeof client.age === "number" && client.age > 0
+                  ? client.age
+                  : typeof computedAge === "number"
+                  ? computedAge
+                  : null,
+            };
+          } catch {
+            return client;
+          }
+        })
+      );
+
+      setClientDetails((prev) => {
+        const next = { ...prev };
+        mergedClients.forEach((c) => {
+          next[c.clientId] = {
+            email: c.email,
+            address: c.address,
+            detailAddress: c.detailAddress,
+            zipCode: c.zipCode,
+            birthDate: c.birthDate,
+            gender: c.gender,
+            age: c.age,
+            profileImageUrl: c.profileImageUrl,
+          };
+        });
+        return next;
+      });
+
       const normalized: ManagerDashboardResponse = {
         ...data,
-        clients: data.clients.map((client) => ({
-          ...client,
-          latestMedicationLogs: [...(client.latestMedicationLogs ?? [])].sort(
-            (a, b) =>
-              new Date(b.logTimestamp).getTime() -
-              new Date(a.logTimestamp).getTime()
-          ),
-        })),
+        clients: mergedClients,
       };
+
       setDashboard(normalized);
       setManagerProfileId(data.managerId ?? null);
       const clients = normalized.clients;
@@ -506,76 +817,505 @@ export default function ManagerMyPage() {
     loadDashboard();
   }, [isReady, manager.userId, loadDashboard]);
 
-  const summarySections = useMemo(() => {
+  const avatarInitial = useMemo(() => {
+    if (manager.name && manager.name.length > 0) {
+      return manager.name.slice(0, 1).toUpperCase();
+    }
+    if (manager.email && manager.email.length > 0) {
+      return manager.email.slice(0, 1).toUpperCase();
+    }
+    return "M";
+  }, [manager.email, manager.name]);
+
+  const handleAvatarChange = async (file: File | null) => {
+    if (!file || !manager.userId) {
+      return;
+    }
+    if (!file.type.startsWith("image/")) {
+      setAvatarError("이미지 파일만 업로드할 수 있습니다.");
+      return;
+    }
+
+    setAvatarUploading(true);
+    setAvatarError("");
+    setAvatarMessage("");
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const response = await fetch(
+        `${API_BASE_URL}/api/users/${manager.userId}/profile-image`,
+        {
+          method: "POST",
+          body: formData,
+        }
+      );
+      if (!response.ok) {
+        const message = await extractApiError(
+          response,
+          "프로필 이미지를 업로드하지 못했습니다."
+        );
+        throw new Error(message);
+      }
+      const data: UserSummary & { profileImageUrl?: string | null } = await response.json();
+      setManager((prev) => ({
+        ...prev,
+        profileImageUrl:
+          resolveProfileImageUrl(data.profileImageUrl) ||
+          defaultProfileImage,
+      }));
+      setAvatarMessage("프로필 이미지가 업데이트되었습니다.");
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "프로필 이미지를 업로드하지 못했습니다.";
+      setAvatarError(message);
+    } finally {
+      setAvatarUploading(false);
+    }
+  };
+
+  const [activeStat, setActiveStat] = useState<(typeof managerStats)[number] | null>(null);
+  type AlertTab = "overdue" | "chat" | "emergency";
+  const [managerAlertTab, setManagerAlertTab] = useState<AlertTab>("overdue");
+  const [alertPage, setAlertPage] = useState<Record<AlertTab, number>>({
+    overdue: 0,
+    chat: 0,
+    emergency: 0,
+  });
+  const [lastAcknowledgedAt, setLastAcknowledgedAt] = useState<Date | null>(null);
+  const [managerAlertsAcknowledged, setManagerAlertsAcknowledged] = useState(false);
+  const PAGE_SIZE = 10;
+  const [dismissedEmergencyIds, setDismissedEmergencyIds] = useState<Set<number>>(new Set());
+
+  const todayToken = useMemo(() => {
+    const tokens = ["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"];
+    return tokens[new Date().getDay()] ?? "ALL";
+  }, []);
+
+  const todayDateString = useMemo(() => new Date().toISOString().split("T")[0] ?? "", []);
+  const upcomingTodayPlans = useMemo(() => {
+    const now = new Date();
+    const list: Array<{ clientName: string; medicineName: string; time: string; planId: number }> = [];
+    (dashboard?.clients ?? []).forEach((client) => {
+      (client.medicationPlans ?? []).forEach((plan) => {
+        if (!plan.active) return;
+        const days = (plan.daysOfWeek ?? []).map((d) => d.toUpperCase());
+        const dueToday = days.includes("ALL") || days.includes(todayToken);
+        if (!dueToday) return;
+        const hasTodayLog = (client.latestMedicationLogs ?? []).some((log) => {
+          const logDate = (log.logTimestamp ?? "").split("T")[0];
+          if (logDate !== todayDateString) return false;
+          if (log.planId && plan.id) return log.planId === plan.id;
+          return log.medicineId === plan.medicineId;
+        });
+        if (hasTodayLog) return;
+        const [h, m] = (plan.alarmTime ?? "").split(":");
+        const alarm = new Date(now);
+        alarm.setHours(Number(h) || 0, Number(m) || 0, 0, 0);
+        if (Number.isNaN(alarm.getTime())) return;
+        if (alarm.getTime() <= now.getTime()) return;
+        list.push({
+          clientName: client.clientName ?? "이용자",
+          medicineName: plan.medicineName ?? "약품",
+          time: plan.alarmTime?.slice(0, 5) ?? "",
+          planId: plan.id,
+        });
+      });
+    });
+    return list.sort((a, b) => a.time.localeCompare(b.time));
+  }, [dashboard, todayToken]);
+
+  const emergencyAlertEntries = useMemo(
+    () =>
+      (dashboard?.clients ?? [])
+        .flatMap((c) =>
+          (c.emergencyAlerts ?? []).map((a) => {
+            const time = a.alertTime ? a.alertTime.replace("T", " ").slice(0, 16) : "";
+            const name = c.clientName != null ? `${c.clientName}` : "이용자";
+            return {
+              alertId: a.alertId,
+              clientId: c.clientId,
+              label: `${name} 긴급 호출 / ${time} / ${a.status ?? ""}`,
+            };
+          }),
+        )
+        .filter((entry) => !dismissedEmergencyIds.has(entry.alertId)),
+    [dashboard, dismissedEmergencyIds],
+  );
+  const emergencyAlerts = useMemo(() => emergencyAlertEntries.map((entry) => entry.label), [emergencyAlertEntries]);
+  const latestEmergencyAlertTime = useMemo(() => {
+    let latest = 0;
+    (dashboard?.clients ?? []).forEach((client) => {
+      (client.emergencyAlerts ?? []).forEach((alert) => {
+        const time = alert.alertTime ? new Date(alert.alertTime).getTime() : 0;
+        if (!Number.isNaN(time)) {
+          latest = Math.max(latest, time);
+        }
+      });
+    });
+    return latest;
+  }, [dashboard]);
+
+  const overdueAlerts = useMemo<OverdueAlertItem[]>(() => {
+    const now = new Date();
+    const list: OverdueAlertItem[] = [];
+    (dashboard?.clients ?? []).forEach((client) => {
+      (client.medicationPlans ?? []).forEach((plan) => {
+        if (!plan.active) return;
+        const days = (plan.daysOfWeek ?? []).map((d) => d.toUpperCase());
+        const dueToday = days.includes("ALL") || days.includes(todayToken);
+        if (!dueToday) return;
+        const [h, m] = (plan.alarmTime ?? "").split(":");
+        const alarm = new Date(now);
+        alarm.setHours(Number(h) || 0, Number(m) || 0, 0, 0);
+        if (alarm.getTime() > now.getTime()) return;
+        const logs = client.latestMedicationLogs ?? [];
+        const hasTodayLog = logs.some((log) => {
+          const logDate = (log.logTimestamp ?? "").split("T")[0];
+          const sameDay = logDate === todayDateString;
+          if (!sameDay) return false;
+          if (log.planId && plan.id) return log.planId === plan.id;
+          return log.medicineId === plan.medicineId;
+        });
+        if (!hasTodayLog) {
+          list.push({
+            label: `${client.clientName} / ${plan.medicineName} / ${plan.alarmTime?.slice(0, 5) ?? ""} 확인 필요`,
+            dueTime: alarm.getTime(),
+          });
+        }
+      });
+    });
+    return list;
+  }, [dashboard, todayDateString, todayToken]);
+
+  const overdueAlertLabels = useMemo(() => overdueAlerts.map((item) => item.label), [overdueAlerts]);
+  const latestOverdueAlertTime = useMemo(
+    () => overdueAlerts.reduce((latest, item) => Math.max(latest, item.dueTime), 0),
+    [overdueAlerts],
+  );
+
+  const [chatAlerts, setChatAlerts] = useState<ChatAlert[]>([]);
+  const latestChatAlertTime = useMemo(
+    () =>
+      chatAlerts.reduce((latest, alert) => {
+        const time = alert.lastMessageAt ? new Date(alert.lastMessageAt).getTime() : 0;
+        if (Number.isNaN(time)) return latest;
+        return Math.max(latest, time);
+      }, 0),
+    [chatAlerts],
+  );
+  const displayChatAlerts = useMemo(
+    () => chatAlerts.filter((alert) => !/긴급\s*호출/.test(alert.label ?? "")),
+    [chatAlerts],
+  );
+
+  const managerStats = useMemo(() => {
+    const total = dashboard?.clients.length ?? 0;
+    const pendingToday = upcomingTodayPlans.length;
+    const alerts = managerAlertsAcknowledged
+      ? 0
+      : displayChatAlerts.length + overdueAlertLabels.length + emergencyAlerts.length;
     return [
       {
-        title: "이용자 정보",
-        description: "현재 로그인한 요양보호사/매니저의 기본 정보입니다.",
-        rows: [
-          {
-            label: "이름",
-            value: manager.name || "확인 중",
-          },
-          {
-            label: "이메일",
-            value: manager.email || "확인 중",
-          },
-        ],
+        key: "care",
+        label: "복약관리 인원",
+        value: dashboardLoading && !dashboard ? "확인 중" : `${total}명`,
+        hint: total > 0 ? "현재 담당 중인 이용자 수" : "담당 이용자가 없습니다.",
+        accent: "bg-indigo-100 text-indigo-700",
+        badge: "CARE",
+        detail:
+          total > 0
+            ? "담당 중인 이용자의 복약 일정과 알림을 정기적으로 점검해주세요."
+            : "아직 담당 인원이 없습니다. 관리자나 매칭을 통해 배정해 주세요.",
+        items: (dashboard?.clients ?? [])
+          .slice(0, 5)
+          .map((c) => `${c.clientName} / 일정 ${c.medicationPlans.length}건 / 알림 ${c.emergencyAlerts.length}건`),
       },
       {
-        title: "관리 현황",
-        description:
-          "복약 스케줄, 알림, 매칭 정보를 한눈에 확인하세요.",
-        rows: [
-          {
-            label: "복약관리 인원",
-            value:
-              dashboardLoading && !dashboard
-                ? "확인 중"
-                : dashboard
-                ? `${dashboard.clients.length}명`
-                : "-",
-          },
-          {
-            label: "대기 중 복약 일정",
-            value:
-              dashboard && dashboard.pendingMedicationCount > 0
-                ? `${dashboard.pendingMedicationCount}건`
-                : dashboard
-                ? "모두 등록됨"
-                : "-",
-          },
-          {
-            label: "미처리 비상 알림",
-            value:
-              dashboard && dashboard.activeAlertCount > 0
-                ? `${dashboard.activeAlertCount}건`
-                : dashboard
-                ? "없음"
-                : "-",
-          },
-        ],
+        key: "pending",
+        label: "대기 중 복약 일정",
+        value: dashboardLoading && !dashboard ? "확인 중" : `${pendingToday}건`,
+        hint: pendingToday > 0 ? "오늘 예정된 복약 일정이 있습니다." : "현재 시간 이후 예정된 일정이 없습니다.",
+        accent: "bg-amber-100 text-amber-700",
+        badge: "PLAN",
+        detail:
+          pendingToday > 0
+            ? "오늘 복약 시간이 아직 남은 이용자를 확인하고 대비하세요."
+            : "오늘 남은 복약 일정이 없습니다.",
+        items: upcomingTodayPlans
+          .slice(0, 5)
+          .map((p) => `${p.time} · ${p.clientName} / ${p.medicineName}`),
+      },
+      {
+        key: "alert",
+        label: "미처리 알림",
+        value: dashboardLoading && !dashboard ? "확인 중" : alerts > 0 ? `${alerts}건` : "없음",
+        hint: alerts > 0 ? "즉시 확인이 필요합니다." : "미처리 알림이 없습니다.",
+        accent: alerts > 0 ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-700",
+        badge: "ALERT",
+        detail:
+          alerts > 0
+            ? "비상 알림을 우선 처리하고 이용자에게 연락해 주세요."
+            : "처리 대기 중인 비상 알림이 없습니다.",
+        items: [],
       },
     ];
-  }, [manager, dashboard, dashboardLoading]);
+  }, [dashboard, dashboardLoading, upcomingTodayPlans, displayChatAlerts.length, emergencyAlerts.length, managerAlertsAcknowledged, overdueAlertLabels.length]);
+
+  useEffect(() => {
+    const loadUnread = async () => {
+      if (!manager.userId) return;
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/chat/threads?userId=${manager.userId}`);
+        if (!res.ok) return;
+        const data: ChatThread[] = await res.json();
+        setChatThreads(data);
+        const unread = data
+          .filter((t) => !t.readByManager)
+          .map((t) => ({
+            roomId: t.roomId,
+            label: `${t.clientName ?? "이용자"} / ${t.lastMessageSnippet ?? "새 메시지"}`,
+            lastMessageAt: t.lastMessageAt,
+          }));
+        setChatAlerts(unread);
+      } catch {
+        // ignore
+      }
+    };
+    void loadUnread();
+  }, [manager.userId]);
+
+  const currentAlerts = useMemo(() => {
+    if (managerAlertsAcknowledged) {
+      return [];
+    }
+    switch (managerAlertTab) {
+      case "overdue":
+        return overdueAlertLabels;
+      case "chat":
+        return displayChatAlerts.map((c) => c.label);
+      case "emergency":
+        return emergencyAlerts;
+      default:
+        return [];
+    }
+  }, [managerAlertTab, overdueAlertLabels, displayChatAlerts, emergencyAlerts, managerAlertsAcknowledged]);
+
+  const pagedAlerts = useMemo(() => {
+    const page = alertPage[managerAlertTab] ?? 0;
+    const start = page * PAGE_SIZE;
+    return currentAlerts.slice(start, start + PAGE_SIZE);
+  }, [alertPage, managerAlertTab, currentAlerts]);
+  const managerHasAlerts = currentAlerts.length > 0;
+  const managerAlertEmptyText = useMemo(() => {
+    if (managerAlertsAcknowledged) return "모든 알림을 확인했습니다.";
+    switch (managerAlertTab) {
+      case "overdue":
+        return "미복약 알림이 없습니다.";
+      case "chat":
+        return "미읽 메시지가 없습니다.";
+      case "emergency":
+        return "긴급 호출 알림이 없습니다.";
+      default:
+        return "알림이 없습니다.";
+    }
+  }, [managerAlertTab, managerAlertsAcknowledged]);
+
+  const [ackLoading, setAckLoading] = useState(false);
+  const [clientEmergencySending, setClientEmergencySending] = useState<Record<number, boolean>>({});
+  const [clientEmergencyMessage, setClientEmergencyMessage] = useState<
+    Record<number, { type: "success" | "error"; text: string } | undefined>
+  >({});
+  const [chatThreads, setChatThreads] = useState<ChatThread[]>([]);
+  const markChatAsRead = useCallback(
+    async (roomId: number) => {
+      if (!manager.userId) return;
+      try {
+        await fetch(`${API_BASE_URL}/api/chat/rooms/${roomId}/read?userId=${manager.userId}`, {
+          method: "POST",
+        });
+      } catch {
+        // ignore read sync errors
+      }
+    },
+    [manager.userId],
+  );
+  const acknowledgeAllEmergency = useCallback(async () => {
+    if (!manager.userId) return;
+    try {
+      await fetch(
+        `${API_BASE_URL}/api/emergency/alerts/acknowledge-all?managerId=${manager.userId}`,
+        { method: "POST" },
+      );
+      const now = new Date();
+      setLastAcknowledgedAt(now);
+      if (typeof window !== "undefined" && alertAckKey) {
+        try {
+          window.localStorage.setItem(alertAckKey, now.toISOString());
+        } catch {
+          // ignore storage error
+        }
+      }
+    } catch {
+      // ignore silent ack errors
+    }
+  }, [alertAckKey, manager.userId]);
+  const effectiveOverdueCount = managerAlertsAcknowledged ? 0 : overdueAlerts.length;
+  const effectiveChatCount = managerAlertsAcknowledged ? 0 : displayChatAlerts.length;
+  const effectiveEmergencyCount = managerAlertsAcknowledged ? 0 : emergencyAlerts.length;
+  const totalPendingManagerAlerts = effectiveOverdueCount + effectiveChatCount + effectiveEmergencyCount;
+
+  const handleSendClientEmergency = useCallback(async (clientId: number) => {
+    setClientEmergencyMessage((prev) => ({ ...prev, [clientId]: undefined }));
+    setClientEmergencySending((prev) => ({ ...prev, [clientId]: true }));
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/emergency/alerts`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clientId,
+          alertType: "MANAGER_REQUEST",
+          shareLocation: false,
+        }),
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || "긴급 호출을 전송하지 못했습니다.");
+      }
+      setClientEmergencyMessage((prev) => ({
+        ...prev,
+        [clientId]: { type: "success", text: "긴급 호출을 전송했습니다." },
+      }));
+    } catch (e) {
+      setClientEmergencyMessage((prev) => ({
+        ...prev,
+        [clientId]: {
+          type: "error",
+          text: e instanceof Error ? e.message : "긴급 호출을 전송하지 못했습니다.",
+        },
+      }));
+    } finally {
+      setClientEmergencySending((prev) => ({ ...prev, [clientId]: false }));
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!manager.userId) return;
+    if (!lastAcknowledgedAt) {
+      setManagerAlertsAcknowledged(false);
+      return;
+    }
+    const latestAlertTime = Math.max(
+      latestOverdueAlertTime,
+      latestChatAlertTime,
+      latestEmergencyAlertTime,
+    );
+    if (latestAlertTime === 0) {
+      setManagerAlertsAcknowledged(true);
+      return;
+    }
+    setManagerAlertsAcknowledged(lastAcknowledgedAt.getTime() >= latestAlertTime);
+  }, [manager.userId, lastAcknowledgedAt, latestOverdueAlertTime, latestChatAlertTime, latestEmergencyAlertTime]);
+
+  const handleManagerAcknowledgeAlerts = useCallback(async () => {
+    if (!manager.userId) return;
+    setAckLoading(true);
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/emergency/alerts/acknowledge-all?managerId=${manager.userId}`,
+        { method: "POST" },
+      );
+      if (!response.ok) {
+        const message = await extractApiError(response, "알림을 확인 처리하지 못했습니다.");
+        throw new Error(message);
+      }
+      const now = new Date();
+      setLastAcknowledgedAt(now);
+      if (typeof window !== "undefined" && alertAckKey) {
+        try {
+          window.localStorage.setItem(alertAckKey, now.toISOString());
+        } catch {
+          // ignore storage error
+        }
+      }
+      setManagerAlertsAcknowledged(true);
+      setAlertPage({ overdue: 0, chat: 0, emergency: 0 });
+      setChatAlerts([]);
+      await loadDashboard();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "알림을 확인 처리하지 못했습니다.";
+      setDashboardError(message);
+    } finally {
+      setAckLoading(false);
+    }
+  }, [manager.userId, alertAckKey, loadDashboard]);
+
+  const totalPages = useMemo(() => Math.max(1, Math.ceil(currentAlerts.length / PAGE_SIZE)), [currentAlerts.length]);
 
   const filteredClients = useMemo(() => {
     if (!dashboard?.clients) {
       return [];
     }
+    const favoriteSet = new Set(favoriteClientIds);
+    const favoritesOnly = dashboard.clients.filter((client) =>
+      favoriteSet.has(client.clientId),
+    );
     const keyword = clientFilter.trim().toLowerCase();
     if (!keyword) {
-      return dashboard.clients;
+      return favoritesOnly;
     }
-    return dashboard.clients.filter((client) =>
+    return favoritesOnly.filter((client) =>
       client.clientName?.toLowerCase().includes(keyword),
     );
-  }, [dashboard, clientFilter]);
+  }, [dashboard, clientFilter, favoriteClientIds]);
+
+  const favoriteClientCount = useMemo(() => {
+    if (!dashboard?.clients) return 0;
+    const favoriteSet = new Set(favoriteClientIds);
+    return dashboard.clients.filter((client) => favoriteSet.has(client.clientId)).length;
+  }, [dashboard, favoriteClientIds]);
+
+  const isFavorite = useCallback(
+    (clientId: number) => favoriteClientIds.includes(clientId),
+    [favoriteClientIds],
+  );
+
+  const removeFavorite = useCallback((clientId: number) => {
+    setFavoriteClientIds((prev) => prev.filter((id) => id !== clientId));
+  }, []);
+
+  const toggleFavorite = useCallback((clientId: number) => {
+    setFavoriteClientIds((prev) => {
+      const set = new Set(prev);
+      if (set.has(clientId)) {
+        set.delete(clientId);
+      } else {
+        set.add(clientId);
+      }
+      return Array.from(set);
+    });
+  }, []);
+
+  const openClientModalById = useCallback(
+    (clientId: number) => {
+      if (!dashboard?.clients) return;
+      const exists = dashboard.clients.some((c) => c.clientId === clientId);
+      if (exists) {
+        setClientModalClientId(clientId);
+      }
+    },
+    [dashboard],
+  );
 
   const selectedClient =
     clientModalClientId && dashboard?.clients
       ? dashboard.clients.find((client) => client.clientId === clientModalClientId) ?? null
       : null;
+  const selectedClientDetail = selectedClient
+    ? clientDetails[selectedClient.clientId] ?? null
+    : null;
   const selectedClientForm = selectedClient
     ? planForms[selectedClient.clientId] ?? createInitialFormState()
     : null;
@@ -591,6 +1331,78 @@ export default function ManagerMyPage() {
   const closeClientModal = () => setClientModalClientId(null);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    const body = document.body;
+    const docEl = document.documentElement;
+    const originalOverflow = body.style.overflow;
+    const originalPaddingRight = body.style.paddingRight;
+    const originalPosition = body.style.position;
+    const originalTop = body.style.top;
+    const originalWidth = body.style.width;
+    const originalDocOverscroll = docEl.style.overscrollBehavior;
+    const scrollY = window.scrollY;
+
+    if (clientModalClientId) {
+      const scrollBarWidth = window.innerWidth - docEl.clientWidth;
+      body.style.position = "fixed";
+      body.style.top = `-${scrollY}px`;
+      body.style.width = "100%";
+      body.style.overflow = "hidden";
+      if (scrollBarWidth > 0) {
+        body.style.paddingRight = `${scrollBarWidth}px`;
+      }
+      docEl.style.overscrollBehavior = "none";
+    }
+
+    return () => {
+      body.style.overflow = originalOverflow;
+      body.style.paddingRight = originalPaddingRight;
+      body.style.position = originalPosition;
+      body.style.top = originalTop;
+      body.style.width = originalWidth;
+      docEl.style.overscrollBehavior = originalDocOverscroll;
+      if (clientModalClientId) {
+        window.scrollTo(0, scrollY);
+      }
+    };
+  }, [clientModalClientId]);
+
+  useEffect(() => {
+    const loadClientDetail = async (clientId: number) => {
+      const existing = clientDetails[clientId];
+      const needsMore =
+        !existing ||
+        !existing.address ||
+        !existing.detailAddress ||
+        !existing.profileImageUrl ||
+        !existing.gender ||
+        !existing.birthDate;
+      if (!needsMore) return;
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/users/${clientId}`, {
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+            ...authHeaders(),
+          },
+        });
+        if (!res.ok) return;
+        const detail: ClientDetail = await res.json();
+        setClientDetails((prev) => ({
+          ...prev,
+          [clientId]: detail,
+        }));
+      } catch {
+        // ignore detail fetch errors
+      }
+    };
+
+    if (selectedClient) {
+      void loadClientDetail(selectedClient.clientId);
+    }
+  }, [selectedClient, clientDetails]);
+
+  useEffect(() => {
     if (clientModalClientId === null) {
       return;
     }
@@ -601,21 +1413,6 @@ export default function ManagerMyPage() {
       setClientModalClientId(null);
     }
   }, [clientModalClientId, dashboard]);
-
-  useEffect(() => {
-    if (clientModalClientId === null) {
-      return undefined;
-    }
-    if (typeof document === "undefined") {
-      return undefined;
-    }
-    const { body } = document;
-    const previousOverflow = body.style.overflow;
-    body.style.overflow = "hidden";
-    return () => {
-      body.style.overflow = previousOverflow;
-    };
-  }, [clientModalClientId]);
 
   useEffect(() => {
     if (clientModalClientId === null) {
@@ -642,9 +1439,25 @@ export default function ManagerMyPage() {
       FRIDAY: "금",
       SATURDAY: "토",
       SUNDAY: "일",
+      WEEKDAY: "평일",
+      WEEKEND: "주말",
+      ALL: "매일",
     };
     return labels[normalized] ?? value;
   }, []);
+
+  const dayOptions = useMemo(
+    () => [
+      "MONDAY",
+      "TUESDAY",
+      "WEDNESDAY",
+      "THURSDAY",
+      "FRIDAY",
+      "SATURDAY",
+      "SUNDAY",
+    ],
+    [],
+  );
 
   const formatAlarmTime = (value: string) => {
     if (!value) {
@@ -822,7 +1635,71 @@ const WeeklyDayCard = ({
       }
 
       const data: ManagerClientSearchResult[] = await response.json();
-      setSearchResults(data);
+      const enriched = data.map((item) => {
+        const computedAge =
+          typeof item.age === "number" && item.age > 0
+            ? item.age
+            : computeInternationalAge(item.birthDate);
+        return {
+          ...item,
+          age: typeof computedAge === "number" ? computedAge : null,
+        };
+      });
+
+      const detailedResults = await Promise.all(
+        enriched.map(async (item) => {
+          const needsDetail =
+            !item.birthDate ||
+            !(typeof item.age === "number" && item.age > 0) ||
+            !item.address ||
+            !item.detailAddress ||
+            !item.profileImageUrl ||
+            !item.gender;
+          if (!needsDetail) {
+            return item;
+          }
+          try {
+            const detailRes = await fetch(`${API_BASE_URL}/api/users/${item.clientId}`, {
+              credentials: "include",
+              headers: {
+                "Content-Type": "application/json",
+                ...authHeaders(),
+              },
+            });
+            if (!detailRes.ok) return item;
+            const detail: {
+              birthDate?: string | null;
+              age?: number | null;
+              gender?: string | null;
+              address?: string | null;
+              profileImageUrl?: string | null;
+              detailAddress?: string | null;
+            } = await detailRes.json();
+            const birthDate = detail.birthDate ?? item.birthDate ?? null;
+            const computedAge = computeInternationalAge(birthDate);
+            return {
+              ...item,
+              birthDate,
+              gender: detail.gender ?? item.gender ?? null,
+              address: detail.address ?? item.address ?? null,
+              detailAddress: detail.detailAddress ?? item.detailAddress ?? null,
+              profileImageUrl: detail.profileImageUrl ?? item.profileImageUrl ?? null,
+              age:
+                typeof detail.age === "number" && detail.age > 0
+                  ? detail.age
+                  : typeof item.age === "number" && item.age > 0
+                  ? item.age
+                  : typeof computedAge === "number"
+                  ? computedAge
+                  : null,
+            };
+          } catch {
+            return item;
+          }
+        })
+      );
+
+      setSearchResults(detailedResults);
       setSearchMessage(data.length === 0 ? "검색 결과가 없습니다." : "");
     } catch (error) {
       const message =
@@ -884,7 +1761,7 @@ const WeeklyDayCard = ({
       return;
     }
 
-    setAssignmentStates((prev) => ({ ...prev, [clientId]: "loading" }));
+    setAssignmentStates((prev) => ({ ...prev, [clientId]: "assigning" }));
     setAssignmentMessages((prev) => ({ ...prev, [clientId]: undefined }));
 
     try {
@@ -894,6 +1771,7 @@ const WeeklyDayCard = ({
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            ...authHeaders(),
           },
           body: JSON.stringify({ clientId }),
         }
@@ -929,6 +1807,57 @@ const WeeklyDayCard = ({
         error instanceof Error
           ? error.message
           : "배정하지 못했습니다.";
+      setAssignmentMessages((prev) => ({
+        ...prev,
+        [clientId]: { type: "error", text: message },
+      }));
+    } finally {
+      setAssignmentStates((prev) => ({ ...prev, [clientId]: "idle" }));
+    }
+  };
+
+  const handleUnassignClient = async (clientId: number) => {
+    if (!manager.userId) {
+      return;
+    }
+
+    setAssignmentStates((prev) => ({ ...prev, [clientId]: "unassigning" }));
+    setAssignmentMessages((prev) => ({ ...prev, [clientId]: undefined }));
+
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/managers/${manager.userId}/clients/assignments/${clientId}`,
+        {
+          method: "DELETE",
+          headers: {
+            ...authHeaders(),
+          },
+        }
+      );
+
+      if (!response.ok) {
+        const message = await extractApiError(
+          response,
+          "배정을 취소하지 못했습니다."
+        );
+        throw new Error(message);
+      }
+
+      await loadDashboard();
+      if (searchKeyword.trim()) {
+        await handleClientSearch();
+      }
+
+      removeFavorite(clientId);
+      setAssignmentMessages((prev) => ({
+        ...prev,
+        [clientId]: { type: "success", text: "배정을 취소했습니다." },
+      }));
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "배정을 취소하지 못했습니다.";
       setAssignmentMessages((prev) => ({
         ...prev,
         [clientId]: { type: "error", text: message },
@@ -1304,7 +2233,8 @@ const WeeklyDayCard = ({
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            alarmTime: form.alarmTime,
+            // 백엔드 LocalTime 디시리얼라이저는 초 단위를 요구하므로 HH:mm → HH:mm:ss 로 보낸다.
+            alarmTime: form.alarmTime ? `${form.alarmTime}:00` : "",
             daysOfWeek: form.daysOfWeek,
             items: itemsPayload,
           }),
@@ -1385,6 +2315,133 @@ const WeeklyDayCard = ({
     } finally {
       setDeleteProcessing((prev) => ({ ...prev, [planId]: "idle" }));
     }
+  };
+
+  const handleUpdatePlan = async (
+    clientId: number,
+    planId: number,
+    payload: Partial<{
+      dosageAmount: number;
+      dosageUnit: string;
+      alarmTime: string;
+      daysOfWeek: string[];
+      active: boolean;
+      medicineId: number | null;
+      manualMedicine?: Partial<ManualMedicineForm>;
+    }>
+  ) => {
+    setPlanMessages((prev) => ({ ...prev, [planId]: undefined }));
+    updatePlanForm(clientId, (current) => ({
+      ...current,
+      submitting: true,
+      error: "",
+      message: "",
+    }));
+    setPlanUpdateProcessing((prev) => ({ ...prev, [planId]: "loading" }));
+    const currentPlan =
+      dashboard?.clients
+        ?.find((client) => client.clientId === clientId)
+        ?.medicationPlans.find((plan) => plan.id === planId) ?? null;
+    const previousSnapshot = currentPlan
+      ? { ...currentPlan, daysOfWeek: [...currentPlan.daysOfWeek] }
+      : null;
+    const planPatch: Partial<MedicationPlan> = {};
+    if (payload.dosageAmount !== undefined) {
+      planPatch.dosageAmount = payload.dosageAmount;
+    }
+    if (payload.dosageUnit !== undefined) {
+      planPatch.dosageUnit = payload.dosageUnit;
+    }
+    if (payload.alarmTime !== undefined) {
+      planPatch.alarmTime = payload.alarmTime;
+    }
+    if (payload.daysOfWeek !== undefined) {
+      planPatch.daysOfWeek = [...payload.daysOfWeek];
+    }
+    if (payload.active !== undefined) {
+      planPatch.active = payload.active;
+    }
+    if (payload.medicineId !== undefined) {
+      planPatch.medicineId = payload.medicineId;
+    }
+    if (previousSnapshot && Object.keys(planPatch).length > 0) {
+      applyPlanPatch(clientId, planId, planPatch);
+    }
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/clients/${clientId}/medication/plans/${planId}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ...payload,
+            daysOfWeek: payload.daysOfWeek ?? [],
+            active: payload.active ?? true,
+          }),
+        }
+      );
+      if (!response.ok) {
+        const message = await extractApiError(
+          response,
+          "복약 일정을 수정하지 못했습니다."
+        );
+        throw new Error(message);
+      }
+      await loadDashboard();
+      setPlanMessages((prev) => ({
+        ...prev,
+        [planId]: { type: "success", text: "복약 일정이 수정되었습니다." },
+      }));
+      setEditingPlanId(null);
+    } catch (error) {
+      if (previousSnapshot) {
+        applyPlanPatch(clientId, planId, previousSnapshot);
+      }
+      const message =
+        error instanceof Error
+          ? error.message
+          : "복약 일정을 수정하지 못했습니다.";
+      setPlanMessages((prev) => ({
+        ...prev,
+        [planId]: { type: "error", text: message },
+      }));
+    } finally {
+      updatePlanForm(clientId, (current) => ({
+        ...current,
+        submitting: false,
+      }));
+      setPlanUpdateProcessing((prev) => ({ ...prev, [planId]: "idle" }));
+    }
+  };
+
+  const beginEditPlan = (plan: MedicationPlan) => {
+    setEditingPlanId(plan.id);
+    setEditingForms((prev) => ({
+      ...prev,
+      [plan.id]: {
+        dosageAmount: String(plan.dosageAmount),
+        dosageUnit: plan.dosageUnit,
+        alarmTime: plan.alarmTime,
+        days: new Set(plan.daysOfWeek.map((d) => d.toUpperCase())),
+        active: plan.active,
+      },
+    }));
+  };
+
+  const updateEditField = (planId: number, updater: (draft: {
+    dosageAmount: string;
+    dosageUnit: string;
+    alarmTime: string;
+    days: Set<string>;
+    active: boolean;
+  }) => void) => {
+    setEditingForms((prev) => {
+      const current = prev[planId];
+      if (!current) return prev;
+      const next = { ...current, days: new Set(current.days) };
+      updater(next);
+      return { ...prev, [planId]: next };
+    });
   };
 
   const handleRecordMedication = async (
@@ -1507,12 +2564,19 @@ const WeeklyDayCard = ({
               </p>
             </div>
             <button
-              className="self-start rounded-full border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-700 transition hover:border-indigo-400 hover:text-indigo-800 disabled:cursor-not-allowed disabled:opacity-60"
+              className="flex items-center gap-2 self-start rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-[0_1px_2px_rgba(0,0,0,0.03)] transition hover:-translate-y-[1px] hover:border-indigo-200 hover:text-indigo-800 hover:shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
               disabled={summaryLoadingState}
               onClick={() => loadWeeklySummaryForClient(client.clientId)}
               type="button"
             >
-              {summaryLoadingState ? "갱신 중..." : "주간 현황 새로고침"}
+              <FontAwesomeIcon
+                icon={byPrefixAndName.fas["rotate-right"]}
+                className={`h-4 w-4 ${
+                  summaryLoadingState ? "animate-spin text-indigo-700" : "text-slate-600"
+                }`}
+                aria-hidden
+              />
+              <span>{summaryLoadingState ? "갱신 중..." : "주간 현황 새로고침"}</span>
             </button>
           </div>
           <div className="mt-4">
@@ -1572,12 +2636,13 @@ const WeeklyDayCard = ({
                   client.latestMedicationLogs.find(
                     (log) => !log.planId && log.medicineId === plan.medicineId,
                   );
+                const planUpdating = planUpdateProcessing[plan.id] === "loading";
                 return (
                   <div
                     key={plan.id}
                     className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
                   >
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-start sm:gap-4">
                       <div>
                         <h4 className="text-base font-semibold text-slate-900 sm:text-lg">
                           {plan.medicineName}
@@ -1588,33 +2653,239 @@ const WeeklyDayCard = ({
                           )} · ${plan.daysOfWeek.map(mapDayToLabel).join(", ")}`}
                         </p>
                       </div>
-                      <div className="flex gap-2">
+                      <div className="flex flex-wrap gap-2 sm:ml-auto sm:justify-end">
                         <button
-                          className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:border-slate-400 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
+                          className={subtleActionButton}
+                          onClick={() => beginEditPlan(plan)}
+                          type="button"
+                        >
+                          <span
+                            aria-hidden="true"
+                            className="flex h-5 w-5 items-center justify-center rounded-full bg-indigo-50 text-[10px] text-indigo-700"
+                          >
+                            <svg
+                              className="h-3.5 w-3.5"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              viewBox="0 0 24 24"
+                            >
+                              <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25z" />
+                              <path d="M14.06 4.69l3.75 3.75" />
+                            </svg>
+                          </span>
+                          수정
+                        </button>
+                        <button
+                          className={`${subtleActionButton} hover:border-rose-200 hover:text-rose-700`}
                           disabled={deleteProcessing[plan.id] === "loading"}
                           onClick={() => handleDeletePlan(client.clientId, plan.id)}
                           type="button"
                         >
+                          <span
+                            aria-hidden="true"
+                            className="flex h-5 w-5 items-center justify-center rounded-full bg-rose-50 text-[10px] text-rose-700"
+                          >
+                            <svg
+                              className="h-3.5 w-3.5"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              viewBox="0 0 24 24"
+                            >
+                              <path d="M5 7h14" />
+                              <path d="M10 11v6" />
+                              <path d="M14 11v6" />
+                              <path d="M6 7l1-3h10l1 3" />
+                              <path d="M5 7h14l-1 14H6L5 7z" />
+                            </svg>
+                          </span>
                           {deleteProcessing[plan.id] === "loading"
                             ? "삭제 중..."
                             : "삭제"}
                         </button>
                       </div>
                     </div>
-                    <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
                       <p className="text-sm text-slate-600">
                         최근 확인:{" "}
                         {latestLog ? `${formatDateTime(latestLog.logTimestamp)}` : "기록 없음"}
                       </p>
-                      <button
-                        className="w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-indigo-300 sm:w-auto"
-                        disabled={logProcessing[plan.id] === "loading"}
-                        onClick={() => handleRecordMedication(client.clientId, plan)}
-                        type="button"
-                      >
-                        {logProcessing[plan.id] === "loading" ? "기록 중..." : "복약 확정"}
-                      </button>
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+                        <button
+                          type="button"
+                          aria-pressed={plan.active}
+                          disabled={planUpdating}
+                          onClick={() =>
+                            handleUpdatePlan(client.clientId, plan.id, {
+                              active: !plan.active,
+                              dosageAmount: plan.dosageAmount,
+                              dosageUnit: plan.dosageUnit,
+                              alarmTime: plan.alarmTime,
+                              daysOfWeek: plan.daysOfWeek,
+                              medicineId: plan.medicineId,
+                            })
+                          }
+                          className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold shadow-sm transition ${
+                            plan.active
+                              ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                              : "border-slate-200 bg-white text-slate-700"
+                          } ${planUpdating ? "cursor-wait opacity-70" : "hover:-translate-y-[1px] hover:border-indigo-200 hover:shadow-sm"}`}
+                        >
+                          <span
+                            className={`flex h-6 w-6 items-center justify-center rounded-full text-[11px] ${
+                              plan.active ? "bg-emerald-500 text-white" : "bg-slate-200 text-slate-600"
+                            }`}
+                            aria-hidden="true"
+                          >
+                            {planUpdating ? "…" : plan.active ? "ON" : "OFF"}
+                          </span>
+                          <span>{plan.active ? "활성화" : "비활성화"}</span>
+                        </button>
+                        <button
+                          className={`${primaryActionButton} w-full sm:w-auto`}
+                          disabled={logProcessing[plan.id] === "loading"}
+                          onClick={() => handleRecordMedication(client.clientId, plan)}
+                          type="button"
+                        >
+                          <span
+                            aria-hidden="true"
+                            className="flex h-5 w-5 items-center justify-center rounded-full bg-indigo-500 text-[10px] text-white"
+                          >
+                            <svg
+                              className="h-3.5 w-3.5"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              viewBox="0 0 24 24"
+                            >
+                              <path d="M5 12l5 5 9-9" />
+                            </svg>
+                          </span>
+                            {logProcessing[plan.id] === "loading" ? "기록 중..." : "복약 확정"}
+                          </button>
+                      </div>
                     </div>
+                    {editingPlanId === plan.id && editingForms[plan.id] && (
+                      <div className="mt-4 grid gap-3 rounded-xl border border-slate-200 bg-white p-3">
+                        <div className="grid gap-3 sm:grid-cols-3">
+                          <label className="flex flex-col gap-1 text-sm text-slate-700">
+                            <span>복용량</span>
+                            <input
+                              type="number"
+                              min={1}
+                              value={editingForms[plan.id].dosageAmount}
+                              className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+                              onChange={(event) =>
+                                updateEditField(plan.id, (draft) => {
+                                  draft.dosageAmount = event.target.value;
+                                })
+                              }
+                            />
+                          </label>
+                          <label className="flex flex-col gap-1 text-sm text-slate-700">
+                            <span>단위</span>
+                            <input
+                              value={editingForms[plan.id].dosageUnit}
+                              className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+                              onChange={(event) =>
+                                updateEditField(plan.id, (draft) => {
+                                  draft.dosageUnit = event.target.value;
+                                })
+                              }
+                            />
+                          </label>
+                          <label className="flex flex-col gap-1 text-sm text-slate-700">
+                            <span>알람 시간</span>
+                            <input
+                              type="time"
+                              value={editingForms[plan.id].alarmTime}
+                              className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+                              onChange={(event) =>
+                                updateEditField(plan.id, (draft) => {
+                                  draft.alarmTime = event.target.value;
+                                })
+                              }
+                            />
+                          </label>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {dayOptions.map((day) => {
+                            const checked = editingForms[plan.id].days.has(day);
+                            return (
+                              <label
+                                key={day}
+                                className={`relative inline-flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold ${
+                                  checked
+                                    ? "border-indigo-500 bg-indigo-50 text-indigo-700"
+                                    : "border-slate-200 bg-white text-slate-600"
+                                }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                                  checked={checked}
+                                  onChange={(event) =>
+                                    updateEditField(plan.id, (draft) => {
+                                      const next = new Set(draft.days);
+                                      if (event.target.checked) next.add(day);
+                                      else next.delete(day);
+                                      draft.days = next;
+                                    })
+                                  }
+                                />
+                                {mapDayToLabel(day)}
+                              </label>
+                            );
+                          })}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <label className="inline-flex items-center gap-2 text-sm font-semibold text-slate-700">
+                            <input
+                              type="checkbox"
+                              checked={editingForms[plan.id].active}
+                              onChange={(event) =>
+                                updateEditField(plan.id, (draft) => {
+                                  draft.active = event.target.checked;
+                                })
+                              }
+                            />
+                            활성화
+                          </label>
+                        </div>
+                        <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+                          <button
+                            className={primaryActionButton}
+                            type="button"
+                            onClick={() =>
+                              handleUpdatePlan(client.clientId, plan.id, {
+                                dosageAmount: Number(editingForms[plan.id].dosageAmount) || plan.dosageAmount,
+                                dosageUnit: editingForms[plan.id].dosageUnit || plan.dosageUnit,
+                                alarmTime: editingForms[plan.id].alarmTime || plan.alarmTime,
+                                daysOfWeek: Array.from(editingForms[plan.id].days),
+                                active: editingForms[plan.id].active,
+                                medicineId: plan.medicineId,
+                              })
+                            }
+                          >
+                            수정 저장
+                          </button>
+                          <button
+                            className={subtleActionButton}
+                            type="button"
+                            onClick={() => setEditingPlanId(null)}
+                          >
+                            닫기
+                          </button>
+                        </div>
+                      </div>
+                    )}
                     {logMessage && (
                       <p
                         className={`mt-2 text-sm ${
@@ -2015,10 +3286,10 @@ const WeeklyDayCard = ({
                   {allDays.map((day) => {
                     const isSelected = form.daysOfWeek.includes(day.value);
                     return (
-                      <label key={day.value} className="block">
+                      <label key={day.value} className="relative block cursor-pointer">
                         <input
                           type="checkbox"
-                          className="peer sr-only"
+                          className="peer absolute inset-0 h-full w-full cursor-pointer opacity-0"
                           checked={isSelected}
                           onChange={() => handleToggleDay(client.clientId, day.value)}
                         />
@@ -2094,13 +3365,53 @@ const WeeklyDayCard = ({
       <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 rounded-3xl bg-white p-4 shadow-lg sm:p-8">
         <header className="flex flex-col gap-4 border-b border-slate-200 pb-5">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
-              <p className="text-2xl font-semibold uppercase tracking-wide text-indigo-600 sm:text-3xl">
-                Manager
-              </p>
-              <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">
-                {manager.name} 매니저
-              </h1>
+            <div className="flex items-center gap-4 sm:gap-5">
+              <div className="relative">
+                <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full border-2 border-indigo-200 bg-indigo-50 text-lg font-semibold text-indigo-700">
+                  {manager.profileImageUrl ? (
+                    <img
+                      src={manager.profileImageUrl}
+                      alt="프로필 이미지"
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <span>{avatarInitial}</span>
+                  )}
+                </div>
+                <button
+                  className="absolute -left-1 -bottom-1 inline-flex h-8 w-8 items-center justify-center rounded-full bg-indigo-600 text-xs font-semibold text-white shadow-sm ring-4 ring-white transition hover:bg-indigo-700"
+                  type="button"
+                  onClick={() => router.push("/manager/profile/edit")}
+                >
+                  <FontAwesomeIcon
+                    icon={byPrefixAndName.fas["pen"]}
+                    className="h-4 w-4"
+                    aria-hidden
+                    style={{ transform: "scaleX(-1)" }}
+                  />
+                  <span className="sr-only">프로필 편집</span>
+                </button>
+              </div>
+              <div className="flex flex-col gap-1">
+                <div className="flex items-center gap-2">
+                  <img
+                    src={logoImage}
+                    alt="Guardian 로고"
+                    className="h-6 w-auto sm:h-7"
+                  />
+                  <span className="text-sm font-semibold uppercase tracking-[0.12em] text-slate-600 sm:text-base">
+                    GUARDIAN
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <p className="text-2xl font-semibold uppercase tracking-wide text-indigo-600 sm:text-3xl">
+                    Manager
+                  </p>
+                  <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">
+                    {manager.name ? `${manager.name} 매니저` : "매니저"}
+                  </h1>
+                </div>
+              </div>
             </div>
             <button
               className="h-10 rounded-md border border-red-400 px-4 text-sm font-semibold text-red-500 transition hover:border-red-500 hover:bg-red-50 hover:text-red-600"
@@ -2110,109 +3421,387 @@ const WeeklyDayCard = ({
               로그아웃
             </button>
           </div>
-          <div className="flex flex-col gap-3">
-            <div className="flex gap-3 pb-2 sm:grid sm:grid-cols-3 sm:gap-3 sm:pb-0">
-              {managerQuickActions.map((action) => {
-                const isActive = activePanel === action.value;
-                return (
-                  <button
-                    key={action.value}
-                    type="button"
-                    onClick={() => setActivePanel(action.value)}
-                    className={`group flex flex-1 min-w-0 flex-col gap-1 rounded-2xl border px-3 py-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow md:h-full sm:px-4 ${
-                      isActive
-                        ? "border-indigo-500 bg-indigo-50/80"
-                        : "border-slate-200 bg-white hover:border-indigo-300"
-                    }`}
-                  >
-                    <span
-                      className={`inline-flex h-8 w-8 items-center justify-center rounded-full text-[0.7rem] font-semibold text-white ${action.accent}`}
+          {(avatarError || avatarMessage) && (
+            <p
+              className={`text-sm ${
+                avatarError ? "text-red-600" : "text-emerald-600"
+              }`}
+            >
+              {avatarError || avatarMessage}
+            </p>
+          )}
+            <div className="flex flex-col gap-3">
+              <div className="flex gap-3 pb-2 sm:grid sm:grid-cols-3 sm:gap-3 sm:pb-0">
+                {managerQuickActions.map((action) => {
+                  const isActive = activePanel === action.value;
+                  return (
+                    <button
+                      key={action.value}
+                      type="button"
+                      onClick={() => setActivePanel(action.value)}
+                      className={`group flex flex-1 min-w-0 flex-col gap-1 rounded-2xl border px-3 py-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow sm:px-4 ${
+                        isActive
+                          ? "border-indigo-500 bg-indigo-50"
+                          : "border-slate-200 bg-white hover:border-indigo-300"
+                      }`}
                     >
-                      {action.label.slice(0, 1)}
-                    </span>
-                    <span className="text-sm font-semibold text-slate-900">
-                      {action.label}
-                    </span>
-                    <span className="text-[11px] leading-tight text-slate-500">
-                      {action.description}
-                    </span>
-                  </button>
-                );
-              })}
+                      <span
+                        className={`inline-flex h-8 w-8 items-center justify-center rounded-full text-[0.7rem] font-semibold text-white ${action.accent}`}
+                      >
+                        {action.icon ?? action.label.slice(0, 1)}
+                      </span>
+                      <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                        {action.label}
+                      </span>
+                      <span className="text-xs text-slate-500 dark:text-slate-400">
+                        {action.description}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-          </div>
         </header>
 
         {activePanel === "client" && (
           <>
-            <div className="grid gap-4 md:grid-cols-2 md:gap-6">
-              {summarySections.map((section) => (
-                <section
-                  key={section.title}
-                  className="rounded-2xl border border-slate-200 p-4 sm:p-6"
-                >
-                  <h2 className="text-lg font-semibold text-slate-900 sm:text-xl">
-                    {section.title}
-                  </h2>
-                  <p className="mt-1 text-sm text-slate-500">
-                    {section.description}
+            <section className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-indigo-50 p-4 sm:p-6 dark:border-slate-700 dark:from-slate-800 dark:via-slate-900 dark:to-slate-800">
+              <div className="flex flex-col gap-2 border-b border-slate-200 pb-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h2 className="text-lg font-semibold text-slate-900 sm:text-xl">관리 현황</h2>
+                  <p className="text-sm text-slate-600">
+                    복약 일정, 미처리 알림, 담당 인원을 한눈에 확인하세요.
                   </p>
-                  <dl className="mt-4 space-y-3">
-                    {section.rows.map((row) => (
-                      <div
-                        key={row.label}
-                        className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2 sm:px-4 sm:py-3"
-                      >
-                        <dt className="text-sm font-medium text-slate-600">
-                          {row.label}
-                        </dt>
-                        <dd className="text-sm font-semibold text-slate-900">
-                          {row.value}
-                        </dd>
-                      </div>
-                    ))}
-                  </dl>
-                </section>
-              ))}
+                </div>
             </div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                {managerStats.map((stat) => (
+                  <button
+                    key={stat.key}
+                    type="button"
+                    onClick={() => setActiveStat(stat)}
+                    className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-white/80 p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow"
+                  >
+                    {(() => {
+                      const isAlert = stat.key === "alert";
+                      const pendingAlerts = managerAlertsAcknowledged ? 0 : totalPendingManagerAlerts;
+                      const value = isAlert
+                        ? pendingAlerts > 0
+                          ? `${pendingAlerts}건`
+                          : "없음"
+                        : stat.value;
+                          const hint = isAlert
+                            ? pendingAlerts > 0
+                              ? "즉시 확인이 필요합니다."
+                              : "미처리 알림이 없습니다."
+                            : stat.hint;
+                          const accent = isAlert
+                            ? pendingAlerts > 0
+                              ? "bg-rose-100 text-rose-700"
+                              : "bg-emerald-100 text-emerald-700"
+                            : stat.accent;
+                          const showEmergencyBadge = stat.key === "alert" && effectiveEmergencyCount > 0;
+                          return (
+                            <>
+                              <div className="flex items-center justify-between">
+                                <p className="text-sm font-semibold text-slate-700">{stat.label}</p>
+                                <span className="flex items-center gap-1">
+                                  {showEmergencyBadge && (
+                                    <span className="flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[10px] font-bold text-white">
+                                      !
+                                    </span>
+                                  )}
+                                  <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${accent}`}>
+                                    {stat.badge}
+                                  </span>
+                                </span>
+                              </div>
+                              <p className="text-2xl font-bold text-slate-900">{value}</p>
+                              <p className="text-xs text-slate-500 leading-relaxed">{hint}</p>
+                            </>
+                          );
+                    })()}
+                  </button>
+                ))}
+              </div>
+              {activeStat && (
+                <div className="fixed inset-0 z-50 flex items-start justify-center px-4 py-8 sm:py-10">
+                  <div
+                    className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+                    onClick={() => setActiveStat(null)}
+                    role="presentation"
+                  />
+                  <div className="relative w-full max-w-2xl rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-800">
+                    <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-5 py-4 dark:border-slate-700 sm:px-6">
+                      <div className="space-y-1">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-indigo-600 dark:text-indigo-200">
+                          관리 현황
+                        </p>
+                        <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100 sm:text-2xl">
+                          {activeStat.label}
+                        </h3>
+                        <p className="text-sm text-slate-600 dark:text-slate-300">{activeStat.detail}</p>
+                      </div>
+                      <button
+                        className="text-xs font-semibold text-slate-500 transition hover:text-slate-700 dark:text-slate-300"
+                        onClick={() => setActiveStat(null)}
+                        type="button"
+                        aria-label="상세 닫기"
+                      >
+                        닫기 ✕
+                      </button>
+                    </div>
+
+                    <div className="space-y-3 p-5 sm:p-6">
+                      {activeStat.key === "alert" ? (
+                        <>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <div className="flex flex-wrap gap-2">
+                              {[
+                                { key: "overdue", label: "미복약", count: effectiveOverdueCount },
+                                { key: "chat", label: "메시지", count: effectiveChatCount },
+                                { key: "emergency", label: "긴급 호출", count: effectiveEmergencyCount },
+                              ].map((tab) => {
+                                const active = managerAlertTab === tab.key;
+                                const showEmergencyBadge = tab.key === "emergency" && effectiveEmergencyCount > 0;
+                                return (
+                                  <button
+                                    key={tab.key}
+                                    type="button"
+                                    onClick={() => setManagerAlertTab(tab.key as AlertTab)}
+                                    className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                                      active
+                                        ? "border-indigo-500 bg-indigo-50 text-indigo-700"
+                                        : "border-slate-200 bg-white text-slate-600 hover:border-indigo-300"
+                                    }`}
+                                  >
+                                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-indigo-700">
+                                      {tab.count}
+                                    </span>
+                                    {tab.label}
+                                    {showEmergencyBadge && (
+                                      <span className="flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[10px] font-bold text-white">
+                                        !
+                                      </span>
+                                    )}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                            <button
+                              type="button"
+                              className="ml-auto inline-flex h-10 items-center justify-center rounded-md border border-slate-200 px-3 text-xs font-semibold text-slate-700 transition hover:border-indigo-300 hover:text-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+                              disabled={ackLoading || managerAlertsAcknowledged || totalPendingManagerAlerts === 0}
+                              onClick={handleManagerAcknowledgeAlerts}
+                            >
+                              {ackLoading ? "처리 중..." : "전부 확인"}
+                            </button>
+                          </div>
+                          <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3">
+                            {managerHasAlerts ? (
+                              <ul className="space-y-2">
+                                {pagedAlerts.map((item, idx) => {
+                                  const absoluteIdx = (alertPage[managerAlertTab] ?? 0) * PAGE_SIZE + idx;
+                                  return (
+                                    <li
+                                      key={`${managerAlertTab}-item-${idx}`}
+                                      className="flex items-start gap-2 rounded-lg bg-white px-3 py-2 text-sm text-slate-800 shadow-sm transition hover:-translate-y-0.5 hover:shadow"
+                                      onClick={() => {
+                                        if (managerAlertTab === "chat" && displayChatAlerts[absoluteIdx]) {
+                                          const target = displayChatAlerts[absoluteIdx];
+                                          setChatAlerts((prev) =>
+                                            prev.filter((alert) => alert.roomId !== target.roomId),
+                                          );
+                                          void markChatAsRead(target.roomId);
+                                          router.push(`/chat/${target.roomId}`);
+                                          return;
+                                        }
+                                        if (managerAlertTab === "emergency") {
+                                          const entry = emergencyAlertEntries[absoluteIdx];
+                                          if (entry) {
+                                            const relatedThread = chatThreads.find(
+                                              (thread) => thread.clientId === entry.clientId,
+                                            );
+                                            // 동일 클라이언트의 모든 긴급 호출 알림 제거
+                                            const toDismiss = emergencyAlertEntries
+                                              .filter((e) => e.clientId === entry.clientId)
+                                              .map((e) => e.alertId);
+                                            setDismissedEmergencyIds((prev) => {
+                                              const next = new Set(prev);
+                                              toDismiss.forEach((id) => next.add(id));
+                                              return next;
+                                            });
+                                            // 동일 채팅방의 미읽 메시지 알림도 제거
+                                            if (relatedThread) {
+                                              setChatAlerts((prev) =>
+                                                prev.filter((alert) => alert.roomId !== relatedThread.roomId),
+                                              );
+                                              void markChatAsRead(relatedThread.roomId);
+                                              void acknowledgeAllEmergency();
+                                              router.push(`/chat/${relatedThread.roomId}`);
+                                            } else {
+                                              window.alert("연결된 채팅방을 찾지 못했습니다. 매칭 상태를 확인해주세요.");
+                                            }
+                                          }
+                                        }
+                                      }}
+                                      role="button"
+                                    >
+                                      <span className="mt-0.5 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-indigo-100 px-2 text-[10px] font-bold text-indigo-700">
+                                        {(alertPage[managerAlertTab] ?? 0) * PAGE_SIZE + idx + 1}
+                                      </span>
+                                      <span className="leading-relaxed">{item}</span>
+                                    </li>
+                                  );
+                                })}
+                              </ul>
+                            ) : (
+                              <div className="flex items-center justify-center rounded-lg bg-white px-3 py-3 text-sm text-slate-500">
+                                {managerAlertEmptyText}
+                              </div>
+                            )}
+                            {managerHasAlerts && totalPages > 1 && (
+                              <div className="mt-3 flex items-center justify-between text-xs text-slate-600">
+                                <span>
+                                  페이지 {(alertPage[managerAlertTab] ?? 0) + 1} / {totalPages}
+                                </span>
+                                <div className="flex gap-2">
+                                  <button
+                                    type="button"
+                                    className="rounded-md border border-slate-200 px-3 py-1 transition hover:border-indigo-300 hover:text-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                    disabled={(alertPage[managerAlertTab] ?? 0) === 0}
+                                    onClick={() =>
+                                      setAlertPage((prev) => ({
+                                        ...prev,
+                                        [managerAlertTab]: Math.max(0, (prev[managerAlertTab] ?? 0) - 1),
+                                      }))
+                                    }
+                                  >
+                                    이전
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="rounded-md border border-slate-200 px-3 py-1 transition hover:border-indigo-300 hover:text-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                    disabled={(alertPage[managerAlertTab] ?? 0) >= totalPages - 1}
+                                    onClick={() =>
+                                      setAlertPage((prev) => ({
+                                        ...prev,
+                                        [managerAlertTab]: Math.min(
+                                          totalPages - 1,
+                                          (prev[managerAlertTab] ?? 0) + 1,
+                                        ),
+                                      }))
+                                    }
+                                  >
+                                    다음
+                                  </button>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </>
+                        ) : (
+                        activeStat.key === "pending" ? (
+                          <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3">
+                            <div className="flex items-center justify-between">
+                              <p className="text-sm font-semibold text-slate-800">
+                                오늘 예정된 복약 (시간 전) {upcomingTodayPlans.length}건
+                              </p>
+                              <span className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
+                                pending
+                              </span>
+                            </div>
+                            {upcomingTodayPlans.length === 0 ? (
+                              <p className="mt-2 text-sm text-slate-600">현재 시간 이후에 예정된 복약 일정이 없습니다.</p>
+                            ) : (
+                              <div className="mt-3 divide-y divide-slate-100 overflow-hidden rounded-lg border border-white bg-white shadow-sm">
+                                {upcomingTodayPlans.map((item, idx) => (
+                                  <div
+                                    key={`upcoming-${item.planId}-${idx}`}
+                                    className="flex flex-col gap-2 px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
+                                  >
+                                    <div className="flex items-center gap-3">
+                                      <span className="flex h-10 w-14 items-center justify-center rounded-md bg-indigo-50 text-sm font-semibold text-indigo-700">
+                                        {item.time}
+                                      </span>
+                                      <div className="leading-tight">
+                                        <p className="text-sm font-semibold text-slate-900">{item.clientName}</p>
+                                        <p className="text-xs text-slate-600">{item.medicineName}</p>
+                                      </div>
+                                    </div>
+                                    <span className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 sm:justify-end">
+                                      예정 · 오늘
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          activeStat.items &&
+                          activeStat.items.length > 0 && (
+                            <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3">
+                              <p className="text-sm font-semibold text-slate-800">주요 항목 {activeStat.items.length}건</p>
+                              <ul className="mt-2 space-y-2">
+                                {activeStat.items.map((item, idx) => (
+                                  <li
+                                    key={`${activeStat.key}-item-${idx}`}
+                                    className="flex items-start gap-2 rounded-lg bg-white px-3 py-2 text-sm text-slate-800 shadow-sm"
+                                  >
+                                    <span className="mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-indigo-100 text-[11px] font-semibold text-indigo-700">
+                                      {idx + 1}
+                                    </span>
+                                    <span className="leading-relaxed">{item}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )
+                        )
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </section>
 
             <section className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6">
               <div className="flex flex-col gap-2 border-b border-slate-200 pb-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h2 className="text-lg font-semibold text-slate-900">
-                검색 및 배정
-              </h2>
-              <p className="text-sm text-slate-600">
-                이름 또는 이메일로 이용자를 찾아 배정 여부를 확인하고 배정을 진행하세요.
-              </p>
-            </div>
-          </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-slate-900">
+                    검색 및 배정
+                  </h2>
+                  <p className="text-sm text-slate-600">
+                    이름 또는 이메일로 이용자를 찾아 배정 여부를 확인하고 배정을 진행하세요.
+                  </p>
+                </div>
+              </div>
 
-          <form
-            className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center"
-            onSubmit={(event) => {
-              void handleClientSearch(event);
-            }}
-          >
-            <input
-              className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-              onChange={(event) => {
-                setSearchKeyword(event.target.value);
-                if (searchError) {
-                  setSearchError("");
-                }
-              }}
-              placeholder="이름 또는 이메일"
-              value={searchKeyword}
-            />
-            <button
-              className="w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-indigo-300 sm:w-auto"
-              disabled={searchLoading}
-              type="submit"
-            >
-              {searchLoading ? "검색 중..." : "검색"}
-            </button>
-          </form>
+              <form
+                className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center"
+                onSubmit={(event) => {
+                  void handleClientSearch(event);
+                }}
+              >
+                <input
+                  className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+                  onChange={(event) => {
+                    setSearchKeyword(event.target.value);
+                    if (searchError) {
+                      setSearchError("");
+                    }
+                  }}
+                  placeholder="이름 또는 이메일"
+                  value={searchKeyword}
+                />
+                <button
+                  className="w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-indigo-300 sm:w-auto"
+                  disabled={searchLoading}
+                  type="submit"
+                >
+                  {searchLoading ? "검색 중..." : "검색"}
+                </button>
+              </form>
 
           {searchError && (
             <p className="mt-3 text-sm text-red-600">{searchError}</p>
@@ -2231,25 +3820,30 @@ const WeeklyDayCard = ({
                 const assignedToOther =
                   result.currentlyAssigned &&
                   result.assignedManagerId !== manager.userId;
-                const assignState = assignmentStates[result.clientId];
+                const assignState = assignmentStates[result.clientId] ?? "idle";
+                const isAssigning = assignState === "assigning";
+                const isUnassigning = assignState === "unassigning";
                 const buttonDisabled =
-                  assignState === "loading" || assignedToCurrent || !result.assignable;
+                  isAssigning || isUnassigning || assignedToCurrent || !result.assignable;
                 let buttonLabel = "배정하기";
-                if (assignState === "loading") {
+                if (isAssigning) {
                   buttonLabel = "배정 중...";
                 } else if (assignedToCurrent) {
                   buttonLabel = "이미 배정됨";
                 } else if (!result.assignable) {
                   buttonLabel = "배정 불가";
                 }
+                const showUnassign = assignedToCurrent;
+                const unassignDisabled = isAssigning || isUnassigning;
 
-                const addressDisplay =
-                  result.address && result.address.trim().length > 0
-                    ? result.address
-                    : "미등록";
-                const ageDisplay =
+                const addressDisplay = formatAddress(result.address, result.detailAddress);
+                const computedAge =
                   typeof result.age === "number" && result.age > 0
-                    ? `${result.age}세`
+                    ? result.age
+                    : computeInternationalAge(result.birthDate);
+                const ageDisplay =
+                  typeof computedAge === "number" && computedAge >= 0
+                    ? `${computedAge}세`
                     : "미등록";
                 const cycleDisplay =
                   result.medicationCycle && result.medicationCycle.trim().length > 0
@@ -2257,64 +3851,185 @@ const WeeklyDayCard = ({
                     : "미등록";
                 const statusLabel = mapStatusToLabel(result.status);
                 const assignMessage = assignmentMessages[result.clientId];
+                const favorite = isFavorite(result.clientId);
+                const avatarUrl = getProfileImage(result.profileImageUrl);
+                const nameInitial =
+                  result.name && result.name.trim().length > 0
+                    ? result.name.trim().charAt(0).toUpperCase()
+                    : "C";
 
                 return (
                   <article
                     key={result.clientId}
-                    className="rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm sm:p-5"
+                    className="relative rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md sm:p-5"
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => {
+                      if (assignedToCurrent) {
+                        openClientModalById(result.clientId);
+                      }
+                    }}
+                    onKeyDown={(event) => {
+                      if ((event.key === "Enter" || event.key === " ") && assignedToCurrent) {
+                        event.preventDefault();
+                        openClientModalById(result.clientId);
+                      }
+                    }}
+                    aria-label={`${result.name} 정보 보기`}
                   >
+                    <button
+                      className={`favorite-heart absolute right-3 top-3 ${favorite ? "on" : ""}`}
+                      aria-label={favorite ? "즐겨찾기 해제" : "즐겨찾기 추가"}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        toggleFavorite(result.clientId);
+                      }}
+                      type="button"
+                    />
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                      <div>
-                        <h3 className="text-base font-semibold text-slate-900 sm:text-lg">
-                          {result.name} 님
-                        </h3>
-                        <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                          <span className="rounded-full bg-slate-100 px-2 py-1 font-medium text-indigo-700">
-                            {statusLabel}
-                          </span>
-                          <span>{result.email}</span>
+                      <div className="flex items-start gap-3">
+                        <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-slate-50 text-sm font-semibold text-slate-700">
+                          {avatarUrl ? (
+                            <img src={avatarUrl} alt={`${result.name} 프로필`} className="h-full w-full object-cover" />
+                          ) : (
+                            <span>{nameInitial}</span>
+                          )}
+                        </div>
+                        <div className="flex flex-col gap-1.5">
+                          <h3 className="text-base font-semibold text-slate-900 sm:text-lg">
+                            {result.name} 님
+                          </h3>
+                          <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                            <span className="rounded-full bg-slate-100 px-2 py-1 font-medium text-indigo-700">
+                              {statusLabel}
+                            </span>
+                            <span>{result.email}</span>
+                          </div>
                         </div>
                       </div>
-                      <div className="text-right text-xs text-slate-500">
-                        현재 배정:
-                        {" "}
-                        {assignedToOther
-                          ? `${result.assignedManagerName ?? "다른 매니저"} (${result.assignedManagerEmail ?? "정보 없음"})`
-                          : assignedToCurrent
-                          ? "현재 담당 중"
-                          : "없음"}
+                    </div>
+                    <div className="mt-3 grid grid-cols-1 gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-800 sm:grid-cols-2">
+                      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 sm:col-span-2">
+                        <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-indigo-700">
+                          현재 배정
+                        </span>
+                        <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-indigo-800">
+                          {assignedToOther
+                            ? `${result.assignedManagerName ?? "다른 매니저"} (${result.assignedManagerEmail ?? "정보 없음"})`
+                            : assignedToCurrent
+                            ? "현재 담당 중"
+                            : "없음"}
+                        </span>
+                      </div>
+                      <div className="flex items-start gap-2 rounded-lg bg-white px-3 py-2 shadow-[0_1px_2px_rgba(0,0,0,0.05)]">
+                        <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+                          주소
+                        </span>
+                        <span className="flex-1 text-slate-800">{addressDisplay}</span>
+                      </div>
+                      <div className="flex items-center justify-between rounded-lg bg-white px-3 py-2 shadow-[0_1px_2px_rgba(0,0,0,0.05)]">
+                        <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+                          나이
+                        </span>
+                        <span className="font-semibold text-slate-900">{ageDisplay}</span>
+                      </div>
+                      <div className="flex items-center justify-between rounded-lg bg-white px-3 py-2 shadow-[0_1px_2px_rgba(0,0,0,0.05)]">
+                        <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+                          성별
+                        </span>
+                        <span className="font-semibold text-slate-900">{result.gender ?? "미등록"}</span>
+                      </div>
+                      <div className="flex items-center justify-between rounded-lg bg-white px-3 py-2 shadow-[0_1px_2px_rgba(0,0,0,0.05)]">
+                        <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+                          복약 주기
+                        </span>
+                        <span className="font-semibold text-slate-900">{cycleDisplay}</span>
                       </div>
                     </div>
-                    <div className="mt-3 grid gap-2 text-sm text-slate-600 sm:grid-cols-2">
-                      <p>주소: {addressDisplay}</p>
-                      <p>나이: {ageDisplay}</p>
-                      <p>복약 주기: {cycleDisplay}</p>
-                    </div>
                     <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                      <button
-                        className="w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-indigo-300 sm:w-auto"
-                        disabled={buttonDisabled}
-                        onClick={() => handleAssignClient(result.clientId)}
-                        type="button"
-                      >
-                        {buttonLabel}
-                      </button>
-                      {assignMessage && (
-                        <p
-                          className={`text-sm ${
-                            assignMessage.type === "success"
-                              ? "text-indigo-700"
-                              : "text-red-600"
-                          }`}
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-2">
+                        <button
+                          className="w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-indigo-300 sm:w-auto"
+                          disabled={buttonDisabled}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            handleAssignClient(result.clientId);
+                          }}
+                          type="button"
                         >
-                          {assignMessage.text}
-                        </p>
-                      )}
-                      {!result.assignable && !assignedToCurrent && (
-                        <p className="text-sm text-red-600">
-                          다른 매니저에게 배정된 이용자입니다.
-                        </p>
-                      )}
+                          {buttonLabel}
+                        </button>
+                        {showUnassign && (
+                          <button
+                            className="w-full rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-rose-300 hover:text-rose-700 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+                            disabled={unassignDisabled}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              handleUnassignClient(result.clientId);
+                            }}
+                            type="button"
+                          >
+                            {isUnassigning ? "배정 취소 중..." : "배정 취소"}
+                          </button>
+                        )}
+                      </div>
+                      <div className="flex flex-col gap-2 sm:items-end">
+                        {assignMessage && (
+                          <p
+                            className={`text-sm ${
+                              assignMessage.type === "success"
+                                ? "text-indigo-700"
+                                : "text-red-600"
+                            }`}
+                          >
+                            {assignMessage.text}
+                          </p>
+                        )}
+                        {!result.assignable && !assignedToCurrent && (
+                          <p className="text-sm text-red-600">
+                            다른 매니저에게 배정된 이용자입니다.
+                          </p>
+                        )}
+                        <div className="flex flex-col items-end gap-1">
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-2 rounded-full border border-rose-300 bg-rose-50 px-3 py-1.5 text-[13px] font-semibold text-rose-700 transition hover:-translate-y-0.5 hover:border-rose-400 hover:bg-rose-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleSendClientEmergency(result.clientId);
+                            }}
+                            disabled={clientEmergencySending[result.clientId]}
+                          >
+                            <svg
+                              aria-hidden="true"
+                              className="h-4 w-4"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth={2}
+                              viewBox="0 0 24 24"
+                            >
+                              <path d="M6.5 12h11l-.9-5.4a1 1 0 0 0-.99-.83H8.39a1 1 0 0 0-.99.83L6.5 12Z" strokeLinecap="round" strokeLinejoin="round" />
+                              <path d="M5 14h14v2H5z" strokeLinecap="round" strokeLinejoin="round" />
+                              <path d="M8 18a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-2H8v2Z" strokeLinecap="round" strokeLinejoin="round" />
+                              <path d="M12 4V2" strokeLinecap="round" strokeLinejoin="round" />
+                              <path d="M5.5 6.5 4 5" strokeLinecap="round" strokeLinejoin="round" />
+                              <path d="M18.5 6.5 20 5" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                            {clientEmergencySending[result.clientId] ? "전송 중..." : "긴급 호출"}
+                          </button>
+                          {clientEmergencyMessage[result.clientId] && (
+                            <p
+                              className={`text-xs ${
+                                clientEmergencyMessage[result.clientId]?.type === "success"
+                                  ? "text-emerald-700"
+                                  : "text-red-600"
+                              }`}
+                            >
+                              {clientEmergencyMessage[result.clientId]?.text}
+                            </p>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   </article>
                 );
@@ -2330,9 +4045,7 @@ const WeeklyDayCard = ({
         <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:p-6">
           <div className="flex flex-col gap-2 border-b border-slate-200 pb-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-lg font-semibold text-slate-900">
-                복약 관리
-              </h2>
+              <h2 className="text-lg font-semibold text-slate-900">복약 관리</h2>
               <p className="text-sm text-slate-600">
                 복약 스케줄을 등록하거나 복약 여부를 대신 기록할 수 있습니다.
               </p>
@@ -2343,14 +4056,13 @@ const WeeklyDayCard = ({
               onClick={loadDashboard}
               type="button"
             >
-              <span
-                className={`inline-flex h-5 w-5 items-center justify-center rounded-full ${
-                  dashboardLoading ? "animate-spin bg-indigo-100 text-indigo-700" : "bg-slate-100 text-slate-600"
+              <FontAwesomeIcon
+                icon={byPrefixAndName.fas["rotate-right"]}
+                className={`h-4 w-4 rounded-full ${
+                  dashboardLoading ? "animate-spin text-indigo-700" : "text-slate-600"
                 }`}
-                aria-hidden="true"
-              >
-                ↻
-              </span>
+                aria-hidden
+              />
               {dashboardLoading ? "새로고침 중..." : "새로고침"}
             </button>
           </div>
@@ -2379,6 +4091,10 @@ const WeeklyDayCard = ({
             <div className="mt-4 rounded-xl bg-white px-3 py-2 text-sm text-slate-600">
               현재 배정된 이용자가 없습니다. 관리자에게 문의해주세요.
             </div>
+          ) : favoriteClientCount === 0 ? (
+            <div className="mt-4 rounded-xl bg-white px-3 py-2 text-sm text-slate-600">
+              즐겨찾기한 클라이언트가 없습니다. 상단 검색/배정 목록에서 별표를 눌러 즐겨찾기를 추가하세요.
+            </div>
           ) : filteredClients.length === 0 ? (
             <div className="mt-4 rounded-xl bg-white px-3 py-2 text-sm text-slate-600">
               검색 조건에 맞는 이용자가 없습니다.
@@ -2390,10 +4106,16 @@ const WeeklyDayCard = ({
                 const recentLogLabel = latestLog
                   ? formatDateTime(latestLog.logTimestamp)
                   : "기록 없음";
+                const favorite = isFavorite(client.clientId);
+                const avatarUrl = getProfileImage(client.profileImageUrl);
+                const nameInitial =
+                  client.clientName && client.clientName.trim().length > 0
+                    ? client.clientName.trim().charAt(0).toUpperCase()
+                    : "C";
                 return (
                   <article
                     key={client.clientId}
-                    className="cursor-pointer rounded-2xl border border-white bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500 sm:p-5"
+                    className="relative cursor-pointer rounded-2xl border border-white bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500 sm:p-5"
                     role="button"
                     tabIndex={0}
                     onClick={() => setClientModalClientId(client.clientId)}
@@ -2405,18 +4127,76 @@ const WeeklyDayCard = ({
                     }}
                     aria-label={`${client.clientName}님의 복약 관리 열기`}
                   >
-                    <div className="flex flex-col gap-2 border-b border-slate-200 pb-4 sm:flex-row sm:items-center sm:justify-between">
-                      <div>
-                        <h3 className="text-base font-semibold text-slate-900 sm:text-lg">
-                          {client.clientName} 님
-                        </h3>
-                        <p className="text-xs text-slate-500 sm:text-sm">
-                          복약 일정 {client.medicationPlans.length}건 · 최근 확인{" "}
-                          {client.latestMedicationLogs.length}건
-                        </p>
-                      </div>
-                      <div className="text-xs font-semibold text-amber-700">
-                        비상 알림 {client.emergencyAlerts.length}건
+                    <button
+                      className={`favorite-heart absolute right-3 top-3 ${favorite ? "on" : ""}`}
+                      aria-label={favorite ? "즐겨찾기 해제" : "즐겨찾기 추가"}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        toggleFavorite(client.clientId);
+                      }}
+                      type="button"
+                    />
+                    <div className="relative flex flex-col gap-2 border-b border-slate-200 pb-4 sm:flex-row sm:items-center sm:justify-between pr-12">
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-slate-50 text-sm font-semibold text-slate-700">
+                          {avatarUrl ? (
+                            <img
+                              src={avatarUrl}
+                              alt={`${client.clientName} 프로필`}
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
+                            <span>{nameInitial}</span>
+                          )}
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h3 className="text-base font-semibold text-slate-900 sm:text-lg">
+                              {client.clientName} 님
+                            </h3>
+                            <button
+                              type="button"
+                              className="inline-flex items-center gap-2 rounded-full border border-rose-300 bg-rose-50 px-3 py-1.5 text-[13px] font-semibold text-rose-700 transition hover:-translate-y-0.5 hover:border-rose-400 hover:bg-rose-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleSendClientEmergency(client.clientId);
+                              }}
+                              disabled={clientEmergencySending[client.clientId]}
+                            >
+                              <svg
+                                aria-hidden="true"
+                                className="h-4 w-4"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth={2}
+                                viewBox="0 0 24 24"
+                              >
+                                <path d="M6.5 12h11l-.9-5.4a1 1 0 0 0-.99-.83H8.39a1 1 0 0 0-.99.83L6.5 12Z" strokeLinecap="round" strokeLinejoin="round" />
+                                <path d="M5 14h14v2H5z" strokeLinecap="round" strokeLinejoin="round" />
+                                <path d="M8 18a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-2H8v2Z" strokeLinecap="round" strokeLinejoin="round" />
+                                <path d="M12 4V2" strokeLinecap="round" strokeLinejoin="round" />
+                                <path d="M5.5 6.5 4 5" strokeLinecap="round" strokeLinejoin="round" />
+                                <path d="M18.5 6.5 20 5" strokeLinecap="round" strokeLinejoin="round" />
+                              </svg>
+                              {clientEmergencySending[client.clientId] ? "전송 중..." : "긴급 호출"}
+                            </button>
+                          </div>
+                          {clientEmergencyMessage[client.clientId] && (
+                            <p
+                              className={`text-xs ${
+                                clientEmergencyMessage[client.clientId]?.type === "success"
+                                  ? "text-emerald-700"
+                                  : "text-red-600"
+                              }`}
+                            >
+                              {clientEmergencyMessage[client.clientId]?.text}
+                            </p>
+                          )}
+                          <p className="text-xs text-slate-500 sm:text-sm">
+                            복약 일정 {client.medicationPlans.length}건 · 최근 확인{" "}
+                            {client.latestMedicationLogs.length}건
+                          </p>
+                        </div>
                       </div>
                     </div>
                     <div className="flex flex-col gap-3 pt-4 sm:flex-row sm:items-center sm:justify-between">
@@ -2436,7 +4216,7 @@ const WeeklyDayCard = ({
                           최근 복약 확인: {recentLogLabel}
                         </p>
                       </div>
-                      <span className="inline-flex items-center gap-2 text-sm font-semibold text-indigo-600">
+                      <span className="inline-flex items-center gap-2 self-start text-sm font-semibold text-indigo-600 sm:self-auto">
                         상세 관리 열기
                         <svg
                           aria-hidden="true"
@@ -2466,15 +4246,93 @@ const WeeklyDayCard = ({
       )}
 
       {activePanel === "chat" && (
-        <section>
-          <MyChatRooms
-            role="MANAGER"
-            userId={manager.userId}
-            managerProfileId={managerProfileId}
-          />
+        <section className="space-y-4">
+          <div className="flex gap-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+            <button
+              type="button"
+              onClick={() => setChatView("rooms")}
+              className={`flex-1 rounded-lg px-3 py-2 text-sm font-semibold transition ${
+                chatView === "rooms"
+                  ? "bg-indigo-600 text-white shadow"
+                  : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+              }`}
+            >
+              채팅방 보기
+            </button>
+            <button
+              type="button"
+              onClick={() => setChatView("search")}
+              className={`flex-1 rounded-lg px-3 py-2 text-sm font-semibold transition ${
+                chatView === "search"
+                  ? "bg-indigo-600 text-white shadow"
+                  : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+              }`}
+            >
+              클라이언트 찾기
+            </button>
+          </div>
+
+          {chatView === "search" ? (
+            <ChatClientPicker
+              managerId={managerProfileId ?? manager.userId}
+              assignedClients={(dashboard?.clients ?? []).map((c) => ({
+                clientId: c.clientId,
+                name: c.clientName,
+                email: c.email,
+                profileImageUrl: c.profileImageUrl,
+              }))}
+              onChatCreated={() => {
+                setChatRefreshToken((prev) => prev + 1);
+                setChatView("rooms");
+              }}
+            />
+          ) : (
+            <MyChatRooms
+              role="MANAGER"
+              userId={manager.userId}
+              managerProfileId={managerProfileId}
+              refreshToken={chatRefreshToken}
+            />
+          )}
         </section>
       )}
       </main>
+      <style jsx global>{`
+        .favorite-heart {
+          position: absolute;
+          width: 30px;
+          height: 30px;
+          border: 0;
+          font-size: 0;
+          border-radius: 9999px;
+          background: #fff url("https://umings.github.io/images/i_like_off.png") no-repeat center / 18px;
+          box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+          cursor: pointer;
+          transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .favorite-heart.on {
+          background: #fff url("https://umings.github.io/images/i_like_on.png") no-repeat center / 18px;
+          animation: favorite-beat 0.5s 1 alternate;
+          }
+        .favorite-heart:hover {
+          transform: translateY(-1px);
+          box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
+        }
+        @keyframes favorite-beat {
+          0% {
+            transform: scale(1);
+          }
+          40% {
+            transform: scale(1.15);
+          }
+          70% {
+            transform: scale(0.9);
+          }
+          100% {
+            transform: scale(1);
+          }
+        }
+      `}</style>
       {selectedClient && selectedClientForm && (
         <>
           <div
@@ -2491,33 +4349,79 @@ const WeeklyDayCard = ({
               <button
                 type="button"
                 onClick={closeClientModal}
-                className="absolute right-4 top-4 z-10 rounded-full border border-slate-200 bg-white/90 p-2 text-slate-500 transition hover:border-slate-300 hover:text-slate-700"
+                className="absolute right-4 top-4 z-10 text-sm font-semibold text-slate-500 transition hover:text-slate-700"
               >
-                <span className="sr-only">창 닫기</span>
-                <svg
-                  aria-hidden="true"
-                  className="h-4 w-4"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth={2}
-                  viewBox="0 0 24 24"
-                >
-                  <path d="M6 6l12 12M18 6l-12 12" strokeLinecap="round" />
-                </svg>
+                닫기 ✕
               </button>
-              <div className="modal-scroll max-h-[90vh] overflow-y-auto p-4 sm:p-6">
-                <div className="pr-2 sm:pr-4">
-                  <div className="pr-8">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-indigo-600">
-                      복약 관리
-                    </p>
-                    <h3 className="mt-1 text-xl font-bold text-slate-900">
-                      {selectedClient.clientName} 님
-                    </h3>
-                    <p className="text-sm text-slate-500">
-                      복약 일정 {selectedClient.medicationPlans.length}건 · 최근 확인{" "}
-                      {selectedClient.latestMedicationLogs.length}건
-                    </p>
+              <div className="modal-scroll max-h-[90vh] overflow-y-auto touch-pan-y overscroll-contain p-4 sm:p-6">
+                <div className="space-y-4 pr-2 sm:pr-4">
+                  <div className="grid gap-4 rounded-2xl border border-slate-100 bg-slate-50/80 p-4 sm:grid-cols-[240px,1fr] sm:items-center sm:gap-6">
+                    <div className="flex items-center gap-4 sm:gap-5">
+                      <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl border-2 border-indigo-100 bg-white text-xl font-semibold text-indigo-700 shadow-sm sm:h-20 sm:w-20">
+                        <img
+                          src={getProfileImage(
+                            selectedClientDetail?.profileImageUrl ?? selectedClient.profileImageUrl
+                          )}
+                          alt={`${selectedClient.clientName} 프로필`}
+                          className="h-full w-full object-cover"
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-indigo-600">
+                          복약 관리
+                        </p>
+                        <h3 className="text-xl font-bold text-slate-900">
+                          {selectedClient.clientName} 님
+                        </h3>
+                        <p className="text-sm text-slate-500">
+                          복약 일정 {selectedClient.medicationPlans.length}건 · 최근 확인{" "}
+                          {selectedClient.latestMedicationLogs.length}건
+                        </p>
+                      </div>
+                    </div>
+                    <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2">
+                      <InfoChip label="나이" value={(() => {
+                        const age =
+                          typeof selectedClientDetail?.age === "number" && selectedClientDetail.age > 0
+                            ? selectedClientDetail.age
+                            : typeof selectedClient.age === "number" && selectedClient.age > 0
+                            ? selectedClient.age
+                            : computeInternationalAge(
+                                selectedClientDetail?.birthDate ?? selectedClient.birthDate
+                              );
+                        return typeof age === "number" ? `${age}세` : "미등록";
+                      })()} />
+                      <InfoChip
+                        label="성별"
+                        value={
+                          selectedClientDetail?.gender &&
+                          selectedClientDetail.gender.trim().length > 0
+                            ? selectedClientDetail.gender
+                            : selectedClient.gender ?? "미등록"
+                        }
+                      />
+                      <InfoChip
+                        label="이메일"
+                        value={
+                          selectedClientDetail?.email && selectedClientDetail.email.trim().length > 0
+                            ? selectedClientDetail.email
+                            : selectedClient.email ?? "미등록"
+                        }
+                        truncate
+                      />
+                      <InfoChip
+                        label="주소"
+                        value={
+                          selectedClientDetail
+                            ? formatAddress(
+                                selectedClientDetail.address ?? selectedClient.address,
+                                selectedClientDetail.detailAddress ?? selectedClient.detailAddress
+                              )
+                            : "불러오는 중..."
+                        }
+                        truncate
+                      />
+                    </div>
                   </div>
                   {renderClientDetailSections(selectedClient, {
                     form: selectedClientForm,
@@ -2539,10 +4443,13 @@ const WeeklyDayCard = ({
       )}
       <style jsx global>{`
         .modal-scroll {
+          max-height: calc(100vh - 96px);
           scrollbar-width: thin;
           scrollbar-color: #818cf8 #f8fafc;
           padding-right: 1rem;
           scrollbar-gutter: stable both-edges;
+          -webkit-overflow-scrolling: touch;
+          overscroll-behavior: contain;
         }
         .modal-scroll::-webkit-scrollbar {
           width: 10px;

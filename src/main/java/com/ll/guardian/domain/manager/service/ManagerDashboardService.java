@@ -50,12 +50,12 @@ public class ManagerDashboardService {
                 .findById(managerId)
                 .orElseThrow(() -> new GuardianException(HttpStatus.NOT_FOUND, "담당자를 찾을 수 없습니다."));
 
-        List<CareMatch> matches = careMatchRepository.findByManagerId(managerId);
+        List<CareMatch> matches = careMatchRepository.findByManagerIdAndCurrentTrue(managerId);
         Map<Long, List<MedicationPlanResponse>> planMap = matches.stream()
                 .collect(Collectors.toMap(
                         match -> match.getClient().getId(),
                         match -> medicationAlarmRepository.findByClient_Id(match.getClient().getId()).stream()
-                                .map(MedicationPlanResponse::from)
+                                .map(alarm -> MedicationPlanResponse.from(alarm, match))
                                 .collect(Collectors.toList())));
 
         Map<Long, List<MedicationLogResponse>> logMap = matches.stream()
@@ -73,7 +73,9 @@ public class ManagerDashboardService {
         Map<Long, List<EmergencyAlert>> emergencyMap = matches.stream()
                 .collect(Collectors.toMap(
                         match -> match.getClient().getId(),
-                        match -> emergencyAlertRepository.findByClientId(match.getClient().getId())));
+                        match -> emergencyAlertRepository.findByClientId(match.getClient().getId()).stream()
+                                .filter(alert -> alert.getStatus() == EmergencyAlertStatus.PENDING)
+                                .toList()));
 
         List<ManagerClientSummary> clients = matches.stream()
                 .map(match -> new ManagerClientSummary(
@@ -88,8 +90,8 @@ public class ManagerDashboardService {
 
         long activeAlertCount = emergencyAlertRepository.findByStatus(EmergencyAlertStatus.PENDING).size();
         long pendingMedicationCount = matches.stream()
-                .map(match -> medicationAlarmRepository.findByClient_Id(match.getClient().getId()).size())
-                .mapToLong(Integer::longValue)
+                .map(match -> medicationAlarmRepository.findByClient_Id(match.getClient().getId()))
+                .mapToLong(list -> list.stream().filter(alarm -> !alarm.isActive()).count())
                 .sum();
 
         return new ManagerDashboardResponse(manager.getId(), clients, activeAlertCount, pendingMedicationCount);

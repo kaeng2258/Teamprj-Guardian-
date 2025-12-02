@@ -24,7 +24,7 @@ jobs:
       # 3) 백엔드 빌드 (Gradle bootJar)
       - name: Build Backend
         run: |
-          chmod +x gradlew
+          chmod +x ./gradlew
           ./gradlew clean bootJar
 
       # 4) Node 20 설치 (프론트 빌드용)

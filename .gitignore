@@ -43,9 +43,7 @@ out/
 # Node
 node_modules
 
-
 #keystore
 keystore.p12
-
 
 .next/

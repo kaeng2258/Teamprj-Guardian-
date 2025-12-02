@@ -1,6 +1,5 @@
 {
-  "/client/mypage/page": "app/client/mypage/page.js",
   "/page": "app/page.js",
-  "/manager/mypage/page": "app/manager/mypage/page.js",
-  "/favicon.ico/route": "app/favicon.ico/route.js"
+  "/client/profile/edit/page": "app/client/profile/edit/page.js",
+  "/client/mypage/page": "app/client/mypage/page.js"
 }

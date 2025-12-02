@@ -1,6 +1,6 @@
 // frontapp/components/MyChatRooms.tsx
 "use client";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { resolveProfileImageUrl } from "@/lib/image";
 
@@ -34,7 +34,6 @@ export default function MyChatRooms({
   managerProfileId,
   refreshToken,
 }: MyChatRoomsProps) {
-  // 북마크 키가 리렌더 중에 바뀌지 않도록 계정 userId를 우선 사용하고, 없다면 프로필 ID로 대체
   const effectiveUserId = React.useMemo(
     () => (role === "MANAGER" ? userId ?? managerProfileId ?? null : userId ?? null),
     [role, userId, managerProfileId],
@@ -47,9 +46,10 @@ export default function MyChatRooms({
   const [actionError, setActionError] = useState<string | null>(null);
   const [bookmarked, setBookmarked] = useState<number[]>([]);
   const [bookmarksHydrated, setBookmarksHydrated] = useState(false);
+  const [searchKeyword, setSearchKeyword] = useState("");
   const defaultProfileImage =
     resolveProfileImageUrl("/image/픽토그램.png") || "/image/픽토그램.png";
-  const bookmarkKey = React.useMemo(
+  const bookmarkKey = useMemo(
     () => (effectiveUserId ? `guardian.bookmarkedRooms.${role}.${String(effectiveUserId)}` : null),
     [effectiveUserId, role],
   );
@@ -73,60 +73,46 @@ export default function MyChatRooms({
 
   useEffect(() => {
     if (!effectiveUserId) return;
-
     let active = true;
-
     const load = async () => {
       setLoading(true);
       setErr(null);
       try {
         const res = await fetch(
           `${API_BASE_URL}/api/chat/threads?userId=${encodeURIComponent(
-            String(effectiveUserId)
-          )}`
+            String(effectiveUserId),
+          )}`,
         );
         if (!res.ok) {
-          throw new Error("채팅방 목록을 불러오지 못했습니다.");
+          throw new Error("채팅 목록을 불러오지 못했습니다.");
         }
         const data: ChatThread[] = await res.json();
-
         if (!active) return;
-
-        // 내 역할에 맞는 방만 필터링
         const filtered =
           role === "MANAGER"
             ? data.filter((t) => t.managerId === effectiveUserId)
             : data.filter((t) => t.clientId === effectiveUserId);
-
         setThreads(sortThreads(filtered, bookmarked));
-      } catch (e: any) {
+      } catch (e) {
         if (!active) return;
-        setErr(
-          e instanceof Error
-            ? e.message
-            : "채팅방 목록을 불러오지 못했습니다."
-        );
+        setErr(e instanceof Error ? e.message : "채팅 목록을 불러오지 못했습니다.");
       } finally {
         if (!active) return;
         setLoading(false);
       }
     };
-
     void load();
-
     return () => {
       active = false;
     };
   }, [role, userId, managerProfileId, refreshToken, effectiveUserId]);
 
   useEffect(() => {
-    // 다른 참여자의 프로필 이미지를 추가로 로드
     const loadProfileImages = async () => {
       const targets = threads
         .map((t) => (role === "MANAGER" ? t.clientId : t.managerId))
         .filter((id) => id && !profileImages[id]);
       if (targets.length === 0) return;
-
       for (const id of targets) {
         try {
           const res = await fetch(`${API_BASE_URL}/api/users/${id}`);
@@ -137,7 +123,7 @@ export default function MyChatRooms({
             [id]: getProfileImage(detail.profileImageUrl),
           }));
         } catch {
-          // ignore fetch errors
+          // ignore
         }
       }
     };
@@ -160,7 +146,7 @@ export default function MyChatRooms({
         }
       }
     } catch {
-      // ignore parse error
+      // ignore
     } finally {
       setBookmarksHydrated(true);
     }
@@ -171,7 +157,7 @@ export default function MyChatRooms({
     try {
       window.localStorage.setItem(bookmarkKey, JSON.stringify(bookmarked));
     } catch {
-      // ignore storage error
+      // ignore
     }
     setThreads((prev) => sortThreads(prev, bookmarked));
   }, [bookmarkKey, bookmarked, bookmarksHydrated]);
@@ -204,10 +190,7 @@ export default function MyChatRooms({
 
   const toggleBookmark = (roomId: number) => {
     if (!bookmarkKey) return;
-    if (!bookmarksHydrated) {
-      // 로컬 저장소 동기화 전에는 토글하지 않는다.
-      return;
-    }
+    if (!bookmarksHydrated) return;
     setBookmarked((prev) => {
       const next = prev.includes(roomId)
         ? prev.filter((id) => id !== roomId)
@@ -217,13 +200,24 @@ export default function MyChatRooms({
     });
   };
 
+  const filteredThreads = useMemo(() => {
+    if (role !== "CLIENT") return threads;
+    const keyword = searchKeyword.trim().toLowerCase();
+    if (!keyword) return threads;
+    return threads.filter((t) => {
+      const name = t.managerName ?? "";
+      const fields = [name, t.lastMessageSnippet ?? "", String(t.roomId ?? "")];
+      return fields.some((field) => field.toLowerCase().includes(keyword));
+    });
+  }, [role, searchKeyword, threads]);
+
   return (
     <section className="flex flex-col gap-4 rounded-2xl border border-sky-200 bg-gradient-to-br from-sky-50 via-white to-emerald-50/70 p-6 shadow-sm dark:border-slate-700 dark:from-slate-800 dark:via-slate-900 dark:to-slate-800">
       <div className="flex items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-bold text-slate-900">내 채팅방</h2>
           <p className="mt-1 text-sm text-slate-600">
-            현재 배정된 클라이언트와의 대화를 한눈에 확인하세요.
+            현재 배정된 상대와의 대화를 한눈에 확인하세요.
           </p>
         </div>
       </div>
@@ -244,24 +238,16 @@ export default function MyChatRooms({
       <ul className="mt-4 grid gap-3">
         {threads.map((t) => {
           const roomId = t.roomId;
-          // MANAGER → 상대는 clientName, CLIENT → managerName
-          const otherName =
-            role === "MANAGER" ? t.clientName : t.managerName;
-          const displayName = otherName && otherName.trim().length > 0
-            ? otherName
-            : "이름 미등록";
+          const otherName = role === "MANAGER" ? t.clientName : t.managerName;
+          const displayName = otherName && otherName.trim().length > 0 ? otherName : "이름 미등록";
           const otherId = role === "MANAGER" ? t.clientId : t.managerId;
           const avatar =
             role === "MANAGER"
               ? getProfileImage(profileImages[otherId] ?? t.clientProfileImageUrl)
               : getProfileImage(profileImages[otherId] ?? t.managerProfileImageUrl);
-
           const lastTime = t.lastMessageAt ?? undefined;
           const lastSnippet = t.lastMessageSnippet ?? "";
-          const unread =
-            role === "MANAGER"
-              ? t.readByManager === false
-              : t.readByClient === false;
+          const unread = role === "MANAGER" ? t.readByManager === false : t.readByClient === false;
 
           return (
             <li
@@ -277,11 +263,9 @@ export default function MyChatRooms({
                         alt={`${displayName} 프로필`}
                         className="h-full w-full object-cover"
                       />
-                    <span className="pointer-events-none absolute inset-0 rounded-full ring-1 ring-white/80 ring-offset-1" />
-                  </span>
-                    <p className="text-sm font-semibold text-slate-900">
-                      {displayName}
-                    </p>
+                      <span className="pointer-events-none absolute inset-0 rounded-full ring-1 ring-white/80 ring-offset-1" />
+                    </span>
+                    <p className="text-sm font-semibold text-slate-900">{displayName}</p>
                   </div>
                   <div className="flex items-center gap-2">
                     {unread && (
@@ -341,6 +325,7 @@ export default function MyChatRooms({
           );
         })}
       </ul>
+
       {actionError && <p className="text-sm text-red-600">{actionError}</p>}
       <style jsx>{`
         .bookmark-star {

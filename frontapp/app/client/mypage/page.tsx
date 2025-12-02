@@ -40,6 +40,7 @@ type MedicationPlan = {
   alarmTime: string;
   daysOfWeek: string[];
   active: boolean;
+  managerId?: number | null;
   managerName?: string | null;
   managerEmail?: string | null;
   managerPhone?: string | null;
@@ -153,7 +154,7 @@ const clientQuickActions: Array<{
   },
   {
     value: "chat",
-    label: "채팅방",
+    label: "채팅",
     description: "매니저와 실시간 대화",
     accent: "bg-sky-500",
     icon: <FontAwesomeIcon icon={faComment} className="h-4 w-4" />,
@@ -742,6 +743,36 @@ export default function ClientMyPage() {
     },
     [emergencyAckKey, markChatAsRead, router],
   );
+  const findChatRoomForPlan = useCallback(
+    (plan: MedicationPlan) => {
+      if (!chatThreads.length) return null;
+      if (plan.managerId) {
+        const byId = chatThreads.find((t) => t.managerId === plan.managerId);
+        if (byId?.roomId) return byId.roomId;
+      }
+      const managerName = plan.managerName?.trim().toLowerCase() ?? "";
+      if (managerName.length > 0) {
+        const byName = chatThreads.find(
+          (t) => (t.managerName ?? "").trim().toLowerCase() === managerName,
+        );
+        if (byName?.roomId) return byName.roomId;
+      }
+      return chatThreads[0]?.roomId ?? null;
+    },
+    [chatThreads],
+  );
+
+  const handleChatWithManager = useCallback(
+    (plan: MedicationPlan) => {
+      const roomId = findChatRoomForPlan(plan);
+      if (roomId) {
+        goToChatRoom(roomId);
+        return;
+      }
+      setActivePanel("chat");
+    },
+    [findChatRoomForPlan, goToChatRoom, setActivePanel],
+  );
 
   const overdueAlerts = useMemo(() => {
     const now = new Date();
@@ -905,11 +936,12 @@ export default function ClientMyPage() {
     if (alertsAcknowledged) {
       return ["모든 알림을 확인했습니다."];
     }
+    const chatAlertList = chatAlerts;
     switch (alertTab) {
       case "overdue":
         return overdueAlerts;
       case "chat":
-        return chatAlerts;
+        return chatAlertList.map((c) => c.label);
       default:
         return [];
     }
@@ -1692,45 +1724,56 @@ export default function ClientMyPage() {
                             {managerMeta || "연락처 정보 없음"}
                           </p>
                         </div>
-                        <button
-                          className="inline-flex items-center gap-2 rounded-full border border-rose-300 bg-rose-50 px-3 py-2 text-[13px] font-semibold text-rose-600 transition hover:-translate-y-0.5 hover:border-rose-400 hover:bg-rose-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
-                          disabled={
-                            emergencySending[plan.id] ||
-                            managerName === "담당 매니저 정보 없음"
-                          }
-                          onClick={() => handleEmergencyCall(plan)}
-                          type="button"
-                          aria-label="담당 매니저에게 비상 호출"
-                        >
-                          <svg
-                            aria-hidden="true"
-                            className="h-4 w-4"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth={2}
-                            viewBox="0 0 24 24"
+                        <div className="flex flex-col items-end gap-2 sm:flex-row sm:items-center">
+                          <button
+                            className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-2 text-[13px] font-semibold text-sky-700 transition hover:-translate-y-0.5 hover:border-sky-300 hover:bg-sky-100"
+                            onClick={() => handleChatWithManager(plan)}
+                            type="button"
+                            aria-label="담당 매니저와 채팅"
                           >
-                            <path
-                              d="M6.5 12h11l-.9-5.4a1 1 0 0 0-.99-.83H8.39a1 1 0 0 0-.99.83L6.5 12Z"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            />
-                            <path
-                              d="M5 14h14v2H5z"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            />
-                            <path
-                              d="M8 18a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-2H8v2Z"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            />
-                            <path d="M12 4V2" strokeLinecap="round" strokeLinejoin="round" />
-                            <path d="M5.5 6.5 4 5" strokeLinecap="round" strokeLinejoin="round" />
-                            <path d="M18.5 6.5 20 5" strokeLinecap="round" strokeLinejoin="round" />
-                          </svg>
-                          {emergencySending[plan.id] ? "전송 중..." : "비상 호출"}
-                        </button>
+                            <FontAwesomeIcon icon={faComment} className="h-4 w-4" aria-hidden />
+                            채팅하기
+                          </button>
+                          <button
+                            className="inline-flex items-center gap-2 rounded-full border border-rose-300 bg-rose-50 px-3 py-2 text-[13px] font-semibold text-rose-600 transition hover:-translate-y-0.5 hover:border-rose-400 hover:bg-rose-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+                            disabled={
+                              emergencySending[plan.id] ||
+                              managerName === "담당 매니저 정보 없음"
+                            }
+                            onClick={() => handleEmergencyCall(plan)}
+                            type="button"
+                            aria-label="담당 매니저에게 비상 호출"
+                          >
+                            <svg
+                              aria-hidden="true"
+                              className="h-4 w-4"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth={2}
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                d="M6.5 12h11l-.9-5.4a1 1 0 0 0-.99-.83H8.39a1 1 0 0 0-.99.83L6.5 12Z"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                              <path
+                                d="M5 14h14v2H5z"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                              <path
+                                d="M8 18a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-2H8v2Z"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                              <path d="M12 4V2" strokeLinecap="round" strokeLinejoin="round" />
+                              <path d="M5.5 6.5 4 5" strokeLinecap="round" strokeLinejoin="round" />
+                              <path d="M18.5 6.5 20 5" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                            {emergencySending[plan.id] ? "전송 중..." : "비상 호출"}
+                          </button>
+                        </div>
                       </div>
                       {emergencyMsg && (
                         <p

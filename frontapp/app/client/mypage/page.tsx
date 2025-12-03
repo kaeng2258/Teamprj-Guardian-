@@ -1323,7 +1323,7 @@ export default function ClientMyPage() {
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <p className="text-2xl font-semibold uppercase tracking-wide text-indigo-600 sm:text-3xl">
+                  <p className="text-2xl font-semibold uppercase tracking-wide text-amber-600 sm:text-3xl">
                     Client
                   </p>
                   <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">
@@ -1397,7 +1397,7 @@ export default function ClientMyPage() {
 
         {activePanel === "schedule" && (
           <>
-        <section className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-indigo-50 p-4 sm:p-6 dark:border-slate-700 dark:from-slate-800 dark:via-slate-900 dark:to-slate-800">
+        <section className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-amber-50 p-4 sm:p-6 dark:border-slate-700 dark:from-slate-800 dark:via-slate-900 dark:to-slate-800">
           <div className="flex flex-col gap-2 border-b border-slate-200 pb-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-lg font-semibold text-slate-900 sm:text-xl">서비스 이용 현황</h2>

@@ -582,7 +582,7 @@ export default function Home() {
                               </option>
                             </select>
                           </label>
-                          <label className={labelClassName}>
+                          <label className={`${labelClassName} md:col-span-2`}>
                             <span>연락처</span>
                             <div className="grid grid-cols-[1fr_auto_1fr_auto_1fr] items-center gap-2 sm:gap-3">
                               <input

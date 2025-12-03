@@ -3,7 +3,14 @@ import MyChatRooms from "@/components/MyChatRooms";
 import { InlineDrugSearch } from "@/components/InlineDrugSearch";
 import { resolveProfileImageUrl } from "@/lib/image";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type CSSProperties,
+  type JSX,
+} from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faPen, faMagnifyingGlass } from "@fortawesome/free-solid-svg-icons";
 import { faComment } from "@fortawesome/free-regular-svg-icons";
@@ -243,6 +250,8 @@ export default function ClientMyPage() {
   const [emergencyAckAt, setEmergencyAckAt] = useState<number | null>(null);
   const defaultProfileImage = resolveProfileImageUrl("/image/픽토그램.png") || "/image/픽토그램.png";
   const logoImage = resolveProfileImageUrl("/image/logo.png") || "/image/logo.png";
+
+  const handleStatAction = () => {};
 
   const pushCapable = useMemo(
     () => supportsPushApi && pushServiceEnabled && Boolean(vapidPublicKey),

@@ -357,17 +357,11 @@ export default function Home() {
       <main className="relative z-10 w-full max-w-5xl overflow-hidden rounded-3xl border border-slate-100 bg-white/90 shadow-2xl backdrop-blur">
         <div className="relative md:h-[620px] md:max-h-[80vh]">
           <section
-            className={`hidden flex-col justify-between bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-800 px-10 py-12 text-slate-100 transition-all duration-600 ease-in-out md:absolute md:inset-y-0 md:flex md:h-full ${
+            className={`hidden flex-col justify-between bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-800 px-10 py-12 text-slate-100 transition-all duration-600 ease-in-out md:absolute md:inset-y-0 md:flex md:h-full md:w-[42%] ${
               activeTab === "login"
-                ? "animate-panel-swap-in-left motion-reduce:animate-none"
-                : "animate-panel-swap-out-left motion-reduce:animate-none"
+                ? "md:left-0 md:animate-panel-swap-in-left motion-reduce:animate-none"
+                : "md:left-[58%] md:animate-panel-swap-out-left motion-reduce:animate-none"
             }`}
-            style={
-              {
-                left: activeTab === "login" ? "0%" : "58%",
-                width: "42%",
-              } as CSSProperties
-            }
           >
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.06),transparent_35%),radial-gradient(circle_at_78%_28%,rgba(79,70,229,0.18),transparent_32%)]" />
             <div className="relative space-y-4">
@@ -411,44 +405,11 @@ export default function Home() {
           <section
             className={`relative p-6 sm:p-8 transition-all duration-600 ease-in-out md:absolute md:inset-y-0 md:flex md:w-[58%] md:flex-col md:h-full md:overflow-y-auto md:pr-6 scroll-thin ${
               activeTab === "login"
-                ? "animate-panel-swap-out-right motion-reduce:animate-none"
-                : "animate-panel-swap-in-right motion-reduce:animate-none"
+                ? "md:left-[42%] md:animate-panel-swap-out-right motion-reduce:animate-none"
+                : "md:left-0 md:animate-panel-swap-in-right motion-reduce:animate-none"
             }`}
-            style={
-              {
-                left: activeTab === "login" ? "42%" : "0%",
-              } as CSSProperties
-            }
           >
-            <div className="mb-6 rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-800 p-5 text-white shadow-lg shadow-slate-900/20 md:hidden">
-              <div className="flex items-center gap-3">
-                <Image
-                  alt="Guardian 로고"
-                  height={38}
-                  src="/image/logo.png"
-                  width={38}
-                  priority
-                />
-                <p className="text-xl font-semibold uppercase tracking-[0.2em]">
-                  Guardian
-                </p>
-              </div>
-              <p className="mt-4 text-lg font-semibold leading-tight">
-                간병 관리와 간병인을 위한
-                <br />
-                안정적인 시작
-              </p>
-              <div className="mt-3 space-y-2 text-sm text-indigo-50">
-                <div className="flex items-center gap-2">
-                  <span className="h-1.5 w-1.5 rounded-full bg-indigo-200" />
-                  <span>체계적인 복약 관리</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="h-1.5 w-1.5 rounded-full bg-indigo-200" />
-                  <span>누구든지 금방 서비스를 이용할 수 있습니다.</span>
-                </div>
-              </div>
-            </div>
+            <div className="hidden md:hidden" aria-hidden />
 
             <header className="flex flex-col gap-4">
               <div>
@@ -501,11 +462,11 @@ export default function Home() {
                 key={`${activeTab}-${transitionKey}`}
                 className={`rounded-2xl border border-slate-100 bg-white/90 p-6 shadow-inner shadow-slate-200 backdrop-blur ${
                   activeTab === "login"
-                    ? "animate-panel-from-left"
-                    : "animate-panel-from-right"
-                } animate-panel-crossfade motion-reduce:animate-none`}
+                    ? "md:animate-panel-from-left"
+                    : "md:animate-panel-from-right"
+                } md:animate-panel-crossfade motion-reduce:animate-none`}
               >
-                <div className="animate-content-fade-in-out motion-reduce:animate-none">
+                <div className="md:animate-content-fade-in-out motion-reduce:animate-none">
                   {activeTab === "login" ? (
                     <form className="grid gap-5" onSubmit={handleLoginSubmit}>
                       <label className={labelClassName}>

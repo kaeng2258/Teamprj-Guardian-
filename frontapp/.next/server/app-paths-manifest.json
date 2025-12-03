@@ -1,5 +1,5 @@
 {
-  "/page": "app/page.js",
+  "/manager/profile/edit/page": "app/manager/profile/edit/page.js",
   "/manager/mypage/page": "app/manager/mypage/page.js",
-  "/manager/profile/edit/page": "app/manager/profile/edit/page.js"
+  "/page": "app/page.js"
 }

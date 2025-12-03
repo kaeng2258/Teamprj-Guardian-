@@ -3254,6 +3254,18 @@ input::placeholder {
     bottom: 0px;
   }
 
+  .md\:left-0 {
+    left: 0px;
+  }
+
+  .md\:left-\[58\%\] {
+    left: 58%;
+  }
+
+  .md\:left-\[42\%\] {
+    left: 42%;
+  }
+
   .md\:col-span-2 {
     grid-column: span 2 / span 2;
   }
@@ -3292,6 +3304,10 @@ input::placeholder {
 
   .md\:w-\[58\%\] {
     width: 58%;
+  }
+
+  .md\:w-\[42\%\] {
+    width: 42%;
   }
 
   .md\:grid-cols-2 {

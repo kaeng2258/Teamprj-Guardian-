@@ -889,6 +889,11 @@ export default function ManagerMyPage() {
 
   const [activeStat, setActiveStat] = useState<(typeof managerStats)[number] | null>(null);
   type AlertTab = "overdue" | "chat" | "emergency";
+  const alertTabLabels: Record<AlertTab, string> = {
+    overdue: "미복약",
+    chat: "메시지",
+    emergency: "긴급 호출",
+  };
   const [managerAlertTab, setManagerAlertTab] = useState<AlertTab>("overdue");
   const [alertPage, setAlertPage] = useState<Record<AlertTab, number>>({
     overdue: 0,
@@ -899,6 +904,7 @@ export default function ManagerMyPage() {
   const [managerAlertsAcknowledged, setManagerAlertsAcknowledged] = useState(false);
   const PAGE_SIZE = 10;
   const [dismissedEmergencyIds, setDismissedEmergencyIds] = useState<Set<number>>(new Set());
+  const [dismissedOverdueLabels, setDismissedOverdueLabels] = useState<Set<string>>(new Set());
 
   const todayToken = useMemo(() => {
     const tokens = ["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"];
@@ -998,8 +1004,8 @@ export default function ManagerMyPage() {
         }
       });
     });
-    return list;
-  }, [dashboard, todayDateString, todayToken]);
+    return list.filter((item) => !dismissedOverdueLabels.has(item.label));
+  }, [dashboard, todayDateString, todayToken, dismissedOverdueLabels]);
 
   const overdueAlertLabels = useMemo(() => overdueAlerts.map((item) => item.label), [overdueAlerts]);
   const latestOverdueAlertTime = useMemo(
@@ -1177,6 +1183,14 @@ export default function ManagerMyPage() {
   const effectiveChatCount = managerAlertsAcknowledged ? 0 : displayChatAlerts.length;
   const effectiveEmergencyCount = managerAlertsAcknowledged ? 0 : emergencyAlerts.length;
   const totalPendingManagerAlerts = effectiveOverdueCount + effectiveChatCount + effectiveEmergencyCount;
+  const pendingAlertsByTab = useMemo(
+    () => ({
+      overdue: effectiveOverdueCount,
+      chat: effectiveChatCount,
+      emergency: effectiveEmergencyCount,
+    }),
+    [effectiveOverdueCount, effectiveChatCount, effectiveEmergencyCount],
+  );
 
   const handleSendClientEmergency = useCallback(async (clientId: number) => {
     setClientEmergencyMessage((prev) => ({ ...prev, [clientId]: undefined }));
@@ -1230,38 +1244,62 @@ export default function ManagerMyPage() {
     setManagerAlertsAcknowledged(lastAcknowledgedAt.getTime() >= latestAlertTime);
   }, [manager.userId, lastAcknowledgedAt, latestOverdueAlertTime, latestChatAlertTime, latestEmergencyAlertTime]);
 
-  const handleManagerAcknowledgeAlerts = useCallback(async () => {
-    if (!manager.userId) return;
+  const handleAcknowledgeCurrentTab = useCallback(async () => {
     setAckLoading(true);
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/emergency/alerts/acknowledge-all?managerId=${manager.userId}`,
-        { method: "POST" },
-      );
-      if (!response.ok) {
-        const message = await extractApiError(response, "알림을 확인 처리하지 못했습니다.");
-        throw new Error(message);
+      if (managerAlertTab === "overdue") {
+        setDismissedOverdueLabels((prev) => {
+          const next = new Set(prev);
+          overdueAlertLabels.forEach((label) => next.add(label));
+          return next;
+        });
+        setAlertPage((prev) => ({ ...prev, overdue: 0 }));
+      } else if (managerAlertTab === "chat") {
+        await Promise.all(displayChatAlerts.map((alert) => markChatAsRead(alert.roomId)));
+        setChatAlerts([]);
+        setAlertPage((prev) => ({ ...prev, chat: 0 }));
+      } else if (managerAlertTab === "emergency") {
+        const ids = emergencyAlertEntries.map((entry) => entry.alertId);
+        setDismissedEmergencyIds((prev) => {
+          const next = new Set(prev);
+          ids.forEach((id) => next.add(id));
+          return next;
+        });
+        await acknowledgeAllEmergency();
+        setAlertPage((prev) => ({ ...prev, emergency: 0 }));
       }
-      const now = new Date();
-      setLastAcknowledgedAt(now);
-      if (typeof window !== "undefined" && alertAckKey) {
-        try {
-          window.localStorage.setItem(alertAckKey, now.toISOString());
-        } catch {
-          // ignore storage error
+      const remainingOverdue = managerAlertTab === "overdue" ? 0 : effectiveOverdueCount;
+      const remainingChat = managerAlertTab === "chat" ? 0 : effectiveChatCount;
+      const remainingEmergency = managerAlertTab === "emergency" ? 0 : effectiveEmergencyCount;
+      if (remainingOverdue + remainingChat + remainingEmergency === 0) {
+        const now = new Date();
+        setLastAcknowledgedAt(now);
+        if (typeof window !== "undefined" && alertAckKey) {
+          try {
+            window.localStorage.setItem(alertAckKey, now.toISOString());
+          } catch {
+            // ignore storage error
+          }
         }
       }
-      setManagerAlertsAcknowledged(true);
-      setAlertPage({ overdue: 0, chat: 0, emergency: 0 });
-      setChatAlerts([]);
-      await loadDashboard();
     } catch (error) {
       const message = error instanceof Error ? error.message : "알림을 확인 처리하지 못했습니다.";
       setDashboardError(message);
     } finally {
       setAckLoading(false);
     }
-  }, [manager.userId, alertAckKey, loadDashboard]);
+  }, [
+    acknowledgeAllEmergency,
+    displayChatAlerts,
+    emergencyAlertEntries,
+    managerAlertTab,
+    markChatAsRead,
+    overdueAlertLabels,
+    alertAckKey,
+    effectiveOverdueCount,
+    effectiveChatCount,
+    effectiveEmergencyCount,
+  ]);
 
   const totalPages = useMemo(() => Math.max(1, Math.ceil(currentAlerts.length / PAGE_SIZE)), [currentAlerts.length]);
 
@@ -3610,11 +3648,11 @@ const WeeklyDayCard = ({
                                 );
                               })}
                             </div>
-                            <button
+                          <button
                               type="button"
                               className="ml-auto inline-flex h-10 items-center justify-center rounded-md border border-slate-200 px-3 text-xs font-semibold text-slate-700 transition hover:border-indigo-300 hover:text-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
-                              disabled={ackLoading || managerAlertsAcknowledged || totalPendingManagerAlerts === 0}
-                              onClick={handleManagerAcknowledgeAlerts}
+                              disabled={ackLoading || (pendingAlertsByTab[managerAlertTab] ?? 0) === 0}
+                              onClick={handleAcknowledgeCurrentTab}
                             >
                               {ackLoading ? "처리 중..." : "전부 확인"}
                             </button>

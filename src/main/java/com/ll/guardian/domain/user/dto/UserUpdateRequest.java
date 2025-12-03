@@ -12,5 +12,6 @@ public record UserUpdateRequest(
         String zipCode,
         String address,
         String detailAddress,
+        String phone,
         UserStatus status,
         String profileImageUrl) {}

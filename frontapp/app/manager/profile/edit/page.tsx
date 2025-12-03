@@ -19,12 +19,19 @@ const normalizeBirthDate = (value?: string | null) => {
   return value;
 };
 
+const parsePhoneParts = (value?: string | null): [string, string, string] => {
+  if (!value) return ["", "", ""];
+  const parts = value.split("-");
+  return [parts[0] ?? "", parts[1] ?? "", parts[2] ?? ""];
+};
+
 type UserSummary = {
   id: number;
   email: string;
   name: string;
   birthDate?: string | null;
   gender?: string | null;
+  phone?: string | null;
   zipCode?: string | null;
   address?: string | null;
   detailAddress?: string | null;
@@ -94,6 +101,9 @@ export default function ManagerProfileEditPage() {
   const [error, setError] = useState("");
   const [birthDate, setBirthDate] = useState("");
   const [gender, setGender] = useState("");
+  const [phone1, setPhone1] = useState("");
+  const [phone2, setPhone2] = useState("");
+  const [phone3, setPhone3] = useState("");
   const [zipCode, setZipCode] = useState("");
   const [address, setAddress] = useState("");
   const [detailAddress, setDetailAddress] = useState("");
@@ -113,6 +123,8 @@ export default function ManagerProfileEditPage() {
   const [theme, setTheme] = useState<ThemeMode>("light");
   const [textSize, setTextSize] = useState<TextSizeMode>("normal");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const phone2Ref = useRef<HTMLInputElement | null>(null);
+  const phone3Ref = useRef<HTMLInputElement | null>(null);
 
   const avatarInitial = useMemo(() => {
     if (name && name.trim().length > 0) return name.trim().slice(0, 1).toUpperCase();
@@ -153,6 +165,10 @@ export default function ManagerProfileEditPage() {
         setEmail(data.email ?? "");
         setBirthDate(normalizeBirthDate(data.birthDate));
         setGender(data.gender ?? "");
+        const [p1, p2, p3] = parsePhoneParts(data.phone);
+        setPhone1(p1);
+        setPhone2(p2);
+        setPhone3(p3);
         setZipCode(data.zipCode ? String(data.zipCode) : "");
         setAddress(data.address ?? "");
         setDetailAddress(data.detailAddress ?? "");
@@ -250,10 +266,21 @@ export default function ManagerProfileEditPage() {
       setError("이름을 입력해주세요.");
       return;
     }
+    if (
+      !phone1 ||
+      !phone2 ||
+      !phone3 ||
+      phone2.length < 4 ||
+      phone3.length < 4
+    ) {
+      setError("연락처를 모두 입력해주세요.");
+      return;
+    }
     if (!currentPassword.trim()) {
       setError("비밀번호를 입력해야 개인정보를 수정할 수 있습니다.");
       return;
     }
+    const phone = [phone1, phone2, phone3].join("-");
     setSaving(true);
     setError("");
     setMessage("");
@@ -266,6 +293,7 @@ export default function ManagerProfileEditPage() {
           name: name.trim(),
           birthDate: birthDate || null,
           gender: gender || null,
+          phone,
           zipCode: zipCode || null,
           address: address || null,
           detailAddress: detailAddress || null,
@@ -282,6 +310,10 @@ export default function ManagerProfileEditPage() {
       setUser(data);
       setProfileImageUrl(resolveProfileImageUrl(data.profileImageUrl) || DEFAULT_PROFILE_IMG);
       setBirthDate(normalizeBirthDate(data.birthDate));
+      const [np1, np2, np3] = parsePhoneParts(data.phone);
+      setPhone1(np1);
+      setPhone2(np2);
+      setPhone3(np3);
       setMessage("개인정보가 저장되었습니다.");
       setCurrentPassword("");
     } catch (e: any) {
@@ -297,6 +329,17 @@ export default function ManagerProfileEditPage() {
       setError("비밀번호를 입력해야 개인정보를 수정할 수 있습니다.");
       return;
     }
+    if (
+      !phone1 ||
+      !phone2 ||
+      !phone3 ||
+      phone2.length < 4 ||
+      phone3.length < 4
+    ) {
+      setError("연락처를 모두 입력해주세요.");
+      return;
+    }
+    const phone = [phone1, phone2, phone3].join("-");
     setSaving(true);
     setError("");
     setMessage("");
@@ -309,6 +352,7 @@ export default function ManagerProfileEditPage() {
           name: name.trim(),
           birthDate: birthDate || null,
           gender: gender || null,
+          phone,
           zipCode: zipCode || null,
           address: address || null,
           detailAddress: detailAddress || null,
@@ -324,6 +368,10 @@ export default function ManagerProfileEditPage() {
       const data: UserSummary = await res.json();
       setUser(data);
       setProfileImageUrl(resolveProfileImageUrl(data.profileImageUrl) || DEFAULT_PROFILE_IMG);
+      const [np1, np2, np3] = parsePhoneParts(data.phone);
+      setPhone1(np1);
+      setPhone2(np2);
+      setPhone3(np3);
       setMessage("기본 이미지로 변경되었습니다.");
       setCurrentPassword("");
     } catch (e: any) {
@@ -692,6 +740,68 @@ export default function ManagerProfileEditPage() {
                   <option value="MALE">남성</option>
                   <option value="FEMALE">여성</option>
                 </select>
+              </label>
+              <label className="flex flex-col gap-1 text-sm text-slate-700 dark:text-slate-200">
+                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">연락처</span>
+                <div className="grid grid-cols-[1fr_auto_1fr_auto_1fr] items-center gap-2 sm:gap-3">
+                  <input
+                    value={phone1}
+                    onChange={(e) => {
+                      const v = e.target.value.replace(/\\D/g, "");
+                      setPhone1(v);
+                      if (v.length === 3) {
+                        phone2Ref.current?.focus();
+                      }
+                    }}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900/60"
+                    inputMode="numeric"
+                    maxLength={3}
+                    placeholder="010"
+                  />
+                  <span className="text-lg font-semibold text-slate-400" aria-hidden>
+                    -
+                  </span>
+                  <input
+                    ref={phone2Ref}
+                    value={phone2}
+                    onChange={(e) => {
+                      const v = e.target.value.replace(/\\D/g, "");
+                      setPhone2(v);
+                      if (v.length === 4) {
+                        phone3Ref.current?.focus();
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Backspace" && phone2.length === 0) {
+                        phone2Ref.current?.previousElementSibling?.querySelector("input")?.focus();
+                      }
+                    }}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900/60"
+                    inputMode="numeric"
+                    maxLength={4}
+                    placeholder="0000"
+                  />
+                  <span className="text-lg font-semibold text-slate-400" aria-hidden>
+                    -
+                  </span>
+                  <input
+                    ref={phone3Ref}
+                    value={phone3}
+                    onChange={(e) => {
+                      const v = e.target.value.replace(/\\D/g, "");
+                      setPhone3(v);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Backspace" && phone3.length === 0) {
+                        phone2Ref.current?.focus();
+                      }
+                    }}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900/60"
+                    inputMode="numeric"
+                    maxLength={4}
+                    placeholder="0000"
+                  />
+                </div>
               </label>
               <div className="grid gap-3 sm:grid-cols-3">
                 <label className="flex flex-col gap-1 text-sm text-slate-700 dark:text-slate-200 sm:col-span-1">

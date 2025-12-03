@@ -15,6 +15,11 @@ public record UserRegistrationRequest(
                         message = "비밀번호는 8자 이상이며 영문과 숫자를 포함해야 합니다.")
                 String password,
         @NotBlank(message = "이름을 입력해주세요.") String name,
+        @NotBlank(message = "연락처를 입력해주세요.")
+                @Pattern(
+                        regexp = "^\\d{3}-\\d{3,4}-\\d{4}$",
+                        message = "올바른 전화번호 형식을 입력해주세요.")
+                String phone,
         @NotNull(message = "생년월일을 입력해주세요.") LocalDate birthDate,
         String gender,
         @NotBlank(message = "우편번호를 입력해주세요.") String zipCode,

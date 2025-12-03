@@ -103,8 +103,6 @@ export default function Home() {
   const inputClassName =
     "w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-[15px] transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 focus:outline-none placeholder:text-slate-400";
   const labelClassName = "flex flex-col gap-2 text-sm font-medium text-slate-800";
-  const sectionCardClass =
-    "rounded-2xl border border-slate-100 bg-slate-50/70 px-4 py-4 sm:px-5 sm:py-5";
   const statusClassName = {
     success:
       "rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-800",
@@ -509,235 +507,239 @@ export default function Home() {
                     </form>
                   ) : (
                     <form className="space-y-6" onSubmit={handleRegisterSubmit}>
-                      <div className={sectionCardClass}>
-                        <div className="flex items-center justify-between gap-2">
-                          <p className="text-sm font-semibold text-slate-800">기본 정보</p>
-                          <span className="text-xs text-slate-500">필수 입력</span>
-                        </div>
-                        <div className="mt-4 grid gap-4 md:grid-cols-2">
-                          <label className={labelClassName}>
-                            <span>이름</span>
-                            <input
-                              aria-label="이름"
-                              autoComplete="name"
-                              className={inputClassName}
-                              onChange={(event) => setRegisterName(event.target.value)}
-                              placeholder="홍길동"
-                              required
-                              type="text"
-                              value={registerName}
-                            />
-                          </label>
-                          <label className={labelClassName}>
-                            <span>생년월일</span>
-                            <input
-                              aria-label="생년월일"
-                              className={`${inputClassName} ${
-                                registerBirthDate ? "text-slate-900" : "text-slate-400"
-                              }`}
-                              onChange={(event) => setRegisterBirthDate(event.target.value)}
-                              placeholder="YYYY-MM-DD"
-                              required
-                              type="date"
-                              value={registerBirthDate}
-                            />
-                          </label>
-                          <label className={`${labelClassName} md:col-span-2`}>
-                            <span>성별</span>
-                            <select
-                              aria-label="성별"
-                              className={`${inputClassName} ${
-                                registerGender ? "text-slate-900" : "text-slate-400"
-                              }`}
-                              value={registerGender}
-                              onChange={(event) => setRegisterGender(event.target.value)}
-                              required
-                            >
-                              <option value="" className="text-slate-400">
-                                선택해주세요
-                              </option>
-                              <option value="MALE" className="text-slate-900">
-                                남성
-                              </option>
-                              <option value="FEMALE" className="text-slate-900">
-                                여성
-                              </option>
-                            </select>
-                          </label>
-                        </div>
-                      </div>
-
-                      <div className={sectionCardClass}>
-                        <div className="flex items-center justify-between gap-2">
-                          <p className="text-sm font-semibold text-slate-800">계정 정보</p>
-                          <span className="text-xs text-slate-500">필수 입력</span>
-                        </div>
-                        <div className="mt-4 grid gap-4">
-                          <label className={labelClassName}>
-                            <span>이메일</span>
-                            <div className="flex flex-col gap-3 sm:flex-row">
-                              <input
-                                aria-label="회원가입 이메일"
-                                autoComplete="email"
-                                className={`${inputClassName} sm:flex-1`}
-                                onChange={(event) => {
-                                  const value = event.target.value;
-                                  setRegisterEmail(value);
-                                  if (value !== checkedEmail) {
-                                    setEmailCheckStatus("idle");
-                                    setEmailCheckMessage("");
-                                  }
-                                }}
-                                placeholder="you@example.com"
-                                required
-                                type="email"
-                                value={registerEmail}
-                              />
-                              <button
-                                className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 transition hover:border-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-100 disabled:cursor-not-allowed disabled:opacity-60"
-                                disabled={emailCheckStatus === "checking" || !registerEmail}
-                                onClick={handleEmailCheck}
-                                type="button"
-                              >
-                                {emailCheckStatus === "checking" ? "확인 중..." : "중복 확인"}
-                              </button>
+                      <div className="rounded-2xl bg-white/80 p-4 shadow-sm sm:p-5">
+                        <div className="space-y-6 divide-y divide-slate-200">
+                          <section className="space-y-4">
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="text-sm font-semibold text-slate-800">기본 정보</p>
+                              <span className="text-xs text-slate-500">필수 입력</span>
                             </div>
-                            {emailCheckMessage && (
-                              <p
-                                className={`text-sm ${
-                                  emailCheckStatus === "available"
-                                    ? "text-emerald-700"
-                                    : "text-rose-700"
-                                }`}
-                              >
-                                {emailCheckMessage}
-                              </p>
-                            )}
-                          </label>
+                            <div className="grid gap-4 md:grid-cols-2">
+                              <label className={labelClassName}>
+                                <span>이름</span>
+                                <input
+                                  aria-label="이름"
+                                  autoComplete="name"
+                                  className={inputClassName}
+                                  onChange={(event) => setRegisterName(event.target.value)}
+                                  placeholder="홍길동"
+                                  required
+                                  type="text"
+                                  value={registerName}
+                                />
+                              </label>
+                              <label className={labelClassName}>
+                                <span>생년월일</span>
+                                <input
+                                  aria-label="생년월일"
+                                  className={`${inputClassName} ${
+                                    registerBirthDate ? "text-slate-900" : "text-slate-400"
+                                  }`}
+                                  onChange={(event) => setRegisterBirthDate(event.target.value)}
+                                  placeholder="YYYY-MM-DD"
+                                  required
+                                  type="date"
+                                  value={registerBirthDate}
+                                />
+                              </label>
+                              <label className={`${labelClassName} md:col-span-2`}>
+                                <span>성별</span>
+                                <select
+                                  aria-label="성별"
+                                  className={`${inputClassName} ${
+                                    registerGender ? "text-slate-900" : "text-slate-400"
+                                  }`}
+                                  value={registerGender}
+                                  onChange={(event) => setRegisterGender(event.target.value)}
+                                  required
+                                >
+                                  <option value="" className="text-slate-400">
+                                    선택해주세요
+                                  </option>
+                                  <option value="MALE" className="text-slate-900">
+                                    남성
+                                  </option>
+                                  <option value="FEMALE" className="text-slate-900">
+                                    여성
+                                  </option>
+                                </select>
+                              </label>
+                            </div>
+                          </section>
 
-                          <div className="grid gap-4 md:grid-cols-2">
-                            <label className={labelClassName}>
-                              <span>비밀번호</span>
+                          <section className="space-y-4 pt-6">
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="text-sm font-semibold text-slate-800">계정 정보</p>
+                              <span className="text-xs text-slate-500">필수 입력</span>
+                            </div>
+                            <div className="grid gap-4">
+                              <label className={labelClassName}>
+                                <span>이메일</span>
+                                <div className="flex flex-col gap-3 sm:flex-row">
+                                  <input
+                                    aria-label="회원가입 이메일"
+                                    autoComplete="email"
+                                    className={`${inputClassName} sm:flex-1`}
+                                    onChange={(event) => {
+                                      const value = event.target.value;
+                                      setRegisterEmail(value);
+                                      if (value !== checkedEmail) {
+                                        setEmailCheckStatus("idle");
+                                        setEmailCheckMessage("");
+                                      }
+                                    }}
+                                    placeholder="you@example.com"
+                                    required
+                                    type="email"
+                                    value={registerEmail}
+                                  />
+                                  <button
+                                    className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 transition hover:border-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-100 disabled:cursor-not-allowed disabled:opacity-60"
+                                    disabled={emailCheckStatus === "checking" || !registerEmail}
+                                    onClick={handleEmailCheck}
+                                    type="button"
+                                  >
+                                    {emailCheckStatus === "checking" ? "확인 중..." : "중복 확인"}
+                                  </button>
+                                </div>
+                                {emailCheckMessage && (
+                                  <p
+                                    className={`text-sm ${
+                                      emailCheckStatus === "available"
+                                        ? "text-emerald-700"
+                                        : "text-rose-700"
+                                    }`}
+                                  >
+                                    {emailCheckMessage}
+                                  </p>
+                                )}
+                              </label>
+
+                              <div className="grid gap-4 md:grid-cols-2">
+                                <label className={labelClassName}>
+                                  <span>비밀번호</span>
+                                  <input
+                                    aria-label="회원가입 비밀번호"
+                                    autoComplete="new-password"
+                                    className={inputClassName}
+                                    onChange={(event) => setRegisterPassword(event.target.value)}
+                                    placeholder="영문, 숫자 포함 8자 이상"
+                                    required
+                                    type="password"
+                                    value={registerPassword}
+                                  />
+                                </label>
+                                <label className={labelClassName}>
+                                  <span>비밀번호 확인</span>
+                                  <input
+                                    aria-label="비밀번호 확인"
+                                    autoComplete="new-password"
+                                    className={inputClassName}
+                                    onChange={(event) =>
+                                      setRegisterConfirmPassword(event.target.value)
+                                    }
+                                    placeholder="비밀번호를 다시 입력하세요"
+                                    required
+                                    type="password"
+                                    value={registerConfirmPassword}
+                                  />
+                                </label>
+                              </div>
+
+                              <label className={labelClassName}>
+                                <span>가입 유형</span>
+                                <select
+                                  aria-label="가입 유형"
+                                  className={`${inputClassName} ${
+                                    registerRole ? "text-slate-900" : "text-slate-400"
+                                  }`}
+                                  onChange={(event) =>
+                                    setRegisterRole(event.target.value as RegisterRoleValue)
+                                  }
+                                  value={registerRole}
+                                >
+                                  <option disabled value="" className="text-slate-400">
+                                    회원 유형을 선택하세요
+                                  </option>
+                                  {Object.entries(roleLabels).map(([value, label]) => (
+                                    <option key={value} value={value} className="text-slate-900">
+                                      {label}
+                                    </option>
+                                  ))}
+                                </select>
+                              </label>
+                            </div>
+                          </section>
+
+                          <section className="space-y-4 pt-6">
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="text-sm font-semibold text-slate-800">주소</p>
+                              <span className="text-xs text-slate-500">필수 입력</span>
+                            </div>
+                            <div className="grid gap-3">
+                              <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
+                                <input
+                                  aria-label="우편번호"
+                                  className={inputClassName}
+                                  placeholder="우편번호"
+                                  readOnly
+                                  required
+                                  value={registerZipCode}
+                                />
+                                <button
+                                  className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 transition hover:border-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-100"
+                                  onClick={handleAddressSearch}
+                                  type="button"
+                                >
+                                  주소 검색
+                                </button>
+                              </div>
                               <input
-                                aria-label="회원가입 비밀번호"
-                                autoComplete="new-password"
+                                aria-label="기본 주소"
                                 className={inputClassName}
-                                onChange={(event) => setRegisterPassword(event.target.value)}
-                                placeholder="영문, 숫자 포함 8자 이상"
+                                placeholder="기본 주소"
+                                readOnly
                                 required
-                                type="password"
-                                value={registerPassword}
+                                value={registerAddress}
                               />
-                            </label>
-                            <label className={labelClassName}>
-                              <span>비밀번호 확인</span>
                               <input
-                                aria-label="비밀번호 확인"
-                                autoComplete="new-password"
+                                aria-label="상세 주소"
                                 className={inputClassName}
-                                onChange={(event) =>
-                                  setRegisterConfirmPassword(event.target.value)
-                                }
-                                placeholder="비밀번호를 다시 입력하세요"
-                                required
-                                type="password"
-                                value={registerConfirmPassword}
+                                onChange={(event) => setRegisterDetailAddress(event.target.value)}
+                                placeholder="상세 주소를 입력하세요"
+                                value={registerDetailAddress}
                               />
-                            </label>
-                          </div>
+                            </div>
+                          </section>
 
-                          <label className={labelClassName}>
-                            <span>가입 유형</span>
-                            <select
-                              aria-label="가입 유형"
-                              className={`${inputClassName} ${
-                                registerRole ? "text-slate-900" : "text-slate-400"
-                              }`}
-                              onChange={(event) =>
-                                setRegisterRole(event.target.value as RegisterRoleValue)
-                              }
-                              value={registerRole}
-                            >
-                              <option disabled value="" className="text-slate-400">
-                                회원 유형을 선택하세요
-                              </option>
-                              {Object.entries(roleLabels).map(([value, label]) => (
-                                <option key={value} value={value} className="text-slate-900">
-                                  {label}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
-                        </div>
-                      </div>
-
-                      <div className={sectionCardClass}>
-                        <div className="flex items-center justify-between gap-2">
-                          <p className="text-sm font-semibold text-slate-800">주소</p>
-                          <span className="text-xs text-slate-500">필수 입력</span>
-                        </div>
-                        <div className="mt-4 grid gap-3">
-                          <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
-                            <input
-                              aria-label="우편번호"
-                              className={inputClassName}
-                              placeholder="우편번호"
-                              readOnly
-                              required
-                              value={registerZipCode}
-                            />
-                            <button
-                              className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 transition hover:border-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-100"
-                              onClick={handleAddressSearch}
-                              type="button"
-                            >
-                              주소 검색
-                            </button>
-                          </div>
-                          <input
-                            aria-label="기본 주소"
-                            className={inputClassName}
-                            placeholder="기본 주소"
-                            readOnly
-                            required
-                            value={registerAddress}
-                          />
-                          <input
-                            aria-label="상세 주소"
-                            className={inputClassName}
-                            onChange={(event) => setRegisterDetailAddress(event.target.value)}
-                            placeholder="상세 주소를 입력하세요"
-                            value={registerDetailAddress}
-                          />
-                        </div>
-                      </div>
-
-                      <div className={sectionCardClass}>
-                        <div className="flex items-center justify-between gap-2">
-                          <p className="text-sm font-semibold text-slate-800">약관 동의</p>
-                          <span className="text-xs text-slate-500">필수 입력</span>
-                        </div>
-                        <div className="mt-4 grid gap-3">
-                          <label className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 shadow-inner shadow-slate-50">
-                            <input
-                              checked={registerTermsAgreed}
-                              className="mt-1 h-4 w-4 accent-slate-900"
-                              onChange={(event) => setRegisterTermsAgreed(event.target.checked)}
-                              type="checkbox"
-                            />
-                            <span>이용약관(필수)을 확인하고 동의합니다.</span>
-                          </label>
-                          <label className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 shadow-inner shadow-slate-50">
-                            <input
-                              checked={registerPrivacyAgreed}
-                              className="mt-1 h-4 w-4 accent-slate-900"
-                              onChange={(event) =>
-                                setRegisterPrivacyAgreed(event.target.checked)
-                              }
-                              type="checkbox"
-                            />
-                            <span>개인정보 처리방침(필수)에 동의합니다.</span>
-                          </label>
+                          <section className="space-y-4 pt-6">
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="text-sm font-semibold text-slate-800">약관 동의</p>
+                              <span className="text-xs text-slate-500">필수 입력</span>
+                            </div>
+                            <div className="grid gap-3">
+                              <label className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 shadow-inner shadow-slate-50">
+                                <input
+                                  checked={registerTermsAgreed}
+                                  className="mt-1 h-4 w-4 accent-slate-900"
+                                  onChange={(event) => setRegisterTermsAgreed(event.target.checked)}
+                                  type="checkbox"
+                                />
+                                <span>이용약관(필수)을 확인하고 동의합니다.</span>
+                              </label>
+                              <label className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 shadow-inner shadow-slate-50">
+                                <input
+                                  checked={registerPrivacyAgreed}
+                                  className="mt-1 h-4 w-4 accent-slate-900"
+                                  onChange={(event) =>
+                                    setRegisterPrivacyAgreed(event.target.checked)
+                                  }
+                                  type="checkbox"
+                                />
+                                <span>개인정보 처리방침(필수)에 동의합니다.</span>
+                              </label>
+                            </div>
+                          </section>
                         </div>
                       </div>
 

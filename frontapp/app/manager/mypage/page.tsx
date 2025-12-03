@@ -2413,7 +2413,7 @@ const WeeklyDayCard = ({
     if (payload.active !== undefined) {
       planPatch.active = payload.active;
     }
-    if (payload.medicineId !== undefined) {
+    if (payload.medicineId != null) {
       planPatch.medicineId = payload.medicineId;
     }
     if (previousSnapshot && Object.keys(planPatch).length > 0) {

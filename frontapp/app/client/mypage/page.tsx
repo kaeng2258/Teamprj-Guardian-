@@ -1291,7 +1291,7 @@ export default function ClientMyPage() {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-4 sm:gap-5">
               <div className="relative">
-                <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full border-2 border-indigo-200 bg-indigo-50 text-lg font-semibold text-indigo-700">
+                <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full border-2 border-amber-200 bg-indigo-50 text-lg font-semibold text-indigo-700">
                   {client.profileImageUrl ? (
                     <img
                       src={client.profileImageUrl}

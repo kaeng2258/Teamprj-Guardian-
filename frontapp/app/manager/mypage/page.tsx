@@ -13,6 +13,7 @@ import {
   ChangeEvent,
   FormEvent,
   type JSX,
+  type CSSProperties,
   useCallback,
   useEffect,
   useMemo,
@@ -433,8 +434,18 @@ export default function ManagerMyPage() {
   >({});
   const [clientModalClientId, setClientModalClientId] = useState<number | null>(null);
   const [clientFilter, setClientFilter] = useState("");
-  const [activePanel, setActivePanel] =
-    useState<ManagerPanel>("client");
+  const [activePanel, setActivePanel] = useState<ManagerPanel>("client");
+  const managerActionCount = managerQuickActions.length;
+  const managerActiveIndex = managerQuickActions.findIndex(
+    (action) => action.value === activePanel
+  );
+  const managerIndicatorStyle: CSSProperties =
+    managerActiveIndex >= 0
+      ? {
+          width: "33.3333%",
+          transform: `translateX(${managerActiveIndex * 100}%)`,
+        }
+      : {};
   const [selectedDrugDetailSeq, setSelectedDrugDetailSeq] = useState<
     string | null
   >(null);
@@ -3431,34 +3442,45 @@ const WeeklyDayCard = ({
             </p>
           )}
             <div className="flex flex-col gap-3">
-              <div className="flex gap-3 pb-2 sm:grid sm:grid-cols-3 sm:gap-3 sm:pb-0">
-                {managerQuickActions.map((action) => {
-                  const isActive = activePanel === action.value;
-                  return (
-                    <button
-                      key={action.value}
-                      type="button"
-                      onClick={() => setActivePanel(action.value)}
-                      className={`group flex flex-1 min-w-0 flex-col gap-1 rounded-2xl border px-3 py-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow sm:px-4 ${
-                        isActive
-                          ? "border-indigo-500 bg-indigo-50"
-                          : "border-slate-200 bg-white hover:border-indigo-300"
-                      }`}
-                    >
-                      <span
-                        className={`inline-flex h-8 w-8 items-center justify-center rounded-full text-[0.7rem] font-semibold text-white ${action.accent}`}
+              <div className="relative overflow-hidden rounded-2xl border border-blue-100 bg-white p-1 text-slate-900 shadow-[0_12px_30px_rgba(37,99,235,0.08)]">
+                <span
+                  aria-hidden
+                  className="pointer-events-none absolute inset-y-1 left-1 w-1/3 rounded-xl bg-gradient-to-r from-blue-400 via-blue-500 to-indigo-600 shadow-lg shadow-blue-400/50 transition-transform duration-500 ease-out"
+                  style={managerIndicatorStyle}
+                />
+                <div className="relative z-10 grid grid-cols-3 gap-2">
+                  {managerQuickActions.map((action) => {
+                    const isActive = activePanel === action.value;
+                    return (
+                      <button
+                        key={action.value}
+                        type="button"
+                        onClick={() => setActivePanel(action.value)}
+                        className={`group relative z-10 flex flex-col gap-1 rounded-xl border px-3 py-3 text-left transition duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-200 focus-visible:ring-offset-2 focus-visible:ring-offset-white ${
+                          isActive
+                            ? "border-blue-500 bg-blue-50 text-blue-900 shadow-sm shadow-blue-200"
+                            : "border-transparent bg-white/80 text-slate-800 hover:border-blue-200 hover:bg-white"
+                        }`}
                       >
-                        {action.icon ?? action.label.slice(0, 1)}
-                      </span>
-                      <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                        {action.label}
-                      </span>
-                      <span className="text-xs text-slate-500 dark:text-slate-400">
-                        {action.description}
-                      </span>
-                    </button>
-                  );
-                })}
+                        <span
+                        className={`inline-flex h-9 w-9 items-center justify-center rounded-full text-[0.7rem] font-semibold text-white shadow-sm shadow-blue-500/30 transition duration-300 ${
+                            isActive ? "scale-105" : "scale-100"
+                          } ${isActive ? "bg-blue-600" : action.accent}`}
+                        >
+                          {action.icon ?? action.label.slice(0, 1)}
+                        </span>
+                        <span className="text-sm font-semibold">{action.label}</span>
+                        <span
+                          className={`text-xs ${
+                            isActive ? "text-amber-700" : "text-slate-500"
+                          }`}
+                        >
+                          {action.description}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
         </header>

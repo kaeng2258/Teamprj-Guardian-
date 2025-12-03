@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState, type CSSProperties } from "react";
 
@@ -370,34 +371,45 @@ export default function Home() {
           >
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.06),transparent_35%),radial-gradient(circle_at_78%_28%,rgba(79,70,229,0.18),transparent_32%)]" />
             <div className="relative space-y-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.35em] text-indigo-100">
-                Guardian
-              </p>
+              <div className="flex items-center gap-3">
+                <Image
+                  alt="Guardian 로고"
+                  height={42}
+                  src="/image/logo.png"
+                  width={42}
+                  priority
+                />
+                <p className="text-4xl font-semibold uppercase tracking-[0.24em] text-indigo-100 leading-none">
+                  Guardian
+                </p>
+              </div>
               <h1 className="text-3xl font-semibold leading-tight">
-                간병 관리와 간병인을 위한 안정적인 시작
+                간병 관리와 간병인을 위한
+                <br />
+                안정적인 시작
               </h1>
               <p className="text-sm text-slate-200/90">
                 한 계정으로 일정을 확인하고 필요한 서비스를 바로 이용하세요.
               </p>
             </div>
-            <div className="relative mt-8 grid gap-3 text-sm">
-              <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 backdrop-blur">
-                <p className="font-semibold text-white">깔끔한 흐름</p>
-                <p className="mt-1 text-slate-200/90">
-                  로그인과 회원가입을 동일한 레이아웃으로 제공합니다.
-                </p>
+              <div className="relative mt-8 grid gap-3 text-sm">
+                <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 backdrop-blur">
+                  <p className="font-semibold text-white">체계적인 복약 관리</p>
+                  <p className="mt-1 text-slate-200/90">
+                    일정, 약물, 주기 알림을 한 화면에서 관리할 수 있습니다.
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 backdrop-blur">
+                  <p className="font-semibold text-white">손쉬운 사용</p>
+                  <p className="mt-1 text-slate-200/90">
+                    누구든지 금방 서비스를 이용할 수 있습니다.
+                  </p>
+                </div>
               </div>
-              <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 backdrop-blur">
-                <p className="font-semibold text-white">필수 정보만</p>
-                <p className="mt-1 text-slate-200/90">
-                  필요한 항목만 간결하게 배치해 빠르게 완료할 수 있습니다.
-                </p>
-              </div>
-            </div>
           </section>
 
           <section
-            className={`relative p-7 sm:p-10 transition-all duration-600 ease-in-out md:absolute md:inset-y-0 md:flex md:w-[58%] md:flex-col md:h-full md:overflow-y-auto md:pr-6 ${
+            className={`relative p-6 sm:p-8 transition-all duration-600 ease-in-out md:absolute md:inset-y-0 md:flex md:w-[58%] md:flex-col md:h-full md:overflow-y-auto md:pr-6 scroll-thin ${
               activeTab === "login"
                 ? "animate-panel-swap-out-right motion-reduce:animate-none"
                 : "animate-panel-swap-in-right motion-reduce:animate-none"
@@ -408,6 +420,36 @@ export default function Home() {
               } as CSSProperties
             }
           >
+            <div className="mb-6 rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-800 p-5 text-white shadow-lg shadow-slate-900/20 md:hidden">
+              <div className="flex items-center gap-3">
+                <Image
+                  alt="Guardian 로고"
+                  height={38}
+                  src="/image/logo.png"
+                  width={38}
+                  priority
+                />
+                <p className="text-xl font-semibold uppercase tracking-[0.2em]">
+                  Guardian
+                </p>
+              </div>
+              <p className="mt-4 text-lg font-semibold leading-tight">
+                간병 관리와 간병인을 위한
+                <br />
+                안정적인 시작
+              </p>
+              <div className="mt-3 space-y-2 text-sm text-indigo-50">
+                <div className="flex items-center gap-2">
+                  <span className="h-1.5 w-1.5 rounded-full bg-indigo-200" />
+                  <span>체계적인 복약 관리</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="h-1.5 w-1.5 rounded-full bg-indigo-200" />
+                  <span>누구든지 금방 서비스를 이용할 수 있습니다.</span>
+                </div>
+              </div>
+            </div>
+
             <header className="flex flex-col gap-4">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.28em] text-indigo-600">
@@ -463,9 +505,7 @@ export default function Home() {
                     : "animate-panel-from-right"
                 } animate-panel-crossfade motion-reduce:animate-none`}
               >
-                <div
-                  className="animate-content-fade-in-out motion-reduce:animate-none"
-                >
+                <div className="animate-content-fade-in-out motion-reduce:animate-none">
                   {activeTab === "login" ? (
                     <form className="grid gap-5" onSubmit={handleLoginSubmit}>
                       <label className={labelClassName}>

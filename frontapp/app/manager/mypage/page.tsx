@@ -1048,7 +1048,10 @@ export default function ManagerMyPage() {
             : "아직 담당 인원이 없습니다. 관리자나 매칭을 통해 배정해 주세요.",
         items: (dashboard?.clients ?? [])
           .slice(0, 5)
-          .map((c) => `${c.clientName} / 일정 ${c.medicationPlans.length}건 / 알림 ${c.emergencyAlerts.length}건`),
+          .map((c) => ({
+            label: `${c.clientName} / 일정 ${c.medicationPlans.length}건 / 알림 ${c.emergencyAlerts.length}건`,
+            clientId: c.clientId,
+          })),
       },
       {
         key: "pending",
@@ -3803,15 +3806,27 @@ const WeeklyDayCard = ({
                             <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3">
                               <p className="text-sm font-semibold text-slate-800">주요 항목 {activeStat.items.length}건</p>
                               <ul className="mt-2 space-y-2">
-                                {activeStat.items.map((item, idx) => (
+                                {activeStat.items.map((item: any, idx) => (
                                   <li
                                     key={`${activeStat.key}-item-${idx}`}
-                                    className="flex items-start gap-2 rounded-lg bg-white px-3 py-2 text-sm text-slate-800 shadow-sm"
+                                    className="flex items-start gap-2 rounded-lg bg-white px-3 py-2 text-sm text-slate-800 shadow-sm transition hover:-translate-y-0.5 hover:shadow"
                                   >
                                     <span className="mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-indigo-100 text-[11px] font-semibold text-indigo-700">
                                       {idx + 1}
                                     </span>
-                                    <span className="leading-relaxed">{item}</span>
+                                    <button
+                                      type="button"
+                                      className="flex-1 text-left leading-relaxed focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500"
+                                      onClick={() => {
+                                        const targetId = typeof item === "string" ? null : item.clientId;
+                                        if (targetId) {
+                                          setClientModalClientId(targetId);
+                                          setActiveStat(null);
+                                        }
+                                      }}
+                                    >
+                                      {typeof item === "string" ? item : item.label}
+                                    </button>
                                   </li>
                                 ))}
                               </ul>
@@ -3895,6 +3910,7 @@ const WeeklyDayCard = ({
                 }
                 const showUnassign = assignedToCurrent;
                 const unassignDisabled = isAssigning || isUnassigning;
+                const canSendEmergency = assignedToCurrent;
 
                 const addressDisplay = formatAddress(result.address, result.detailAddress);
                 const computedAge =
@@ -4058,7 +4074,7 @@ const WeeklyDayCard = ({
                               e.stopPropagation();
                               handleSendClientEmergency(result.clientId);
                             }}
-                            disabled={clientEmergencySending[result.clientId]}
+                            disabled={clientEmergencySending[result.clientId] || !canSendEmergency}
                           >
                             <svg
                               aria-hidden="true"
@@ -4075,7 +4091,11 @@ const WeeklyDayCard = ({
                               <path d="M5.5 6.5 4 5" strokeLinecap="round" strokeLinejoin="round" />
                               <path d="M18.5 6.5 20 5" strokeLinecap="round" strokeLinejoin="round" />
                             </svg>
-                            {clientEmergencySending[result.clientId] ? "전송 중..." : "긴급 호출"}
+                            {clientEmergencySending[result.clientId]
+                              ? "전송 중..."
+                              : canSendEmergency
+                                ? "긴급 호출"
+                                : "배정 후 호출 가능"}
                           </button>
                           {clientEmergencyMessage[result.clientId] && (
                             <p

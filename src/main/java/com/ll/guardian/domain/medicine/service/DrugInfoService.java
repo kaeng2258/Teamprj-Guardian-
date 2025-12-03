@@ -110,7 +110,7 @@ public class DrugInfoService {
 
     private Medicine findByNameOrCreatePlaceholder(String itemSeq, String name) {
         return medicineRepository
-                .findByNameIgnoreCase(name)
+                .findByProductCode(itemSeq)
                 .orElseGet(() -> createPlaceholderMedicine(itemSeq, name));
     }
 

@@ -149,6 +149,9 @@ public class UserService {
                         profile.getDetailAddress(),
                         profile.getZipCode(),
                         user.getPhone());
+            } // Closing brace for if (profile != null)
+        } // Closing brace for if (user.getRole() == UserRole.CLIENT)
+        // This is the default return for the updateUser method
         return new UserResponse(
                 user.getId(),
                 user.getEmail(),

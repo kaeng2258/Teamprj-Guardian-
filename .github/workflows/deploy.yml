@@ -35,8 +35,8 @@ jobs:
         run: |
           cd frontapp
           npm ci
-          npm run build
-          npm run export   # 🔥 out/ 폴더 생성
+          npm run build   # ✅ 이거 하나면 .next/standalone 이 생성됨
+      
 
       # -----------------------------
       # EC2로 파일 전송
@@ -48,17 +48,23 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          source: "backend/build/libs/*.jar"   # 🔥 수정
+          source: "backend/build/libs/*.jar"   # 🔥 반드시 이렇게 (backend/ 포함)
           target: "/home/ec2-user/app/backend/"
 
-      - name: Upload Frontend static files to EC2
+
+      # 7) 프론트 Next.js standalone 서버 파일 업로드
+      - name: Upload Frontend app to EC2
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          source: "frontapp/out/*"             # 🔥 이제 실제로 파일 존재
-          target: "/var/www/guardian-frontend/"
+          source: |
+            frontapp/.next/standalone/**
+            frontapp/.next/static/**
+            frontapp/public/**
+            frontapp/package.json
+          target: "/home/ec2-user/app/frontend"
           rm: true
 
       # -----------------------------

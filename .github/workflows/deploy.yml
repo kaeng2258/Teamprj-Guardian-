@@ -33,13 +33,12 @@ jobs:
         with:
           node-version: 20
 
-      # 5) 프론트 빌드 + export
-      - name: Build Frontend (Next.js export)
+      # 5) 프론트 빌드 (Next.js 서버 렌더용 빌드만)
+      - name: Build Frontend (Next.js)
         run: |
           cd frontapp
-          npm install
+          npm ci
           npm run build
-          npm run export
 
       # -----------------------------
       # EC2로 파일 전송
@@ -55,7 +54,7 @@ jobs:
           source: "build/libs/*.jar"
           target: "/home/ec2-user/app/backend/"
 
-      # 7) 프론트 정적 파일(out) EC2로 업로드
+          # 7) 프론트 정적 파일(out) EC2로 업로드
       - name: Upload Frontend static files to EC2
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -65,6 +64,7 @@ jobs:
           source: "frontapp/out/*"
           target: "/var/www/guardian-frontend/"
           rm: true   # 기존 파일 삭제 후 업로드 (정적 사이트는 이게 편함)
+
 
       # -----------------------------
       # EC2 안에서 서비스 재시작

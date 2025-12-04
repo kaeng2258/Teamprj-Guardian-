@@ -1,6 +1,7 @@
 "use client";
 
 import { resolveProfileImageUrl } from "@/lib/image";
+import PhoneNumberInput from "@/components/PhoneNumberInput";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -127,8 +128,6 @@ export default function ClientProfileEditPage() {
   const [theme, setTheme] = useState<ThemeMode>("light");
   const [textSize, setTextSize] = useState<TextSizeMode>("normal");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const phone2Ref = useRef<HTMLInputElement | null>(null);
-  const phone3Ref = useRef<HTMLInputElement | null>(null);
 
   const avatarInitial = useMemo(() => {
     if (name && name.trim().length > 0) return name.trim().slice(0, 1).toUpperCase();
@@ -746,65 +745,16 @@ export default function ClientProfileEditPage() {
               </label>
               <label className="flex flex-col gap-1 text-sm text-slate-700 dark:text-slate-200">
                 <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">연락처</span>
-                <div className="grid grid-cols-[1fr_auto_1fr_auto_1fr] items-center gap-2 sm:gap-3">
-                  <input
-                    value={phone1}
-                    onChange={(e) => {
-                      const v = e.target.value.replace(/\\D/g, "");
-                      setPhone1(v);
-                      if (v.length === 3) {
-                        phone2Ref.current?.focus();
-                      }
-                    }}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900/60"
-                    inputMode="numeric"
-                    maxLength={3}
-                    placeholder="010"
-                  />
-                  <span className="text-lg font-semibold text-slate-400" aria-hidden>
-                    -
-                  </span>
-                  <input
-                    ref={phone2Ref}
-                    value={phone2}
-                    onChange={(e) => {
-                      const v = e.target.value.replace(/\\D/g, "");
-                      setPhone2(v);
-                      if (v.length === 4) {
-                        phone3Ref.current?.focus();
-                      }
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === "Backspace" && phone2.length === 0) {
-                        phone2Ref.current?.previousElementSibling?.querySelector("input")?.focus();
-                      }
-                    }}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900/60"
-                    inputMode="numeric"
-                    maxLength={4}
-                    placeholder="0000"
-                  />
-                  <span className="text-lg font-semibold text-slate-400" aria-hidden>
-                    -
-                  </span>
-                  <input
-                    ref={phone3Ref}
-                    value={phone3}
-                    onChange={(e) => {
-                      const v = e.target.value.replace(/\\D/g, "");
-                      setPhone3(v);
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === "Backspace" && phone3.length === 0) {
-                        phone2Ref.current?.focus();
-                      }
-                    }}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900/60"
-                    inputMode="numeric"
-                    maxLength={4}
-                    placeholder="0000"
-                  />
-                </div>
+                <PhoneNumberInput
+                  inputClassName="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900/60"
+                  onChange={({ first, middle, last }) => {
+                    setPhone1(first);
+                    setPhone2(middle);
+                    setPhone3(last);
+                  }}
+                  parts={{ first: phone1, middle: phone2, last: phone3 }}
+                  placeholders={{ first: "010", middle: "0000", last: "0000" }}
+                />
               </label>
               <div className="grid gap-3 sm:grid-cols-3">
                 <label className="flex flex-col gap-1 text-sm text-slate-700 dark:text-slate-200 sm:col-span-1">

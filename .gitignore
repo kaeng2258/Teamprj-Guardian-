@@ -42,9 +42,11 @@ out/
 
 # Node
 node_modules
-<<<<<<< HEAD
-=======
+/frontapp/.next
+/frontapp/.turbo
+/frontapp/coverage
+/frontapp/.eslintcache
+/frontapp/.env.local
 
-#keystore
+# keystore
 keystore.p12
->>>>>>> origin/js

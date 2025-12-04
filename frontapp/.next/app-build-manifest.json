@@ -1,87 +1,40 @@
 {
   "pages": {
-    "/_not-found/page": [
-      "static/chunks/webpack-03f7c6bc932ce1e3.js",
-      "static/chunks/fd9d1056-cdb8c6ab973c9775.js",
-      "static/chunks/117-f69442affb9e5407.js",
-      "static/chunks/main-app-3121b99d0d8fa2b4.js",
-      "static/chunks/app/_not-found/page-0731755de0c8be44.js"
+    "/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/page.js"
     ],
     "/layout": [
-      "static/chunks/webpack-03f7c6bc932ce1e3.js",
-      "static/chunks/fd9d1056-cdb8c6ab973c9775.js",
-      "static/chunks/117-f69442affb9e5407.js",
-      "static/chunks/main-app-3121b99d0d8fa2b4.js",
-      "static/css/7f59fc55509ad974.css",
-      "static/chunks/app/layout-522c2b6d68f10269.js"
-    ],
-    "/chat/[roomId]/page": [
-      "static/chunks/webpack-03f7c6bc932ce1e3.js",
-      "static/chunks/fd9d1056-cdb8c6ab973c9775.js",
-      "static/chunks/117-f69442affb9e5407.js",
-      "static/chunks/main-app-3121b99d0d8fa2b4.js",
-      "static/chunks/912-46c32f285c922f53.js",
-      "static/chunks/app/chat/[roomId]/page-55ebf421d08da27c.js"
-    ],
-    "/chat/page": [
-      "static/chunks/webpack-03f7c6bc932ce1e3.js",
-      "static/chunks/fd9d1056-cdb8c6ab973c9775.js",
-      "static/chunks/117-f69442affb9e5407.js",
-      "static/chunks/main-app-3121b99d0d8fa2b4.js",
-      "static/chunks/847-29b4ee030b7dcef6.js",
-      "static/chunks/912-46c32f285c922f53.js",
-      "static/chunks/app/chat/page-b77abe22b90ce54c.js"
-    ],
-    "/client/profile/edit/page": [
-      "static/chunks/webpack-03f7c6bc932ce1e3.js",
-      "static/chunks/fd9d1056-cdb8c6ab973c9775.js",
-      "static/chunks/117-f69442affb9e5407.js",
-      "static/chunks/main-app-3121b99d0d8fa2b4.js",
-      "static/chunks/app/client/profile/edit/page-08115b978a86d4b8.js"
-    ],
-    "/admin/page": [
-      "static/chunks/webpack-03f7c6bc932ce1e3.js",
-      "static/chunks/fd9d1056-cdb8c6ab973c9775.js",
-      "static/chunks/117-f69442affb9e5407.js",
-      "static/chunks/main-app-3121b99d0d8fa2b4.js",
-      "static/chunks/app/admin/page-c6514d9277bcbea2.js"
-    ],
-    "/client/mypage/page": [
-      "static/chunks/webpack-03f7c6bc932ce1e3.js",
-      "static/chunks/fd9d1056-cdb8c6ab973c9775.js",
-      "static/chunks/117-f69442affb9e5407.js",
-      "static/chunks/main-app-3121b99d0d8fa2b4.js",
-      "static/chunks/870fdd6f-920a8f25c56967d4.js",
-      "static/chunks/847-29b4ee030b7dcef6.js",
-      "static/chunks/910-d6d2651ef1c6d2af.js",
-      "static/chunks/350-e9ff22999b52f203.js",
-      "static/chunks/app/client/mypage/page-a898ce5e1496d439.js"
-    ],
-    "/page": [
-      "static/chunks/webpack-03f7c6bc932ce1e3.js",
-      "static/chunks/fd9d1056-cdb8c6ab973c9775.js",
-      "static/chunks/117-f69442affb9e5407.js",
-      "static/chunks/main-app-3121b99d0d8fa2b4.js",
-      "static/chunks/785-b70b9c02380f6d25.js",
-      "static/chunks/app/page-ee00292c730bcbbb.js"
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/css/app/layout.css",
+      "static/chunks/app/layout.js"
     ],
     "/manager/mypage/page": [
-      "static/chunks/webpack-03f7c6bc932ce1e3.js",
-      "static/chunks/fd9d1056-cdb8c6ab973c9775.js",
-      "static/chunks/117-f69442affb9e5407.js",
-      "static/chunks/main-app-3121b99d0d8fa2b4.js",
-      "static/chunks/870fdd6f-920a8f25c56967d4.js",
-      "static/chunks/847-29b4ee030b7dcef6.js",
-      "static/chunks/910-d6d2651ef1c6d2af.js",
-      "static/chunks/350-e9ff22999b52f203.js",
-      "static/chunks/app/manager/mypage/page-f36590f017bf19f8.js"
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/manager/mypage/page.js"
     ],
     "/manager/profile/edit/page": [
-      "static/chunks/webpack-03f7c6bc932ce1e3.js",
-      "static/chunks/fd9d1056-cdb8c6ab973c9775.js",
-      "static/chunks/117-f69442affb9e5407.js",
-      "static/chunks/main-app-3121b99d0d8fa2b4.js",
-      "static/chunks/app/manager/profile/edit/page-dd30312594510787.js"
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/manager/profile/edit/page.js"
+    ],
+    "/client/mypage/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/client/mypage/page.js"
+    ],
+    "/chat/[roomId]/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/chat/[roomId]/page.js"
+    ],
+    "/client/profile/edit/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/client/profile/edit/page.js"
     ]
   }
 }

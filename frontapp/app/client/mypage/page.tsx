@@ -1535,7 +1535,10 @@ export default function ClientMyPage() {
                           <button
                             className="inline-flex h-11 items-center justify-center rounded-xl bg-indigo-600 px-4 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-400"
                             disabled={activeStat.actionDisabled}
-                            onClick={handleStatAction}
+                            onClick={() => {
+  // TODO: 통계 카드 클릭 시 동작 구현
+  // 예: 라우팅, 모달 열기 등
+}}
                             type="button"
                           >
                             {activeStat.actionLabel}
@@ -1600,7 +1603,10 @@ export default function ClientMyPage() {
                         <button
                           className={`${primaryActionButton} mt-2`}
                           disabled={activeStat.actionDisabled}
-                          onClick={handleStatAction}
+                          onClick={() => {
+  // TODO: 통계 카드 클릭 시 동작 구현
+  // 예: 라우팅, 모달 열기 등
+}}
                           type="button"
                         >
                           {activeStat.actionLabel}

@@ -102,12 +102,31 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
+            set -e
             cd /home/ec2-user/app/backend
-            LATEST_JAR=$(ls -t *.jar | head -n 1)
-            mv "$LATEST_JAR" app.jar
+            
+            echo "=== 현재 디렉토리 ==="
+            pwd
+            
+            echo "=== backend 디렉토리 내용 ==="
+            ls
+            
+            echo "=== build/libs 안의 JAR 목록 ==="
+            ls build/libs || echo "build/libs 디렉토리가 없습니다."
+            LATEST_JAR=$(ls -t build/libs/*.jar | head -n 1)
+            
+            echo "선택된 최신 JAR: $LATEST_JAR"
+            
+            # 기존 app.jar 백업(선택)
+            if [ -f app.jar ]; then
+              mv app.jar app.jar.bak
+            fi
+            
+            # 새 JAR를 app.jar로 교체
+            cp "$LATEST_JAR" app.jar
+            
             sudo systemctl restart guardian-backend.service
             sudo systemctl status guardian-backend.service --no-pager -l
-
       # 9) (추후) 프론트용 systemd 서비스 만들어두면 여기서 재시작하면 됨
       # 예: guardian-frontend.service
 

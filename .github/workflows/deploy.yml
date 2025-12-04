@@ -3,17 +3,20 @@ name: Deploy Backend & Frontend to EC2
 on:
   push:
     branches:
-      - main
+      - main   # 배포 기준 브랜치
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
+      # 1) 레포지토리 체크아웃
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # =============================
       # Backend build
+      # =============================
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
@@ -25,7 +28,19 @@ jobs:
           chmod +x ./gradlew
           ./gradlew clean bootJar
 
-      # Frontend build
+      # (선택) 백엔드 JAR 디버그 출력
+      # - name: List backend jar files
+      #   run: |
+      #     echo "=== pwd ==="
+      #     pwd
+      #     echo "=== ls build ==="
+      #     ls build || echo "no build dir"
+      #     echo "=== ls build/libs ==="
+      #     ls build/libs || echo "no build/libs or no jar"
+
+      # =============================
+      # Frontend build (Next.js standalone)
+      # =============================
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
@@ -35,22 +50,32 @@ jobs:
         run: |
           cd frontapp
           npm ci
-          npm run build   # ✅ 이거 하나면 .next/standalone 이 생성됨
-      
+          npm run build   # next.config.js 에서 output: "standalone" 사용
 
-      # -----------------------------
+      # (선택) 프론트 빌드 결과 디버그
+      # - name: List frontend build outputs
+      #   run: |
+      #     echo "=== pwd ==="
+      #     pwd
+      #     echo "=== ls frontapp ==="
+      #     ls frontapp
+      #     echo "=== ls frontapp/.next ==="
+      #     ls frontapp/.next || echo "no .next"
+
+      # =============================
       # EC2로 파일 전송
-      # -----------------------------
+      # =============================
 
+      # 6) 백엔드 JAR EC2로 업로드
       - name: Upload Backend JAR to EC2
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          source: "build/libs/*.jar"      # ✅ 루트 기준 build/libs
+          # ✅ 루트 기준 build/libs/*.jar (로컬에서 확인한 위치와 동일)
+          source: "build/libs/*.jar"
           target: "/home/ec2-user/app/backend/"
-
 
       # 7) 프론트 Next.js standalone 서버 파일 업로드
       - name: Upload Frontend app to EC2
@@ -59,18 +84,17 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          source: |
-            frontapp/.next/standalone/**
-            frontapp/.next/static/**
-            frontapp/public/**
-            frontapp/package.json
+          # ✅ 여러 경로는 이렇게 콤마(,)로 한 줄에 써야 함
+          #   (멀티라인 | 쓰면 그대로 개행 포함된 이상한 경로 1개로 인식됨 → tar: empty archive)
+          source: "frontapp/.next/**,frontapp/public/**,frontapp/package.json"
           target: "/home/ec2-user/app/frontend"
           rm: true
 
-      # -----------------------------
+      # =============================
       # EC2 안에서 서비스 재시작
-      # -----------------------------
+      # =============================
 
+      # 8) 백엔드 서비스 재시작
       - name: Restart Backend Service on EC2
         uses: appleboy/ssh-action@v1.2.0
         with:
@@ -84,6 +108,21 @@ jobs:
             sudo systemctl restart guardian-backend.service
             sudo systemctl status guardian-backend.service --no-pager -l
 
+      # 9) (추후) 프론트용 systemd 서비스 만들어두면 여기서 재시작하면 됨
+      # 예: guardian-frontend.service
+
+      # - name: Restart Frontend Service on EC2
+      #   uses: appleboy/ssh-action@v1.2.0
+      #   with:
+      #     host: ${{ secrets.EC2_HOST }}
+      #     username: ${{ secrets.EC2_USER }}
+      #     key: ${{ secrets.EC2_SSH_KEY }}
+      #     script: |
+      #       sudo systemctl daemon-reload
+      #       sudo systemctl restart guardian-frontend.service
+      #       sudo systemctl status guardian-frontend.service --no-pager -l
+
+      # 10) Nginx reload
       - name: Reload Nginx
         uses: appleboy/ssh-action@v1.2.0
         with:

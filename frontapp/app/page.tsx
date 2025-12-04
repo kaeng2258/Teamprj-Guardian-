@@ -2,7 +2,8 @@
 
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { FormEvent, useEffect, useRef, useState, type CSSProperties } from "react";
+import { FormEvent, useEffect, useState, type CSSProperties } from "react";
+import PhoneNumberInput from "@/components/PhoneNumberInput";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "";
@@ -87,8 +88,6 @@ export default function Home() {
   const [registerPhone1, setRegisterPhone1] = useState("");
   const [registerPhone2, setRegisterPhone2] = useState("");
   const [registerPhone3, setRegisterPhone3] = useState("");
-  const registerPhone2Ref = useRef<HTMLInputElement | null>(null);
-  const registerPhone3Ref = useRef<HTMLInputElement | null>(null);
   const [registerEmail, setRegisterEmail] = useState("");
   const [registerPassword, setRegisterPassword] = useState("");
   const [registerConfirmPassword, setRegisterConfirmPassword] = useState("");
@@ -577,79 +576,35 @@ export default function Home() {
                                   <option value="MALE" className="text-slate-900">
                                     남성
                                   </option>
-                              <option value="FEMALE" className="text-slate-900">
-                                여성
-                              </option>
-                            </select>
-                          </label>
-                          <label className={`${labelClassName} md:col-span-2`}>
-                            <span>연락처</span>
-                            <div className="grid grid-cols-[1fr_auto_1fr_auto_1fr] items-center gap-2 sm:gap-3">
-                              <input
-                                aria-label="전화번호 앞자리"
-                                className={`${inputClassName} w-full`}
-                                inputMode="numeric"
-                                maxLength={3}
-                                onChange={(event) => {
-                                  const value = event.target.value.replace(/\\D/g, "");
-                                  setRegisterPhone1(value);
-                                  if (value.length === 3) {
-                                    registerPhone2Ref.current?.focus();
-                                  }
-                                }}
-                                placeholder="010"
-                                required
-                                value={registerPhone1}
-                              />
-                              <span className="text-lg font-semibold text-slate-400" aria-hidden>
-                                -
-                              </span>
-                              <input
-                                aria-label="전화번호 중간자리"
-                                ref={registerPhone2Ref}
-                                className={`${inputClassName} w-full`}
-                                inputMode="numeric"
-                                maxLength={4}
-                                onChange={(event) => {
-                                  const value = event.target.value.replace(/\\D/g, "");
-                                  setRegisterPhone2(value);
-                                  if (value.length === 4) {
-                                    registerPhone3Ref.current?.focus();
-                                  }
-                                }}
-                                onKeyDown={(event) => {
-                                  if (event.key === "Backspace" && registerPhone2.length === 0) {
-                                    registerPhone2Ref.current?.previousElementSibling?.querySelector("input")?.focus();
-                                  }
-                                }}
-                                placeholder="0000"
-                                required
-                                value={registerPhone2}
-                              />
-                              <span className="text-lg font-semibold text-slate-400" aria-hidden>
-                                -
-                              </span>
-                              <input
-                                aria-label="전화번호 마지막자리"
-                                ref={registerPhone3Ref}
-                                className={`${inputClassName} w-full`}
-                                inputMode="numeric"
-                                maxLength={4}
-                                onChange={(event) => {
-                                  const value = event.target.value.replace(/\\D/g, "");
-                                  setRegisterPhone3(value);
-                                }}
-                                onKeyDown={(event) => {
-                                  if (event.key === "Backspace" && registerPhone3.length === 0) {
-                                    registerPhone2Ref.current?.focus();
-                                  }
-                                }}
-                                placeholder="0000"
-                                required
-                                value={registerPhone3}
-                              />
-                            </div>
-                          </label>
+                                  <option value="FEMALE" className="text-slate-900">
+                                    여성
+                                  </option>
+                                </select>
+                              </label>
+                              <label className={`${labelClassName} md:col-span-2`}>
+                                <span>연락처</span>
+                                <PhoneNumberInput
+                                  ariaLabels={{
+                                    first: "전화번호 앞자리",
+                                    middle: "전화번호 중간자리",
+                                    last: "전화번호 마지막자리",
+                                  }}
+                                  inputClassName={inputClassName}
+                                  maxLengths={{ first: 3, middle: 4, last: 4 }}
+                                  onChange={({ first, middle, last }) => {
+                                    setRegisterPhone1(first);
+                                    setRegisterPhone2(middle);
+                                    setRegisterPhone3(last);
+                                  }}
+                                  parts={{
+                                    first: registerPhone1,
+                                    middle: registerPhone2,
+                                    last: registerPhone3,
+                                  }}
+                                  placeholders={{ first: "010", middle: "0000", last: "0000" }}
+                                  required
+                                />
+                              </label>
                             </div>
                           </section>
 

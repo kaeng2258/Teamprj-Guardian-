@@ -141,13 +141,21 @@ export default function ClientProfileEditPage() {
     const id = Number(idStr);
     const load = async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/api/users/${id}`, {
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-            ...authHeaders(),
-          },
-        });
+        const baseHeaders: HeadersInit = {
+  "Content-Type": "application/json",
+};
+
+const extra = authHeaders(); // 기존 함수 그대로 사용
+
+// authHeaders()가 {} 또는 { Authorization: string } 을 돌려준다고 가정
+if (extra && "Authorization" in extra && extra.Authorization) {
+  (baseHeaders as any).Authorization = extra.Authorization;
+}
+
+const res = await fetch(`${API_BASE_URL}/api/users/${id}`, {
+  credentials: "include",
+  headers: baseHeaders,
+});
         if (!res.ok) {
           throw new Error("내 정보를 불러오지 못했습니다.");
         }

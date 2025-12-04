@@ -141,20 +141,12 @@ export default function ClientProfileEditPage() {
     const id = Number(idStr);
     const load = async () => {
       try {
-        const baseHeaders: HeadersInit = {
-  "Content-Type": "application/json",
-};
-
-const extra = authHeaders(); // 기존 함수 그대로 사용
-
-// authHeaders()가 {} 또는 { Authorization: string } 을 돌려준다고 가정
-if (extra && "Authorization" in extra && extra.Authorization) {
-  (baseHeaders as any).Authorization = extra.Authorization;
-}
-
-const res = await fetch(`${API_BASE_URL}/api/users/${id}`, {
+        const res = await fetch(`${API_BASE_URL}/api/users/${id}`, {
   credentials: "include",
-  headers: baseHeaders,
+  headers: {
+    "Content-Type": "application/json",
+    ...authHeaders(),
+  } satisfies HeadersInit,
 });
         if (!res.ok) {
           throw new Error("내 정보를 불러오지 못했습니다.");
@@ -208,11 +200,20 @@ const res = await fetch(`${API_BASE_URL}/api/users/${id}`, {
     }
   }, []);
 
-  const authHeaders = () => {
-    if (typeof window === "undefined") return {};
-    const token = window.localStorage.getItem("accessToken");
-    return token ? { Authorization: `Bearer ${token}` } : {};
+const authHeaders = (): Record<string, string> => {
+  if (typeof window === "undefined") return {};
+
+  const token = window.localStorage.getItem("accessToken");
+  if (!token) {
+    // 토큰 없으면 헤더 비움
+    return {};
+  }
+
+  // 토큰 있을 때만 Authorization 헤더 추가
+  return {
+    Authorization: `Bearer ${token}`,
   };
+};
 
   useEffect(() => {
     if (typeof document === "undefined") return;

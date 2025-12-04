@@ -137,13 +137,14 @@ export default function ManagerProfileEditPage() {
     const id = Number(idStr);
     const load = async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/api/users/${id}`, {
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-            ...authHeaders(),
-          },
-        });
+const res = await fetch(`${API_BASE_URL}/api/users/${id}`, {
+  credentials: "include",
+  headers: {
+    "Content-Type": "application/json",
+    ...authHeaders(),
+  } satisfies HeadersInit,
+});
+
         if (!res.ok) {
           throw new Error("내 정보를 불러오지 못했습니다.");
         }
@@ -196,11 +197,21 @@ export default function ManagerProfileEditPage() {
     }
   }, []);
 
-  const authHeaders = () => {
-    if (typeof window === "undefined") return {};
-    const token = window.localStorage.getItem("accessToken");
-    return token ? { Authorization: `Bearer ${token}` } : {};
+const authHeaders = (): Record<string, string> => {
+  if (typeof window === "undefined") return {};
+
+  const token = window.localStorage.getItem("accessToken");
+  if (!token) {
+    // ❌ Authorization: undefined 이런 거 절대 만들지 말고
+    // 그냥 아무 헤더도 안 준다
+    return {};
+  }
+
+  // ✅ 토큰 있을 때만 Authorization 헤더 추가
+  return {
+    Authorization: `Bearer ${token}`,
   };
+};
 
   useEffect(() => {
     if (typeof document === "undefined") return;

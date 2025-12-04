@@ -48,7 +48,7 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          source: "backend/build/libs/*.jar"   # 🔥 반드시 이렇게 (backend/ 포함)
+          source: "build/libs/*.jar"      # ✅ 루트 기준 build/libs
           target: "/home/ec2-user/app/backend/"
 
 

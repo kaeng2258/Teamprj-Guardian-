@@ -2361,9 +2361,10 @@ const WeeklyDayCard = ({
     if (payload.active !== undefined) {
       planPatch.active = payload.active;
     }
-    if (payload.medicineId !== undefined) {
-      planPatch.medicineId = payload.medicineId;
-    }
+    if (payload.medicineId != null) {
+  // null, undefined 둘 다 제외됨
+  planPatch.medicineId = payload.medicineId;
+}
     if (previousSnapshot && Object.keys(planPatch).length > 0) {
       applyPlanPatch(clientId, planId, planPatch);
     }

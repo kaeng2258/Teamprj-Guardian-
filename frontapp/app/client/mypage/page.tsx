@@ -250,6 +250,7 @@ export default function ClientMyPage() {
   const [emergencyAckAt, setEmergencyAckAt] = useState<number | null>(null);
   const defaultProfileImage = resolveProfileImageUrl("/image/픽토그램.png") || "/image/픽토그램.png";
   const logoImage = resolveProfileImageUrl("/image/logo.png") || "/image/logo.png";
+  const [managerProfiles, setManagerProfiles] = useState<Record<number, string>>({});
 
   const handleStatAction = () => {};
 
@@ -501,6 +502,36 @@ export default function ClientMyPage() {
     }
     loadMedicationData();
   }, [isReady, client.userId, loadMedicationData]);
+
+  // 담당 매니저 프로필 이미지 로드
+  useEffect(() => {
+    const fetchProfiles = async () => {
+      const ids = Array.from(
+        new Set(
+          plans
+            .map((p) => p.managerId)
+            .filter((id): id is number => typeof id === "number" && Number.isFinite(id))
+        )
+      ).filter((id) => !managerProfiles[id]);
+
+      if (ids.length === 0) return;
+
+      for (const id of ids) {
+        try {
+          const res = await fetch(`${API_BASE_URL}/api/users/${id}`);
+          if (!res.ok) continue;
+          const detail: { profileImageUrl?: string | null } = await res.json();
+          setManagerProfiles((prev) => ({
+            ...prev,
+            [id]: resolveProfileImageUrl(detail.profileImageUrl) || defaultProfileImage,
+          }));
+        } catch {
+          // ignore individual fetch errors
+        }
+      }
+    };
+    void fetchProfiles();
+  }, [plans, managerProfiles, API_BASE_URL, defaultProfileImage]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -1718,6 +1749,8 @@ export default function ClientMyPage() {
                 ]
                   .filter((value) => value && value.length > 0)
                   .join(" · ");
+                const managerAvatar =
+                  (plan.managerId && managerProfiles[plan.managerId]) || defaultProfileImage;
 
                 const emergencyMsg = emergencyMessage[plan.id];
                 return (
@@ -1748,16 +1781,29 @@ export default function ClientMyPage() {
                     </div>
                     <div className="mt-3 rounded-xl border border-slate-200 bg-white px-3 py-2">
                       <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                            담당 매니저
-                          </p>
-                          <p className="text-sm font-semibold text-slate-900">
-                            {managerName}
-                          </p>
-                          <p className="text-xs text-slate-500">
-                            {managerMeta || "연락처 정보 없음"}
-                          </p>
+                        <div className="flex items-center gap-3">
+                          <span className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-600">
+                            {managerAvatar ? (
+                              <img
+                                src={managerAvatar}
+                                alt={`${managerName} 프로필`}
+                                className="h-full w-full object-cover"
+                              />
+                            ) : (
+                              <span>{managerName.slice(0, 1)}</span>
+                            )}
+                          </span>
+                          <div>
+                            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                              담당 매니저
+                            </p>
+                            <p className="text-sm font-semibold text-slate-900">
+                              {managerName}
+                            </p>
+                            <p className="text-xs text-slate-500">
+                              {managerMeta || "연락처 정보 없음"}
+                            </p>
+                          </div>
                         </div>
                         <div className="flex flex-col items-end gap-2 sm:flex-row sm:items-center">
                           <button

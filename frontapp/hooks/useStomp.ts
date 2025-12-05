@@ -19,10 +19,13 @@ const WS_ENDPOINT = (() => {
 // 백엔드 ChatMessageResponse 형태에 맞춰서 사용
 export type ChatMessage = {
   id?: number;
+  messageId?: number;
   roomId: number;
   senderId: number;
   senderName?: string;
   content: string;
+  messageType?: string | null;
+  fileUrl?: string | null;
   sentAt?: string;      // 백엔드에서 사용하는 시간 필드명
   createdAt?: string;   // 혹시 다른 이름일 수도 있어 둘 다 둠
 };

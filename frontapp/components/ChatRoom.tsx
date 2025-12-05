@@ -40,10 +40,11 @@ type ThreadInfo = {
 };
 
 const buildKey = (m: ChatMessage) => {
-  if (m.id != null) return `id:${m.id}`;
+  const ident = m.messageId ?? m.id;
+  if (ident != null) return `id:${ident}`;
 
   const ts = m.sentAt ?? m.createdAt ?? "";
-  return `${m.roomId}:${m.senderId}:${ts}:${m.content}`;
+  return `${m.roomId}:${m.senderId}:${ts}:${m.content}:${m.messageType ?? ""}`;
 };
 
 
@@ -276,6 +277,12 @@ useEffect(() => {
     if (!iso) return "";
     const d = new Date(iso);
     return d.toLocaleString();
+  };
+
+  const isEmergencyNotice = (m: ChatMessage) => {
+    const type = (m.messageType ?? "").toUpperCase();
+    if (type === "NOTICE") return true;
+    return /긴급\s*호출/.test(m.content ?? "");
   };
 
   const title = useMemo(
@@ -591,6 +598,17 @@ const rtcTextClass = connected ? "text-emerald-700" : "text-slate-500";
                   const mine = m.senderId === me.id;
                   const name = resolveName(m.senderId, m.senderName);
                   const avatar = resolveAvatar(m.senderId);
+                  const emergency = isEmergencyNotice(m);
+                  const bubbleBase = emergency
+                    ? "bg-red-50 text-red-900 border border-red-200"
+                    : mine
+                    ? "bg-emerald-500 text-white"
+                    : "bg-white text-slate-900";
+                  const metaText = emergency
+                    ? "text-red-500"
+                    : mine
+                    ? "text-emerald-50/80"
+                    : "text-slate-400";
                   return (
                     <li
                       key={idx}
@@ -599,11 +617,7 @@ const rtcTextClass = connected ? "text-emerald-700" : "text-slate-500";
                       }`}
                     >
                       <div
-                        className={`max-w-[70%] rounded-2xl px-3.5 py-2.5 shadow-sm ${
-                          mine
-                            ? "bg-emerald-500 text-white"
-                            : "bg-white text-slate-900"
-                        }`}
+                        className={`max-w-[70%] rounded-2xl px-3.5 py-2.5 shadow-sm ${bubbleBase}`}
                       >
                         {!mine && (
                           <div className="mb-0.5 flex items-center gap-2">
@@ -619,15 +633,17 @@ const rtcTextClass = connected ? "text-emerald-700" : "text-slate-500";
                             </span>
                           </div>
                         )}
+                        {emergency && (
+                          <div className="mb-1 inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-semibold text-red-700">
+                            <span className="h-2 w-2 rounded-full bg-red-500" />
+                            비상 호출
+                          </div>
+                        )}
                         <div className="whitespace-pre-wrap break-words">
                           {m.content}
                         </div>
                         <div
-                          className={`mt-1 text-[10px] ${
-                            mine
-                              ? "text-emerald-50/80"
-                              : "text-slate-400"
-                          }`}
+                          className={`mt-1 text-[10px] ${metaText}`}
                         >
                           {fmt(m.sentAt ?? m.createdAt)}
                         </div>

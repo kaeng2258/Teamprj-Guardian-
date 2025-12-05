@@ -1,0 +1,31 @@
+# Stage 1: Build the application
+FROM gradle:8.8.0-jdk17-focal AS builder
+
+WORKDIR /app
+
+# Copy Gradle wrapper and source code
+COPY gradlew .
+COPY gradle gradle
+COPY build.gradle .
+COPY settings.gradle .
+COPY src src
+
+# Make gradlew executable
+RUN chmod +x ./gradlew
+
+# Build the application
+RUN ./gradlew bootJar --no-daemon
+
+# Stage 2: Create the final image
+FROM openjdk:17-jre-slim-buster
+
+WORKDIR /app
+
+# Copy the built JAR from the builder stage
+COPY --from=builder /app/build/libs/*.jar app.jar
+
+# Expose the port the Spring Boot application runs on
+EXPOSE 8080
+
+# Run the application
+ENTRYPOINT ["java", "-jar", "app.jar"]

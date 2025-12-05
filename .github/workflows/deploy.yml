@@ -24,8 +24,6 @@ jobs:
       # 3) 백엔드 빌드
       - name: Build Backend
         run: |
-          pwd
-          ls
           chmod +x ./gradlew
           ./gradlew clean bootJar
 
@@ -39,21 +37,24 @@ jobs:
       - name: Build Frontend (Next.js)
         run: |
           cd frontapp
-          pwd
-          ls
           npm ci
           npm run build
 
-      # 6) 빌드 결과 디버그 - 여기서 .next가 진짜 있는지 확인
-      - name: Debug frontend build outputs
+      # 6) 프론트 배포용 번들 만들기 (standalone 구조 맞추기)
+      - name: Prepare frontend bundle
         run: |
-          echo "==== repo root ===="
-          pwd
-          ls
-          echo "==== frontapp ===="
-          ls -R frontapp || echo "frontapp directory not found"
-          echo "==== frontapp/.next ===="
-          ls -R frontapp/.next || echo "frontapp/.next directory not found"
+          rm -rf frontend-dist
+          mkdir -p frontend-dist/.next
+          # .next/standalone 안의 실행파일들을 루트로 복사
+          cp -r frontapp/.next/standalone/* frontend-dist/
+          # 정적 파일(static) 복사 -> ./ .next/static
+          cp -r frontapp/.next/static frontend-dist/.next/static
+          # public, package.json 복사
+          cp -r frontapp/public frontend-dist/public
+          cp frontapp/package.json frontend-dist/package.json
+
+          echo "==== frontend-dist 구조 ===="
+          ls -R frontend-dist
 
       # -----------------------------
       # EC2로 파일 전송
@@ -69,17 +70,16 @@ jobs:
           source: "build/libs/*.jar"
           target: "/home/ec2-user/app/backend/"
 
-      # 8) 프론트 Next.js 빌드 결과 업로드
+      # 8) 프론트 번들 EC2로 업로드 (frontend-dist 내용을 그대로)
       - name: Upload Frontend app to EC2
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          source: "frontapp/**"
+          source: "frontend-dist/**"
           target: "/home/ec2-user/app/frontend"
           rm: true
-
 
       # -----------------------------
       # EC2 안에서 서비스 재시작

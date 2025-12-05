@@ -911,7 +911,13 @@ export default function ManagerMyPage() {
     return tokens[new Date().getDay()] ?? "ALL";
   }, []);
 
-  const todayDateString = useMemo(() => new Date().toISOString().split("T")[0] ?? "", []);
+  const todayDateString = useMemo(() => {
+    const now = new Date();
+    const yyyy = now.getFullYear();
+    const mm = String(now.getMonth() + 1).padStart(2, "0");
+    const dd = String(now.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  }, []);
   const upcomingTodayPlans = useMemo(() => {
     const now = new Date();
     const list: Array<{ clientName: string; medicineName: string; time: string; planId: number }> = [];

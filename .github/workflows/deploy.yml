@@ -153,4 +153,4 @@ jobs:
           script: |
             sudo nginx -t
             sudo systemctl reload nginx
-      #test1
+      #test2

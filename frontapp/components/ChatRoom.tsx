@@ -280,9 +280,10 @@ useEffect(() => {
   };
 
   const isEmergencyNotice = (m: ChatMessage) => {
-    const type = (m.messageType ?? "").toUpperCase();
-    if (type === "NOTICE") return true;
-    return /긴급\s*호출/.test(m.content ?? "");
+    const type = (m.messageType ?? "").trim().toUpperCase();
+    if (type === "NOTICE" || type === "EMERGENCY" || type === "ALERT") return true;
+    const content = (m.content ?? "").replace(/\s+/g, "");
+    return /긴급호출|비상호출|긴급|비상/.test(content);
   };
 
   const title = useMemo(
@@ -595,10 +596,11 @@ const rtcTextClass = connected ? "text-emerald-700" : "text-slate-500";
             ) : (
               <ul className="flex flex-col gap-3 text-sm">
                 {messages.map((m, idx) => {
-                  const mine = m.senderId === me.id;
-                  const name = resolveName(m.senderId, m.senderName);
-                  const avatar = resolveAvatar(m.senderId);
                   const emergency = isEmergencyNotice(m);
+                  const mine = m.senderId === resolvedMe.id;
+                  const name = resolveName(m.senderId, m.senderName);
+                  const alertOwner = name;
+                  const avatar = resolveAvatar(m.senderId);
                   const bubbleBase = emergency
                     ? "bg-red-50 text-red-900 border border-red-200"
                     : mine
@@ -622,11 +624,13 @@ const rtcTextClass = connected ? "text-emerald-700" : "text-slate-500";
                         {!mine && (
                           <div className="mb-0.5 flex items-center gap-2">
                             <span className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-slate-100 text-[11px] font-semibold text-emerald-700">
-                              <img
-                                src={avatar}
-                                alt={`${name} 프로필`}
-                                className="h-full w-full object-cover"
-                              />
+                              {avatar && (
+                                <img
+                                  src={avatar}
+                                  alt={`${name} 프로필`}
+                                  className="h-full w-full object-cover"
+                                />
+                              )}
                             </span>
                             <span className="text-xs font-semibold text-emerald-700">
                               {name}
@@ -636,7 +640,7 @@ const rtcTextClass = connected ? "text-emerald-700" : "text-slate-500";
                         {emergency && (
                           <div className="mb-1 inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-semibold text-red-700">
                             <span className="h-2 w-2 rounded-full bg-red-500" />
-                            비상 호출
+                            {alertOwner}님의 비상 호출입니다
                           </div>
                         )}
                         <div className="whitespace-pre-wrap break-words">
@@ -668,7 +672,7 @@ const rtcTextClass = connected ? "text-emerald-700" : "text-slate-500";
             <button
               type="submit"
               className="rounded-full bg-emerald-500 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-600 disabled:cursor-not-allowed disabled:bg-slate-300"
-              disabled={!input.trim() || !me.id}
+              disabled={!input.trim() || !resolvedMe.id}
             >
               전송
             </button>

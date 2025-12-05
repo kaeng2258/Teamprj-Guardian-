@@ -1342,10 +1342,16 @@ function GuardianChatPage() {
                 <div className="empty">메시지가 없습니다.</div>
               )}
               {messages.map((message) => {
-                const mine = Boolean(message.senderId && meId === message.senderId);
                 const emergency =
                   (message.messageType ?? "").toUpperCase() === "NOTICE" ||
                   /긴급\s*호출/.test(message.content ?? "");
+                const mine = Boolean(message.senderId && meId === message.senderId);
+                const owner =
+                  message.senderName && message.senderName.trim().length > 0
+                    ? message.senderName
+                    : message.senderId
+                    ? `사용자#${message.senderId}`
+                    : "시스템";
                 const bubbleClass = [
                   "bubble",
                   mine ? "mine" : "other",
@@ -1355,7 +1361,14 @@ function GuardianChatPage() {
                   .join(" ");
                 return (
                   <div key={message.key} className={bubbleClass}>
-                    <div>{message.content}</div>
+                    <div>
+                      {emergency && (
+                        <div style={{ marginBottom: 6, fontWeight: 700 }}>
+                          {owner}님의 비상 호출입니다
+                        </div>
+                      )}
+                      <div>{message.content}</div>
+                    </div>
                     <div className="metaRow">
                       <span>{message.messageType ?? "TEXT"}</span>
                       <span>·</span>

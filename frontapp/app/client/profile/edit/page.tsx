@@ -318,7 +318,6 @@ export default function ClientProfileEditPage() {
       setPhone2(np2);
       setPhone3(np3);
       setMessage("개인정보가 저장되었습니다.");
-      setCurrentPassword("");
     } catch (e: any) {
       setError(e instanceof Error ? e.message : "저장에 실패했습니다.");
     } finally {
@@ -376,7 +375,6 @@ export default function ClientProfileEditPage() {
       setPhone2(np2);
       setPhone3(np3);
       setMessage("기본 이미지로 변경되었습니다.");
-      setCurrentPassword("");
     } catch (e: any) {
       setError(e instanceof Error ? e.message : "기본 이미지로 변경에 실패했습니다.");
     } finally {

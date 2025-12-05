@@ -1812,6 +1812,10 @@ const WeeklyDayCard = ({
     if (!manager.userId) {
       return;
     }
+    if (typeof window !== "undefined") {
+      const ok = window.confirm("이 클라이언트를 배정하시겠습니까?");
+      if (!ok) return;
+    }
 
     setAssignmentStates((prev) => ({ ...prev, [clientId]: "assigning" }));
     setAssignmentMessages((prev) => ({ ...prev, [clientId]: undefined }));
@@ -1871,6 +1875,10 @@ const WeeklyDayCard = ({
   const handleUnassignClient = async (clientId: number) => {
     if (!manager.userId) {
       return;
+    }
+    if (typeof window !== "undefined") {
+      const ok = window.confirm("이 클라이언트 배정을 취소하시겠습니까?");
+      if (!ok) return;
     }
 
     setAssignmentStates((prev) => ({ ...prev, [clientId]: "unassigning" }));
@@ -2332,6 +2340,10 @@ const WeeklyDayCard = ({
   };
 
   const handleDeletePlan = async (clientId: number, planId: number) => {
+    if (typeof window !== "undefined") {
+      const ok = window.confirm("이 복약 일정을 삭제하시겠습니까?");
+      if (!ok) return;
+    }
     setDeleteProcessing((prev) => ({ ...prev, [planId]: "loading" }));
     setPlanMessages((prev) => ({ ...prev, [planId]: undefined }));
 

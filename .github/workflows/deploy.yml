@@ -84,11 +84,13 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          # ✅ 여러 경로는 이렇게 콤마(,)로 한 줄에 써야 함
-          #   (멀티라인 | 쓰면 그대로 개행 포함된 이상한 경로 1개로 인식됨 → tar: empty archive)
-          source: "frontapp/.next/**,frontapp/public/**,frontapp/package.json"
+          source: |
+            frontapp/.next/**
+            frontapp/public/**
+            frontapp/package.json
           target: "/home/ec2-user/app/frontend"
           rm: true
+
 
       # =============================
       # EC2 안에서 서비스 재시작

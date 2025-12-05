@@ -1,9 +1,9 @@
 {
   "pages": {
-    "/page": [
+    "/manager/mypage/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/page.js"
+      "static/chunks/app/manager/mypage/page.js"
     ],
     "/layout": [
       "static/chunks/webpack.js",
@@ -11,25 +11,25 @@
       "static/css/app/layout.css",
       "static/chunks/app/layout.js"
     ],
-    "/manager/mypage/page": [
+    "/chat/[roomId]/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/manager/mypage/page.js"
+      "static/chunks/app/chat/[roomId]/page.js"
     ],
-    "/manager/profile/edit/page": [
+    "/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/manager/profile/edit/page.js"
+      "static/chunks/app/page.js"
     ],
     "/client/mypage/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
       "static/chunks/app/client/mypage/page.js"
     ],
-    "/chat/[roomId]/page": [
+    "/manager/profile/edit/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/chat/[roomId]/page.js"
+      "static/chunks/app/manager/profile/edit/page.js"
     ],
     "/client/profile/edit/page": [
       "static/chunks/webpack.js",

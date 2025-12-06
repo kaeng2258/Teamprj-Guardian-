@@ -45,8 +45,9 @@ export default function ChatRoomPage() {
       try {
         const data = await api.getRoomHistory(roomId);
         setInitial(data.messages as ChatMessage[]);
-      } catch (e: any) {
-        setErr(e.message ?? "채팅 이력을 불러오지 못했습니다.");
+      } catch (e: unknown) {
+        const message = e instanceof Error ? e.message : "채팅 이력을 불러오지 못했습니다.";
+        setErr(message);
       }
     })();
   }, [roomId]);

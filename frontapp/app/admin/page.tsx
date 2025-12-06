@@ -176,8 +176,10 @@ const searchUsers = async () => {
 
       const data: AdminUserSummary[] = await res.json();
       setUsers(data);
-    } catch (err: any) {
-      setUserError(err.message ?? "유저 검색 중 오류가 발생했습니다.");
+    } catch (err: unknown) {
+      setUserError(
+        err instanceof Error ? err.message : "유저 검색 중 오류가 발생했습니다.",
+      );
     } finally {
       setUserLoading(false);
     }
@@ -514,4 +516,3 @@ function InfoRow({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
-

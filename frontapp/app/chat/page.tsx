@@ -96,7 +96,7 @@ async function extractApiError(response: Response, fallback: string) {
     ) {
       return (data as { message?: string }).message as string;
     }
-  } catch (error) {
+  } catch {
     // ignore body parse failure
   }
 
@@ -105,7 +105,7 @@ async function extractApiError(response: Response, fallback: string) {
     if (text.trim().length > 0) {
       return text;
     }
-  } catch (error) {
+  } catch {
     // ignore text read failure
   }
 
@@ -374,7 +374,7 @@ function GuardianChatPage() {
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
         sendRtc("offer", { sdp: offer.sdp });
-      } catch (error) {
+      } catch {
         setRtcError("WebRTC 협상 중 오류가 발생했습니다.");
       } finally {
         negotiatingRef.current = false;
@@ -405,7 +405,7 @@ function GuardianChatPage() {
             remoteVideoRef.current.srcObject = null;
           }
         }
-      } catch (error) {
+      } catch {
         setRtcError("WebRTC 시그널 처리 중 오류가 발생했습니다.");
       }
     },
@@ -417,16 +417,16 @@ function GuardianChatPage() {
       peerRef.current?.getSenders()?.forEach((sender) => {
         try {
           peerRef.current?.removeTrack(sender);
-        } catch (error) {
+        } catch {
           // ignore
         }
       });
-    } catch (error) {
+    } catch {
       // ignore
     }
     try {
       peerRef.current?.close();
-    } catch (error) {
+    } catch {
       // ignore
     }
     peerRef.current = null;
@@ -461,7 +461,7 @@ function GuardianChatPage() {
       if (sender) {
         try {
           await sender.replaceTrack(cameraTrack);
-        } catch (error) {
+        } catch {
           // ignore
         }
       }
@@ -489,7 +489,7 @@ function GuardianChatPage() {
           if (sender.track?.kind === "video" || sender.track?.kind === "audio") {
             try {
               ensurePeer().removeTrack(sender);
-            } catch (error) {
+            } catch {
               // ignore
             }
           }
@@ -498,7 +498,7 @@ function GuardianChatPage() {
         ensurePeer().addTrack(track, stream);
       });
       sendRtc("video-on", {});
-    } catch (error) {
+    } catch {
       setRtcError("카메라를 켤 수 없습니다. 브라우저 권한을 확인해주세요.");
     }
   }, [camOn, ensurePeer, sendRtc]);
@@ -511,7 +511,7 @@ function GuardianChatPage() {
         if (sender.track?.kind === "video" || sender.track?.kind === "audio") {
           try {
             await sender.replaceTrack(null);
-          } catch (error) {
+          } catch {
             // ignore
           }
         }
@@ -537,9 +537,11 @@ function GuardianChatPage() {
       return;
     }
     try {
+      const legacyGetDisplay = (navigator as Navigator & {
+        getDisplayMedia?: MediaDevices["getDisplayMedia"];
+      }).getDisplayMedia;
       const getDisplay =
-        navigator.mediaDevices?.getDisplayMedia ??
-        (navigator as any).getDisplayMedia;
+        navigator.mediaDevices?.getDisplayMedia ?? legacyGetDisplay;
       if (!getDisplay) {
         setRtcError("이 브라우저는 화면 공유를 지원하지 않습니다.");
         return;

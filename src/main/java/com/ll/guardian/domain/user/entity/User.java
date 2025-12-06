@@ -60,6 +60,9 @@ public class User extends BaseTimeEntity {
     @Column(name = "detail_address", length = 255)
     private String detailAddress;
 
+    @Column(name = "phone", length = 30)
+    private String phone;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "role", nullable = false, length = 20)
     private UserRole role;
@@ -93,6 +96,7 @@ public class User extends BaseTimeEntity {
             String zipCode,
             String address,
             String detailAddress,
+            String phone,
             String profileImageUrl,
             UserStatus status) {
         this.name = name;
@@ -110,6 +114,9 @@ public class User extends BaseTimeEntity {
         }
         if (detailAddress != null) {
             this.detailAddress = detailAddress;
+        }
+        if (phone != null) {
+            this.phone = phone;
         }
         if (profileImageUrl != null) {
             this.profileImageUrl = profileImageUrl;

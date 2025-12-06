@@ -1,6 +1,7 @@
 package com.ll.guardian.domain.emergency.service;
 
 import com.ll.guardian.domain.emergency.EmergencyAlertStatus;
+import com.ll.guardian.domain.emergency.EmergencyAlertType;
 import com.ll.guardian.domain.emergency.dto.EmergencyAlertAcknowledgeRequest;
 import com.ll.guardian.domain.emergency.dto.EmergencyAlertRequest;
 import com.ll.guardian.domain.emergency.dto.EmergencyAlertResponse;
@@ -57,7 +58,7 @@ public class EmergencyAlertService {
                 .longitude(request.shareLocation() ? request.longitude() : null)
                 .build();
         EmergencyAlert saved = emergencyAlertRepository.save(alert);
-        notifyManagerViaChat(client);
+        notifyManagerViaChat(client, request.alertType());
         return EmergencyAlertResponse.from(saved);
     }
 
@@ -105,17 +106,21 @@ public class EmergencyAlertService {
                 .orElseThrow(() -> new GuardianException(HttpStatus.NOT_FOUND, "사용자를 찾을 수 없습니다."));
     }
 
-    private void notifyManagerViaChat(User client) {
+    private void notifyManagerViaChat(User client, EmergencyAlertType alertType) {
         careMatchRepository.findFirstByClientIdAndCurrentTrue(client.getId())
                 .or(() -> careMatchRepository.findFirstByClientIdOrderByIdDesc(client.getId()))
                 .ifPresent(match -> {
                     Long managerId = match.getManager().getId();
+                    Long senderId = alertType == EmergencyAlertType.MANAGER_REQUEST ? managerId : client.getId();
+                    String content = alertType == EmergencyAlertType.MANAGER_REQUEST
+                            ? "매니저가 긴급 호출을 전송했습니다. 즉시 확인해주세요."
+                            : "긴급 호출이 접수되었습니다. 즉시 확인해주세요.";
                     try {
                         ChatRoom room = chatService.openOrGetRoom(client.getId(), managerId);
                         ChatMessageRequest req = new ChatMessageRequest(
                                 room.getId(),
-                                client.getId(),
-                                "긴급 호출이 접수되었습니다. 즉시 확인해주세요.",
+                                senderId,
+                                content,
                                 MessageType.NOTICE,
                                 null
                         );

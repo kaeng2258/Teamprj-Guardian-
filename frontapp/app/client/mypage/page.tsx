@@ -3,7 +3,14 @@ import MyChatRooms from "@/components/MyChatRooms";
 import { InlineDrugSearch } from "@/components/InlineDrugSearch";
 import { resolveProfileImageUrl } from "@/lib/image";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type CSSProperties,
+  type JSX,
+} from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faPen, faMagnifyingGlass } from "@fortawesome/free-solid-svg-icons";
 import { faComment } from "@fortawesome/free-regular-svg-icons";
@@ -143,7 +150,7 @@ const clientQuickActions: Array<{
     value: "schedule",
     label: "복약 일정 확인",
     description: "오늘 일정과 주간 현황",
-    accent: "bg-amber-500",
+    accent: "bg-amber-400",
     icon: <PillIcon className="h-4 w-4" />,
   },
   {
@@ -219,6 +226,17 @@ export default function ClientMyPage() {
   const [pushStatus, setPushStatus] = useState<PushStatus>("idle");
   const [pushMessage, setPushMessage] = useState("");
   const [activePanel, setActivePanel] = useState<ClientPanel>("schedule");
+  const clientActionCount = clientQuickActions.length;
+  const clientActiveIndex = clientQuickActions.findIndex(
+    (action) => action.value === activePanel
+  );
+  const clientIndicatorStyle: CSSProperties =
+    clientActiveIndex >= 0
+      ? {
+          width: "33.3333%",
+          transform: `translateX(${clientActiveIndex * 100}%)`,
+        }
+      : {};
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [avatarError, setAvatarError] = useState("");
   const [avatarMessage, setAvatarMessage] = useState("");
@@ -233,6 +251,10 @@ export default function ClientMyPage() {
   const [emergencyAckAt, setEmergencyAckAt] = useState<number | null>(null);
   const defaultProfileImage = resolveProfileImageUrl("/image/픽토그램.png") || "/image/픽토그램.png";
   const logoImage = resolveProfileImageUrl("/image/logo.png") || "/image/logo.png";
+  const [managerProfiles, setManagerProfiles] = useState<Record<number, string>>({});
+  const [managerPhones, setManagerPhones] = useState<Record<number, string>>({});
+
+  const handleStatAction = () => {};
 
   const pushCapable = useMemo(
     () => supportsPushApi && pushServiceEnabled && Boolean(vapidPublicKey),
@@ -482,6 +504,43 @@ export default function ClientMyPage() {
     }
     loadMedicationData();
   }, [isReady, client.userId, loadMedicationData]);
+
+  // 담당 매니저 프로필 이미지 로드
+  useEffect(() => {
+    const fetchProfiles = async () => {
+      const ids = Array.from(
+        new Set(
+          plans
+            .map((p) => p.managerId)
+            .filter((id): id is number => typeof id === "number" && Number.isFinite(id)),
+        ),
+      ).filter((id) => !managerProfiles[id]);
+
+      if (ids.length === 0) return;
+
+      for (const id of ids) {
+        try {
+          const res = await fetch(`${API_BASE_URL}/api/users/${id}`);
+          if (!res.ok) continue;
+          const detail: { profileImageUrl?: string | null; phone?: string | null } = await res.json();
+          setManagerProfiles((prev) => ({
+            ...prev,
+            [id]: resolveProfileImageUrl(detail.profileImageUrl) || defaultProfileImage,
+          }));
+          const phone = detail.phone?.trim();
+          if (phone) {
+            setManagerPhones((prev) => ({
+              ...prev,
+              [id]: phone,
+            }));
+          }
+        } catch {
+          // ignore individual fetch errors
+        }
+      }
+    };
+    void fetchProfiles();
+  }, [plans, managerProfiles, API_BASE_URL, defaultProfileImage]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -1281,7 +1340,7 @@ export default function ClientMyPage() {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-4 sm:gap-5">
               <div className="relative">
-                <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full border-2 border-indigo-200 bg-indigo-50 text-lg font-semibold text-indigo-700">
+                <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full border-2 border-amber-200 bg-indigo-50 text-lg font-semibold text-indigo-700">
                   {client.profileImageUrl ? (
                     <img
                       src={client.profileImageUrl}
@@ -1293,7 +1352,7 @@ export default function ClientMyPage() {
                   )}
                 </div>
                 <button
-                  className="absolute -left-1 -bottom-1 inline-flex h-8 w-8 items-center justify-center rounded-full bg-indigo-600 text-xs font-semibold text-white shadow-sm ring-4 ring-white transition hover:bg-indigo-700"
+                  className="absolute -left-1 -bottom-1 inline-flex h-8 w-8 items-center justify-center rounded-full bg-amber-500 text-xs font-semibold text-white shadow-sm ring-4 ring-white transition hover:bg-amber-600"
                   type="button"
                   onClick={() => router.push("/client/profile/edit")}
                 >
@@ -1313,7 +1372,7 @@ export default function ClientMyPage() {
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <p className="text-2xl font-semibold uppercase tracking-wide text-indigo-600 sm:text-3xl">
+                  <p className="text-2xl font-semibold uppercase tracking-wide text-amber-600 sm:text-3xl">
                     Client
                   </p>
                   <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">
@@ -1340,41 +1399,54 @@ export default function ClientMyPage() {
             </p>
           )}
           <div className="flex flex-col gap-3">
-            <div className="flex gap-3 pb-2 sm:grid sm:grid-cols-3 sm:gap-3 sm:pb-0">
-              {clientQuickActions.map((action) => {
-                const isActive = activePanel === action.value;
-                return (
-                  <button
-                    key={action.value}
-                    type="button"
-                    onClick={() => setActivePanel(action.value)}
-                    className={`group flex flex-1 min-w-0 flex-col gap-1 rounded-2xl border px-3 py-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow sm:px-4 ${
-                      isActive
-                        ? "border-amber-500 bg-amber-50"
-                        : "border-slate-200 bg-white hover:border-amber-200"
-                    }`}
-                  >
-                    <span
-                      className={`inline-flex h-8 w-8 items-center justify-center rounded-full text-[0.7rem] font-semibold text-white ${action.accent}`}
+            <div className="relative overflow-hidden rounded-2xl border border-amber-100 bg-white p-1 text-slate-900 shadow-[0_12px_30px_rgba(255,153,51,0.08)]">
+              <span
+                aria-hidden
+                className="pointer-events-none absolute inset-y-1 left-1 w-1/3 rounded-xl bg-gradient-to-r from-amber-300 via-amber-400 to-amber-500 shadow-lg shadow-amber-300/50 transition-transform duration-500 ease-out"
+                style={clientIndicatorStyle}
+              />
+              <div className="relative z-10 grid grid-cols-3 gap-2">
+                {clientQuickActions.map((action) => {
+                  const isActive = activePanel === action.value;
+                  return (
+                    <button
+                      key={action.value}
+                      type="button"
+                      onClick={() => setActivePanel(action.value)}
+                      className={`group relative z-10 flex flex-col gap-1 rounded-xl border px-3 py-3 text-left transition duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-200 focus-visible:ring-offset-2 focus-visible:ring-offset-white ${
+                        isActive
+                          ? "border-amber-500 bg-amber-50 text-amber-900 shadow-sm shadow-amber-200"
+                          : "border-transparent bg-white/80 text-slate-800 hover:border-amber-200 hover:bg-white"
+                      }`}
                     >
-                      {action.icon ?? action.label.slice(0, 1)}
-                    </span>
-                    <span className="text-sm font-semibold text-slate-900">
-                      {action.label}
-                    </span>
-                    <span className="text-xs text-slate-500">
-                      {action.description}
-                    </span>
-                  </button>
-                );
-              })}
+                      <span
+                        className={`inline-flex h-9 w-9 items-center justify-center rounded-full text-[0.7rem] font-semibold text-white shadow-sm shadow-amber-400/40 transition duration-300 ${
+                          isActive ? "scale-105" : "scale-100"
+                        } ${isActive ? "bg-amber-500" : action.accent}`}
+                      >
+                        {action.icon ?? action.label.slice(0, 1)}
+                      </span>
+                      <span className="text-sm font-semibold text-slate-900">
+                        {action.label}
+                      </span>
+                      <span
+                        className={`text-xs ${
+                          isActive ? "text-amber-700" : "text-slate-500"
+                        }`}
+                      >
+                        {action.description}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
         </header>
 
         {activePanel === "schedule" && (
           <>
-        <section className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-indigo-50 p-4 sm:p-6 dark:border-slate-700 dark:from-slate-800 dark:via-slate-900 dark:to-slate-800">
+        <section className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-amber-50 p-4 sm:p-6 dark:border-slate-700 dark:from-slate-800 dark:via-slate-900 dark:to-slate-800">
           <div className="flex flex-col gap-2 border-b border-slate-200 pb-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-lg font-semibold text-slate-900 sm:text-xl">서비스 이용 현황</h2>
@@ -1685,13 +1757,15 @@ export default function ClientMyPage() {
                   managerRaw && managerRaw.length > 0
                     ? `${managerRaw} 매니저`
                     : managerFallback || "담당 매니저 정보 없음";
-                const managerMeta = [
-                  plan.managerOrganization?.trim(),
-                  plan.managerEmail?.trim(),
-                  plan.managerPhone?.trim(),
-                ]
+                const managerPhone =
+                  plan.managerPhone?.trim() ||
+                  (plan.managerId ? managerPhones[plan.managerId] : "") ||
+                  "";
+                const managerMeta = [plan.managerOrganization?.trim(), plan.managerEmail?.trim()]
                   .filter((value) => value && value.length > 0)
                   .join(" · ");
+                const managerAvatar =
+                  (plan.managerId && managerProfiles[plan.managerId]) || defaultProfileImage;
 
                 const emergencyMsg = emergencyMessage[plan.id];
                 return (
@@ -1722,16 +1796,44 @@ export default function ClientMyPage() {
                     </div>
                     <div className="mt-3 rounded-xl border border-slate-200 bg-white px-3 py-2">
                       <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                            담당 매니저
-                          </p>
-                          <p className="text-sm font-semibold text-slate-900">
-                            {managerName}
-                          </p>
-                          <p className="text-xs text-slate-500">
-                            {managerMeta || "연락처 정보 없음"}
-                          </p>
+                        <div className="flex items-center gap-3">
+                          <span className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-600">
+                            {managerAvatar ? (
+                              <img
+                                src={managerAvatar}
+                                alt={`${managerName} 프로필`}
+                                className="absolute inset-0 h-full w-full object-cover object-center"
+                              />
+                            ) : (
+                              <span>{managerName.slice(0, 1)}</span>
+                            )}
+                          </span>
+                          <div>
+                            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                              담당 매니저
+                            </p>
+                            <p className="text-sm font-semibold text-slate-900">
+                              {managerName}
+                            </p>
+                            <p className="text-xs text-slate-500">
+                              {managerMeta || "연락처 정보 없음"}
+                            </p>
+                            <p className="text-xs text-slate-500">
+                              {managerPhone ? (
+                                <>
+                                  전화번호{" "}
+                                  <a
+                                    className="font-semibold text-slate-700 underline decoration-dotted underline-offset-2"
+                                    href={`tel:${managerPhone.replace(/[^0-9+]/g, "")}`}
+                                  >
+                                    {managerPhone}
+                                  </a>
+                                </>
+                              ) : (
+                                "전화번호 정보 없음"
+                              )}
+                            </p>
+                          </div>
                         </div>
                         <div className="flex flex-col items-end gap-2 sm:flex-row sm:items-center">
                           <button

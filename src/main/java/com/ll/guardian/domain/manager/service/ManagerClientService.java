@@ -77,7 +77,8 @@ public class ManagerClientService {
         Long assignedManagerId = currentlyAssigned ? match.getManager().getId() : null;
         String assignedManagerName = currentlyAssigned ? match.getManager().getName() : null;
         String assignedManagerEmail = currentlyAssigned ? match.getManager().getEmail() : null;
-        boolean assignable = !currentlyAssigned || Objects.equals(assignedManagerId, manager.getId());
+        // M:N 지원: 다른 매니저가 배정되어 있어도 추가 배정 가능
+        boolean assignable = true;
 
         return new ManagerClientSearchResponse(
                 client.getId(),

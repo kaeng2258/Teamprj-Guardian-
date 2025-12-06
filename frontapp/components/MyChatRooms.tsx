@@ -1,6 +1,6 @@
 // frontapp/components/MyChatRooms.tsx
 "use client";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { resolveProfileImageUrl } from "@/lib/image";
 
@@ -70,6 +70,35 @@ export default function MyChatRooms({
       return bTime - aTime;
     });
   };
+
+  const handleMarkThreadAsRead = useCallback(
+    async (roomId: number) => {
+      if (!effectiveUserId) return;
+      try {
+        await fetch(
+          `${API_BASE_URL}/api/chat/rooms/${roomId}/read?userId=${encodeURIComponent(
+            String(effectiveUserId),
+          )}`,
+          { method: "POST" },
+        );
+      } catch {
+        // ignore read sync errors
+      } finally {
+        setThreads((prev) =>
+          prev.map((t) =>
+            t.roomId === roomId
+              ? {
+                  ...t,
+                  readByManager: role === "MANAGER" ? true : t.readByManager,
+                  readByClient: role === "CLIENT" ? true : t.readByClient,
+                }
+              : t,
+          ),
+        );
+      }
+    },
+    [effectiveUserId, role],
+  );
 
   useEffect(() => {
     if (!effectiveUserId) return;
@@ -254,7 +283,11 @@ export default function MyChatRooms({
               key={roomId}
               className="group rounded-2xl border border-sky-100 bg-white p-3 shadow-sm transition hover:-translate-y-0.5 hover:border-sky-300 hover:shadow-lg"
             >
-              <Link href={`/chat/${roomId}`} className="flex flex-col gap-2">
+              <Link
+                href={`/chat/${roomId}`}
+                className="flex flex-col gap-2"
+                onClick={() => void handleMarkThreadAsRead(roomId)}
+              >
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-3">
                     <span className="relative inline-flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full border border-sky-100 bg-sky-50 text-sm font-semibold text-sky-700 shadow-inner">

@@ -1,6 +1,7 @@
 "use client";
 
 import { resolveProfileImageUrl } from "@/lib/image";
+import PhoneNumberInput from "@/components/PhoneNumberInput";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -19,12 +20,50 @@ const normalizeBirthDate = (value?: string | null) => {
   return value;
 };
 
+const parsePhoneParts = (value?: string | null): [string, string, string] => {
+  if (!value) return ["", "", ""];
+  const parts = value.split("-");
+  return [parts[0] ?? "", parts[1] ?? "", parts[2] ?? ""];
+};
+
+const extractLoginErrorMessage = async (
+  res: Response,
+  fallback = "비밀번호가 올바르지 않습니다.",
+): Promise<string> => {
+  try {
+    const data = (await res.clone().json()) as { message?: string };
+    if (data?.message && typeof data.message === "string" && data.message.trim()) {
+      return data.message.trim();
+    }
+  } catch {
+    /* ignore */
+  }
+  try {
+    const text = (await res.text()).trim();
+    if (!text) return fallback;
+    try {
+      const parsed = JSON.parse(text) as { message?: string };
+      if (parsed?.message && typeof parsed.message === "string" && parsed.message.trim()) {
+        return parsed.message.trim();
+      }
+    } catch {
+      /* ignore */
+    }
+    if (text.startsWith("{") && text.endsWith("}")) return fallback;
+    return text;
+  } catch {
+    return fallback;
+  }
+  return fallback;
+};
+
 type UserSummary = {
   id: number;
   email: string;
   name: string;
   birthDate?: string | null;
   gender?: string | null;
+  phone?: string | null;
   zipCode?: string | null;
   address?: string | null;
   detailAddress?: string | null;
@@ -94,6 +133,9 @@ export default function ManagerProfileEditPage() {
   const [error, setError] = useState("");
   const [birthDate, setBirthDate] = useState("");
   const [gender, setGender] = useState("");
+  const [phone1, setPhone1] = useState("");
+  const [phone2, setPhone2] = useState("");
+  const [phone3, setPhone3] = useState("");
   const [zipCode, setZipCode] = useState("");
   const [address, setAddress] = useState("");
   const [detailAddress, setDetailAddress] = useState("");
@@ -154,6 +196,10 @@ const res = await fetch(`${API_BASE_URL}/api/users/${id}`, {
         setEmail(data.email ?? "");
         setBirthDate(normalizeBirthDate(data.birthDate));
         setGender(data.gender ?? "");
+        const [p1, p2, p3] = parsePhoneParts(data.phone);
+        setPhone1(p1);
+        setPhone2(p2);
+        setPhone3(p3);
         setZipCode(data.zipCode ? String(data.zipCode) : "");
         setAddress(data.address ?? "");
         setDetailAddress(data.detailAddress ?? "");
@@ -261,10 +307,21 @@ const authHeaders = (): Record<string, string> => {
       setError("이름을 입력해주세요.");
       return;
     }
+    if (
+      !phone1 ||
+      !phone2 ||
+      !phone3 ||
+      phone2.length < 4 ||
+      phone3.length < 4
+    ) {
+      setError("연락처를 모두 입력해주세요.");
+      return;
+    }
     if (!currentPassword.trim()) {
       setError("비밀번호를 입력해야 개인정보를 수정할 수 있습니다.");
       return;
     }
+    const phone = [phone1, phone2, phone3].join("-");
     setSaving(true);
     setError("");
     setMessage("");
@@ -277,6 +334,7 @@ const authHeaders = (): Record<string, string> => {
           name: name.trim(),
           birthDate: birthDate || null,
           gender: gender || null,
+          phone,
           zipCode: zipCode || null,
           address: address || null,
           detailAddress: detailAddress || null,
@@ -293,8 +351,11 @@ const authHeaders = (): Record<string, string> => {
       setUser(data);
       setProfileImageUrl(resolveProfileImageUrl(data.profileImageUrl) || DEFAULT_PROFILE_IMG);
       setBirthDate(normalizeBirthDate(data.birthDate));
+      const [np1, np2, np3] = parsePhoneParts(data.phone);
+      setPhone1(np1);
+      setPhone2(np2);
+      setPhone3(np3);
       setMessage("개인정보가 저장되었습니다.");
-      setCurrentPassword("");
     } catch (e: any) {
       setError(e instanceof Error ? e.message : "저장에 실패했습니다.");
     } finally {
@@ -308,6 +369,17 @@ const authHeaders = (): Record<string, string> => {
       setError("비밀번호를 입력해야 개인정보를 수정할 수 있습니다.");
       return;
     }
+    if (
+      !phone1 ||
+      !phone2 ||
+      !phone3 ||
+      phone2.length < 4 ||
+      phone3.length < 4
+    ) {
+      setError("연락처를 모두 입력해주세요.");
+      return;
+    }
+    const phone = [phone1, phone2, phone3].join("-");
     setSaving(true);
     setError("");
     setMessage("");
@@ -320,6 +392,7 @@ const authHeaders = (): Record<string, string> => {
           name: name.trim(),
           birthDate: birthDate || null,
           gender: gender || null,
+          phone,
           zipCode: zipCode || null,
           address: address || null,
           detailAddress: detailAddress || null,
@@ -335,8 +408,11 @@ const authHeaders = (): Record<string, string> => {
       const data: UserSummary = await res.json();
       setUser(data);
       setProfileImageUrl(resolveProfileImageUrl(data.profileImageUrl) || DEFAULT_PROFILE_IMG);
+      const [np1, np2, np3] = parsePhoneParts(data.phone);
+      setPhone1(np1);
+      setPhone2(np2);
+      setPhone3(np3);
       setMessage("기본 이미지로 변경되었습니다.");
-      setCurrentPassword("");
     } catch (e: any) {
       setError(e instanceof Error ? e.message : "기본 이미지로 변경에 실패했습니다.");
     } finally {
@@ -524,8 +600,8 @@ const authHeaders = (): Record<string, string> => {
         body: JSON.stringify({ email, password: unlockPassword }),
       });
       if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || "비밀번호가 올바르지 않습니다.");
+        const message = await extractLoginErrorMessage(res);
+        throw new Error(message);
       }
       type LoginPayload = {
         userId: number;
@@ -703,6 +779,19 @@ const authHeaders = (): Record<string, string> => {
                   <option value="MALE">남성</option>
                   <option value="FEMALE">여성</option>
                 </select>
+              </label>
+              <label className="flex flex-col gap-1 text-sm text-slate-700 dark:text-slate-200">
+                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">연락처</span>
+                <PhoneNumberInput
+                  inputClassName="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900/60"
+                  onChange={({ first, middle, last }) => {
+                    setPhone1(first);
+                    setPhone2(middle);
+                    setPhone3(last);
+                  }}
+                  parts={{ first: phone1, middle: phone2, last: phone3 }}
+                  placeholders={{ first: "010", middle: "0000", last: "0000" }}
+                />
               </label>
               <div className="grid gap-3 sm:grid-cols-3">
                 <label className="flex flex-col gap-1 text-sm text-slate-700 dark:text-slate-200 sm:col-span-1">

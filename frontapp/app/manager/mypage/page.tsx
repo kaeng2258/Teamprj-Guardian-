@@ -13,6 +13,7 @@ import {
   ChangeEvent,
   FormEvent,
   type JSX,
+  type CSSProperties,
   useCallback,
   useEffect,
   useMemo,
@@ -273,7 +274,7 @@ const managerQuickActions: Array<{
 }> = [
   {
     value: "client",
-    label: "복약 관리",
+    label: "복약 즐겨찾기",
     description: "배정 및 복약 일정",
     accent: "bg-indigo-600",
     icon: <PillIcon className="h-4 w-4" />,
@@ -433,8 +434,18 @@ export default function ManagerMyPage() {
   >({});
   const [clientModalClientId, setClientModalClientId] = useState<number | null>(null);
   const [clientFilter, setClientFilter] = useState("");
-  const [activePanel, setActivePanel] =
-    useState<ManagerPanel>("client");
+  const [activePanel, setActivePanel] = useState<ManagerPanel>("client");
+  const managerActionCount = managerQuickActions.length;
+  const managerActiveIndex = managerQuickActions.findIndex(
+    (action) => action.value === activePanel
+  );
+  const managerIndicatorStyle: CSSProperties =
+    managerActiveIndex >= 0
+      ? {
+          width: "33.3333%",
+          transform: `translateX(${managerActiveIndex * 100}%)`,
+        }
+      : {};
   const [selectedDrugDetailSeq, setSelectedDrugDetailSeq] = useState<
     string | null
   >(null);
@@ -878,6 +889,11 @@ export default function ManagerMyPage() {
 
   const [activeStat, setActiveStat] = useState<(typeof managerStats)[number] | null>(null);
   type AlertTab = "overdue" | "chat" | "emergency";
+  const alertTabLabels: Record<AlertTab, string> = {
+    overdue: "미복약",
+    chat: "메시지",
+    emergency: "긴급 호출",
+  };
   const [managerAlertTab, setManagerAlertTab] = useState<AlertTab>("overdue");
   const [alertPage, setAlertPage] = useState<Record<AlertTab, number>>({
     overdue: 0,
@@ -888,13 +904,20 @@ export default function ManagerMyPage() {
   const [managerAlertsAcknowledged, setManagerAlertsAcknowledged] = useState(false);
   const PAGE_SIZE = 10;
   const [dismissedEmergencyIds, setDismissedEmergencyIds] = useState<Set<number>>(new Set());
+  const [dismissedOverdueLabels, setDismissedOverdueLabels] = useState<Set<string>>(new Set());
 
   const todayToken = useMemo(() => {
     const tokens = ["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"];
     return tokens[new Date().getDay()] ?? "ALL";
   }, []);
 
-  const todayDateString = useMemo(() => new Date().toISOString().split("T")[0] ?? "", []);
+  const todayDateString = useMemo(() => {
+    const now = new Date();
+    const yyyy = now.getFullYear();
+    const mm = String(now.getMonth() + 1).padStart(2, "0");
+    const dd = String(now.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  }, []);
   const upcomingTodayPlans = useMemo(() => {
     const now = new Date();
     const list: Array<{ clientName: string; medicineName: string; time: string; planId: number }> = [];
@@ -987,8 +1010,8 @@ export default function ManagerMyPage() {
         }
       });
     });
-    return list;
-  }, [dashboard, todayDateString, todayToken]);
+    return list.filter((item) => !dismissedOverdueLabels.has(item.label));
+  }, [dashboard, todayDateString, todayToken, dismissedOverdueLabels]);
 
   const overdueAlertLabels = useMemo(() => overdueAlerts.map((item) => item.label), [overdueAlerts]);
   const latestOverdueAlertTime = useMemo(
@@ -1031,7 +1054,10 @@ export default function ManagerMyPage() {
             : "아직 담당 인원이 없습니다. 관리자나 매칭을 통해 배정해 주세요.",
         items: (dashboard?.clients ?? [])
           .slice(0, 5)
-          .map((c) => `${c.clientName} / 일정 ${c.medicationPlans.length}건 / 알림 ${c.emergencyAlerts.length}건`),
+          .map((c) => ({
+            label: `${c.clientName} / 일정 ${c.medicationPlans.length}건 / 알림 ${c.emergencyAlerts.length}건`,
+            clientId: c.clientId,
+          })),
       },
       {
         key: "pending",
@@ -1166,6 +1192,14 @@ export default function ManagerMyPage() {
   const effectiveChatCount = managerAlertsAcknowledged ? 0 : displayChatAlerts.length;
   const effectiveEmergencyCount = managerAlertsAcknowledged ? 0 : emergencyAlerts.length;
   const totalPendingManagerAlerts = effectiveOverdueCount + effectiveChatCount + effectiveEmergencyCount;
+  const pendingAlertsByTab = useMemo(
+    () => ({
+      overdue: effectiveOverdueCount,
+      chat: effectiveChatCount,
+      emergency: effectiveEmergencyCount,
+    }),
+    [effectiveOverdueCount, effectiveChatCount, effectiveEmergencyCount],
+  );
 
   const handleSendClientEmergency = useCallback(async (clientId: number) => {
     setClientEmergencyMessage((prev) => ({ ...prev, [clientId]: undefined }));
@@ -1219,38 +1253,62 @@ export default function ManagerMyPage() {
     setManagerAlertsAcknowledged(lastAcknowledgedAt.getTime() >= latestAlertTime);
   }, [manager.userId, lastAcknowledgedAt, latestOverdueAlertTime, latestChatAlertTime, latestEmergencyAlertTime]);
 
-  const handleManagerAcknowledgeAlerts = useCallback(async () => {
-    if (!manager.userId) return;
+  const handleAcknowledgeCurrentTab = useCallback(async () => {
     setAckLoading(true);
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/emergency/alerts/acknowledge-all?managerId=${manager.userId}`,
-        { method: "POST" },
-      );
-      if (!response.ok) {
-        const message = await extractApiError(response, "알림을 확인 처리하지 못했습니다.");
-        throw new Error(message);
+      if (managerAlertTab === "overdue") {
+        setDismissedOverdueLabels((prev) => {
+          const next = new Set(prev);
+          overdueAlertLabels.forEach((label) => next.add(label));
+          return next;
+        });
+        setAlertPage((prev) => ({ ...prev, overdue: 0 }));
+      } else if (managerAlertTab === "chat") {
+        await Promise.all(displayChatAlerts.map((alert) => markChatAsRead(alert.roomId)));
+        setChatAlerts([]);
+        setAlertPage((prev) => ({ ...prev, chat: 0 }));
+      } else if (managerAlertTab === "emergency") {
+        const ids = emergencyAlertEntries.map((entry) => entry.alertId);
+        setDismissedEmergencyIds((prev) => {
+          const next = new Set(prev);
+          ids.forEach((id) => next.add(id));
+          return next;
+        });
+        await acknowledgeAllEmergency();
+        setAlertPage((prev) => ({ ...prev, emergency: 0 }));
       }
-      const now = new Date();
-      setLastAcknowledgedAt(now);
-      if (typeof window !== "undefined" && alertAckKey) {
-        try {
-          window.localStorage.setItem(alertAckKey, now.toISOString());
-        } catch {
-          // ignore storage error
+      const remainingOverdue = managerAlertTab === "overdue" ? 0 : effectiveOverdueCount;
+      const remainingChat = managerAlertTab === "chat" ? 0 : effectiveChatCount;
+      const remainingEmergency = managerAlertTab === "emergency" ? 0 : effectiveEmergencyCount;
+      if (remainingOverdue + remainingChat + remainingEmergency === 0) {
+        const now = new Date();
+        setLastAcknowledgedAt(now);
+        if (typeof window !== "undefined" && alertAckKey) {
+          try {
+            window.localStorage.setItem(alertAckKey, now.toISOString());
+          } catch {
+            // ignore storage error
+          }
         }
       }
-      setManagerAlertsAcknowledged(true);
-      setAlertPage({ overdue: 0, chat: 0, emergency: 0 });
-      setChatAlerts([]);
-      await loadDashboard();
     } catch (error) {
       const message = error instanceof Error ? error.message : "알림을 확인 처리하지 못했습니다.";
       setDashboardError(message);
     } finally {
       setAckLoading(false);
     }
-  }, [manager.userId, alertAckKey, loadDashboard]);
+  }, [
+    acknowledgeAllEmergency,
+    displayChatAlerts,
+    emergencyAlertEntries,
+    managerAlertTab,
+    markChatAsRead,
+    overdueAlertLabels,
+    alertAckKey,
+    effectiveOverdueCount,
+    effectiveChatCount,
+    effectiveEmergencyCount,
+  ]);
 
   const totalPages = useMemo(() => Math.max(1, Math.ceil(currentAlerts.length / PAGE_SIZE)), [currentAlerts.length]);
 
@@ -1760,6 +1818,10 @@ const WeeklyDayCard = ({
     if (!manager.userId) {
       return;
     }
+    if (typeof window !== "undefined") {
+      const ok = window.confirm("이 클라이언트를 배정하시겠습니까?");
+      if (!ok) return;
+    }
 
     setAssignmentStates((prev) => ({ ...prev, [clientId]: "assigning" }));
     setAssignmentMessages((prev) => ({ ...prev, [clientId]: undefined }));
@@ -1819,6 +1881,10 @@ const WeeklyDayCard = ({
   const handleUnassignClient = async (clientId: number) => {
     if (!manager.userId) {
       return;
+    }
+    if (typeof window !== "undefined") {
+      const ok = window.confirm("이 클라이언트 배정을 취소하시겠습니까?");
+      if (!ok) return;
     }
 
     setAssignmentStates((prev) => ({ ...prev, [clientId]: "unassigning" }));
@@ -2280,6 +2346,10 @@ const WeeklyDayCard = ({
   };
 
   const handleDeletePlan = async (clientId: number, planId: number) => {
+    if (typeof window !== "undefined") {
+      const ok = window.confirm("이 복약 일정을 삭제하시겠습니까?");
+      if (!ok) return;
+    }
     setDeleteProcessing((prev) => ({ ...prev, [planId]: "loading" }));
     setPlanMessages((prev) => ({ ...prev, [planId]: undefined }));
 
@@ -2362,9 +2432,9 @@ const WeeklyDayCard = ({
       planPatch.active = payload.active;
     }
     if (payload.medicineId != null) {
-  // null, undefined 둘 다 제외됨
-  planPatch.medicineId = payload.medicineId;
-}
+      // null, undefined 둘 다 제외됨
+      planPatch.medicineId = payload.medicineId;
+    }
     if (previousSnapshot && Object.keys(planPatch).length > 0) {
       applyPlanPatch(clientId, planId, planPatch);
     }
@@ -3432,34 +3502,45 @@ const WeeklyDayCard = ({
             </p>
           )}
             <div className="flex flex-col gap-3">
-              <div className="flex gap-3 pb-2 sm:grid sm:grid-cols-3 sm:gap-3 sm:pb-0">
-                {managerQuickActions.map((action) => {
-                  const isActive = activePanel === action.value;
-                  return (
-                    <button
-                      key={action.value}
-                      type="button"
-                      onClick={() => setActivePanel(action.value)}
-                      className={`group flex flex-1 min-w-0 flex-col gap-1 rounded-2xl border px-3 py-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow sm:px-4 ${
-                        isActive
-                          ? "border-indigo-500 bg-indigo-50"
-                          : "border-slate-200 bg-white hover:border-indigo-300"
-                      }`}
-                    >
-                      <span
-                        className={`inline-flex h-8 w-8 items-center justify-center rounded-full text-[0.7rem] font-semibold text-white ${action.accent}`}
+              <div className="relative overflow-hidden rounded-2xl border border-blue-100 bg-white p-1 text-slate-900 shadow-[0_12px_30px_rgba(37,99,235,0.08)]">
+                <span
+                  aria-hidden
+                  className="pointer-events-none absolute inset-y-1 left-1 w-1/3 rounded-xl bg-gradient-to-r from-blue-400 via-blue-500 to-indigo-600 shadow-lg shadow-blue-400/50 transition-transform duration-500 ease-out"
+                  style={managerIndicatorStyle}
+                />
+                <div className="relative z-10 grid grid-cols-3 gap-2">
+                  {managerQuickActions.map((action) => {
+                    const isActive = activePanel === action.value;
+                    return (
+                      <button
+                        key={action.value}
+                        type="button"
+                        onClick={() => setActivePanel(action.value)}
+                        className={`group relative z-10 flex flex-col gap-1 rounded-xl border px-3 py-3 text-left transition duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-200 focus-visible:ring-offset-2 focus-visible:ring-offset-white ${
+                          isActive
+                            ? "border-blue-500 bg-blue-50 text-blue-900 shadow-sm shadow-blue-200"
+                            : "border-transparent bg-white/80 text-slate-800 hover:border-blue-200 hover:bg-white"
+                        }`}
                       >
-                        {action.icon ?? action.label.slice(0, 1)}
-                      </span>
-                      <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                        {action.label}
-                      </span>
-                      <span className="text-xs text-slate-500 dark:text-slate-400">
-                        {action.description}
-                      </span>
-                    </button>
-                  );
-                })}
+                        <span
+                        className={`inline-flex h-9 w-9 items-center justify-center rounded-full text-[0.7rem] font-semibold text-white shadow-sm shadow-blue-500/30 transition duration-300 ${
+                            isActive ? "scale-105" : "scale-100"
+                          } ${isActive ? "bg-blue-600" : action.accent}`}
+                        >
+                          {action.icon ?? action.label.slice(0, 1)}
+                        </span>
+                        <span className="text-sm font-semibold">{action.label}</span>
+                        <span
+                          className={`text-xs ${
+                            isActive ? "text-amber-700" : "text-slate-500"
+                          }`}
+                        >
+                          {action.description}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
         </header>
@@ -3589,11 +3670,11 @@ const WeeklyDayCard = ({
                                 );
                               })}
                             </div>
-                            <button
+                          <button
                               type="button"
                               className="ml-auto inline-flex h-10 items-center justify-center rounded-md border border-slate-200 px-3 text-xs font-semibold text-slate-700 transition hover:border-indigo-300 hover:text-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
-                              disabled={ackLoading || managerAlertsAcknowledged || totalPendingManagerAlerts === 0}
-                              onClick={handleManagerAcknowledgeAlerts}
+                              disabled={ackLoading || (pendingAlertsByTab[managerAlertTab] ?? 0) === 0}
+                              onClick={handleAcknowledgeCurrentTab}
                             >
                               {ackLoading ? "처리 중..." : "전부 확인"}
                             </button>
@@ -3744,15 +3825,27 @@ const WeeklyDayCard = ({
                             <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3">
                               <p className="text-sm font-semibold text-slate-800">주요 항목 {activeStat.items.length}건</p>
                               <ul className="mt-2 space-y-2">
-                                {activeStat.items.map((item, idx) => (
+                                {activeStat.items.map((item: any, idx) => (
                                   <li
                                     key={`${activeStat.key}-item-${idx}`}
-                                    className="flex items-start gap-2 rounded-lg bg-white px-3 py-2 text-sm text-slate-800 shadow-sm"
+                                    className="flex items-start gap-2 rounded-lg bg-white px-3 py-2 text-sm text-slate-800 shadow-sm transition hover:-translate-y-0.5 hover:shadow"
                                   >
                                     <span className="mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-indigo-100 text-[11px] font-semibold text-indigo-700">
                                       {idx + 1}
                                     </span>
-                                    <span className="leading-relaxed">{item}</span>
+                                    <button
+                                      type="button"
+                                      className="flex-1 text-left leading-relaxed focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500"
+                                      onClick={() => {
+                                        const targetId = typeof item === "string" ? null : item.clientId;
+                                        if (targetId) {
+                                          setClientModalClientId(targetId);
+                                          setActiveStat(null);
+                                        }
+                                      }}
+                                    >
+                                      {typeof item === "string" ? item : item.label}
+                                    </button>
                                   </li>
                                 ))}
                               </ul>
@@ -3836,6 +3929,7 @@ const WeeklyDayCard = ({
                 }
                 const showUnassign = assignedToCurrent;
                 const unassignDisabled = isAssigning || isUnassigning;
+                const canSendEmergency = assignedToCurrent;
 
                 const addressDisplay = formatAddress(result.address, result.detailAddress);
                 const computedAge =
@@ -3999,7 +4093,7 @@ const WeeklyDayCard = ({
                               e.stopPropagation();
                               handleSendClientEmergency(result.clientId);
                             }}
-                            disabled={clientEmergencySending[result.clientId]}
+                            disabled={clientEmergencySending[result.clientId] || !canSendEmergency}
                           >
                             <svg
                               aria-hidden="true"
@@ -4016,7 +4110,11 @@ const WeeklyDayCard = ({
                               <path d="M5.5 6.5 4 5" strokeLinecap="round" strokeLinejoin="round" />
                               <path d="M18.5 6.5 20 5" strokeLinecap="round" strokeLinejoin="round" />
                             </svg>
-                            {clientEmergencySending[result.clientId] ? "전송 중..." : "긴급 호출"}
+                            {clientEmergencySending[result.clientId]
+                              ? "전송 중..."
+                              : canSendEmergency
+                                ? "긴급 호출"
+                                : "배정 후 호출 가능"}
                           </button>
                           {clientEmergencyMessage[result.clientId] && (
                             <p
@@ -4046,7 +4144,7 @@ const WeeklyDayCard = ({
         <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:p-6">
           <div className="flex flex-col gap-2 border-b border-slate-200 pb-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-lg font-semibold text-slate-900">복약 관리</h2>
+              <h2 className="text-lg font-semibold text-slate-900">복약 즐겨찾기</h2>
               <p className="text-sm text-slate-600">
                 복약 스케줄을 등록하거나 복약 여부를 대신 기록할 수 있습니다.
               </p>
@@ -4126,7 +4224,7 @@ const WeeklyDayCard = ({
                         setClientModalClientId(client.clientId);
                       }
                     }}
-                    aria-label={`${client.clientName}님의 복약 관리 열기`}
+                    aria-label={`${client.clientName}님의 복약 즐겨찾기 열기`}
                   >
                     <button
                       className={`favorite-heart absolute right-3 top-3 ${favorite ? "on" : ""}`}
@@ -4342,7 +4440,7 @@ const WeeklyDayCard = ({
           />
           <div className="fixed inset-0 z-50 px-3 py-6 sm:flex sm:items-start sm:justify-center">
             <div
-              aria-label={`${selectedClient.clientName}님의 복약 관리`}
+              aria-label={`${selectedClient.clientName}님의 복약 즐겨찾기`}
               aria-modal="true"
               className="relative mx-auto w-full max-w-[calc(72rem+2px)] overflow-hidden rounded-3xl bg-white shadow-2xl"
               role="dialog"
@@ -4369,7 +4467,7 @@ const WeeklyDayCard = ({
                       </div>
                       <div className="flex flex-col gap-1">
                         <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-indigo-600">
-                          복약 관리
+                          복약 즐겨찾기
                         </p>
                         <h3 className="text-xl font-bold text-slate-900">
                           {selectedClient.clientName} 님

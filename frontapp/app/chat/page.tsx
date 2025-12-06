@@ -1146,6 +1146,16 @@ function GuardianChatPage() {
           background: #1f2937;
           border: 1px solid #2a3648;
         }
+        .bubble.emergency {
+          background: linear-gradient(180deg, #fef2f2, #fee2e2);
+          border: 1px solid #fecdd3;
+          color: #7f1d1d;
+        }
+        .bubble.mine.emergency {
+          background: linear-gradient(180deg, #ef4444, #b91c1c);
+          color: #fff1f1;
+          border: 1px solid #b91c1c;
+        }
         .metaRow {
           display: flex;
           gap: 8px;
@@ -1331,27 +1341,48 @@ function GuardianChatPage() {
               {!messagesLoading && !messagesError && messages.length === 0 && (
                 <div className="empty">메시지가 없습니다.</div>
               )}
-              {messages.map((message) => (
-                <div
-                  key={message.key}
-                  className={`bubble ${
-                    message.senderId && meId === message.senderId ? "mine" : "other"
-                  }`}
-                >
-                  <div>{message.content}</div>
-                  <div className="metaRow">
-                    <span>{message.messageType ?? "TEXT"}</span>
-                    <span>·</span>
-                    <span>{formatTimestamp(message.createdAt)}</span>
-                    {message.senderId && (
-                      <>
-                        <span>·</span>
-                        <span>#{message.senderId}</span>
-                      </>
-                    )}
+              {messages.map((message) => {
+                const emergency =
+                  (message.messageType ?? "").toUpperCase() === "NOTICE" ||
+                  /긴급\s*호출/.test(message.content ?? "");
+                const mine = Boolean(message.senderId && meId === message.senderId);
+                const owner =
+                  message.senderName && message.senderName.trim().length > 0
+                    ? message.senderName
+                    : message.senderId
+                    ? `사용자#${message.senderId}`
+                    : "시스템";
+                const bubbleClass = [
+                  "bubble",
+                  mine ? "mine" : "other",
+                  emergency ? "emergency" : null,
+                ]
+                  .filter(Boolean)
+                  .join(" ");
+                return (
+                  <div key={message.key} className={bubbleClass}>
+                    <div>
+                      {emergency && (
+                        <div style={{ marginBottom: 6, fontWeight: 700 }}>
+                          {owner}님의 비상 호출입니다
+                        </div>
+                      )}
+                      <div>{message.content}</div>
+                    </div>
+                    <div className="metaRow">
+                      <span>{message.messageType ?? "TEXT"}</span>
+                      <span>·</span>
+                      <span>{formatTimestamp(message.createdAt)}</span>
+                      {message.senderId && (
+                        <>
+                          <span>·</span>
+                          <span>#{message.senderId}</span>
+                        </>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
             <button
               className={`jump ${showJump ? "show" : ""}`}

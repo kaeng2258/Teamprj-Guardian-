@@ -540,7 +540,7 @@ export default function ClientMyPage() {
       }
     };
     void fetchProfiles();
-  }, [plans, managerProfiles, API_BASE_URL, defaultProfileImage]);
+  }, [plans, managerProfiles, defaultProfileImage, managerPhones]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -944,6 +944,9 @@ export default function ClientMyPage() {
             totalPendingAlerts > 0
               ? "미처리 알림이 있습니다. 확인 후 '전부 확인'으로 정리해 주세요."
               : "알림이 없습니다. 문제가 있으면 담당 매니저에게 문의하세요.",
+          actionLabel: pushButtonDisabled ? "푸시 활성화 중" : "푸시 알림 설정",
+          actionDisabled: pushButtonDisabled,
+          onAction: handleEnablePush,
         },
       ] as ServiceStat[],
     [
@@ -959,6 +962,9 @@ export default function ClientMyPage() {
       emergencyLoaded,
       emergencyError,
       emergencySending,
+      handleEnablePush,
+      pushButtonDisabled,
+      chatThreads,
     ],
   );
 
@@ -1068,7 +1074,7 @@ export default function ClientMyPage() {
       const isSameDay = normalized.includes("ALL") || normalized.includes(currentDayToken);
       return isSameDay && diffMs <= 60 * 60 * 1000;
     },
-    [],
+    [chatThreads],
   );
 
   const formatWeekdayLabel = useCallback((value: string) => {

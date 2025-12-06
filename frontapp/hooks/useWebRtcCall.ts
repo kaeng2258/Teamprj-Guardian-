@@ -133,7 +133,7 @@ export function useWebRtcCall({ roomId, me }: UseWebRtcCallProps) {
         setRtcStatus("connected");
         client.subscribe(`/topic/rtc/${roomId}`, async (frame) => {
           try {
-            const msg = JSON.parse(frame.body) as any;
+            const msg = JSON.parse(frame.body) as RTCSignalMessage;
             if (!msg || msg.from === me.id) return;
             await handleRtcSignalRef.current(msg);
           } catch (e) {
@@ -183,8 +183,9 @@ export function useWebRtcCall({ roomId, me }: UseWebRtcCallProps) {
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
       sendRtc("offer", { sdp: offer.sdp });
-    } catch (e: any) {
-      alert("Camera access failed: " + e.message);
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e);
+      alert("Camera access failed: " + message);
     }
   };
 

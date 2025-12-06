@@ -2,29 +2,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { api } from "@/lib/api";
-
-type DrugDetail = {
-  itemSeq: string;             // 품목코드
-  itemName: string;            // 제품명
-  entpName?: string;           // 업체명
-  className?: string;          // 분류
-  chart?: string;              // 제형
-  itemImage?: string;          // 이미지
-  etcOtcName?: string;         // 전문/일반
-  materialName?: string;       // 주요성분
-  openDe?: string;             // 공개일자
-  updateDe?: string;           // 수정일자
-
-  // 상세 텍스트 (백엔드 DTO 필드명 그대로)
-  efcyQesitm?: string;         // 효능/효과
-  useMethodQesitm?: string;    // 복용방법
-  atpnWarnQesitm?: string;     // 경고
-  atpnQesitm?: string;         // 주의사항
-  intrcQesitm?: string;        // 상호작용
-  seQesitm?: string;           // 부작용
-  depositMethodQesitm?: string;// 보관방법
-};
+import { api, type DrugDetail } from "@/lib/api";
 
 type Props = {
   itemSeq: string;
@@ -39,7 +17,7 @@ export function DrugDetailModal({ itemSeq, onClose }: Props) {
     (async () => {
       try {
         setErr(null);
-        const data: DrugDetail = await api.drugDetail(itemSeq);
+        const data = await api.drugDetail(itemSeq);
         setDetail(data);
       } catch (e: Error) {
         setErr(e.message ?? "상세 조회 중 오류가 발생했습니다.");

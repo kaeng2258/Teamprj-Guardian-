@@ -51,6 +51,28 @@ export type DrugSummaryItem = {
   imgUrl?: string;
 };
 
+export type DrugDetail = {
+  itemSeq: string;             // 품목코드
+  itemName: string;            // 제품명
+  entpName?: string;           // 업체명
+  className?: string;          // 분류
+  chart?: string;              // 제형
+  itemImage?: string;          // 이미지
+  etcOtcName?: string;         // 전문/일반
+  materialName?: string;       // 주요성분
+  openDe?: string;             // 공개일자
+  updateDe?: string;           // 수정일자
+
+  // 상세 텍스트 (백엔드 DTO 필드명 그대로)
+  efcyQesitm?: string;         // 효능/효과
+  useMethodQesitm?: string;    // 복용방법
+  atpnWarnQesitm?: string;     // 경고
+  atpnQesitm?: string;         // 주의사항
+  intrcQesitm?: string;        // 상호작용
+  seQesitm?: string;           // 부작용
+  depositMethodQesitm?: string;// 보관방법
+};
+
 /* ---------- 채팅 관련 REST ---------- */
 
 /**
@@ -131,7 +153,7 @@ function drugSearch(query: string, page = 1, size = 10) {
  * GET /api/drugs/{itemSeq}
  */
 function drugDetail(itemSeq: string) {
-  return req<any>(`/api/drugs/${encodeURIComponent(itemSeq)}`);
+  return req<DrugDetail>(`/api/drugs/${encodeURIComponent(itemSeq)}`);
 }
 
 /**

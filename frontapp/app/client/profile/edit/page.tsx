@@ -30,6 +30,37 @@ const parsePhoneParts = (value?: string | null): [string, string, string] => {
   return [parts[0] ?? "", parts[1] ?? "", parts[2] ?? ""];
 };
 
+const extractLoginErrorMessage = async (
+  res: Response,
+  fallback = "비밀번호가 올바르지 않습니다.",
+): Promise<string> => {
+  try {
+    const data = (await res.clone().json()) as { message?: string };
+    if (data?.message && typeof data.message === "string" && data.message.trim()) {
+      return data.message.trim();
+    }
+  } catch {
+    /* ignore */
+  }
+  try {
+    const text = (await res.text()).trim();
+    if (!text) return fallback;
+    try {
+      const parsed = JSON.parse(text) as { message?: string };
+      if (parsed?.message && typeof parsed.message === "string" && parsed.message.trim()) {
+        return parsed.message.trim();
+      }
+    } catch {
+      /* ignore */
+    }
+    if (text.startsWith("{") && text.endsWith("}")) return fallback;
+    return text;
+  } catch {
+    return fallback;
+  }
+  return fallback;
+};
+
 type UserSummary = {
   id: number;
   email: string;
@@ -561,8 +592,8 @@ export default function ClientProfileEditPage() {
         body: JSON.stringify({ email, password: unlockPassword }),
       });
       if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || "비밀번호가 올바르지 않습니다.");
+        const message = await extractLoginErrorMessage(res);
+        throw new Error(message);
       }
       type LoginPayload = {
         userId: number;

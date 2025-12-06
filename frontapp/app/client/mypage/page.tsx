@@ -3,13 +3,13 @@ import MyChatRooms from "@/components/MyChatRooms";
 import { InlineDrugSearch } from "@/components/InlineDrugSearch";
 import { resolveProfileImageUrl } from "@/lib/image";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import {
   useCallback,
   useEffect,
   useMemo,
   useState,
   type CSSProperties,
-  type JSX,
 } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faPen, faMagnifyingGlass } from "@fortawesome/free-solid-svg-icons";
@@ -20,7 +20,7 @@ const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "";
 
 const PillIcon = ({ className = "h-6 w-6" }: { className?: string }) => (
-  <img
+  <Image
     src="/image/medicine.png"
     alt="복약 아이콘"
     className={className}
@@ -233,7 +233,7 @@ export default function ClientMyPage() {
   const clientIndicatorStyle: CSSProperties =
     clientActiveIndex >= 0
       ? {
-          width: "33.3333%",
+          width: `${100 / clientActionCount}%`,
           transform: `translateX(${clientActiveIndex * 100}%)`,
         }
       : {};
@@ -254,7 +254,7 @@ export default function ClientMyPage() {
   const [managerProfiles, setManagerProfiles] = useState<Record<number, string>>({});
   const [managerPhones, setManagerPhones] = useState<Record<number, string>>({});
 
-  const handleStatAction = () => {};
+
 
   const pushCapable = useMemo(
     () => supportsPushApi && pushServiceEnabled && Boolean(vapidPublicKey),
@@ -299,7 +299,7 @@ export default function ClientMyPage() {
               resolveProfileImageUrl(data.profileImageUrl) ||
               defaultProfileImage,
           }));
-        } catch (error) {
+        } catch (_error) {
           // ignore profile fetch errors
         }
       })();
@@ -1342,10 +1342,12 @@ export default function ClientMyPage() {
               <div className="relative">
                 <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full border-2 border-amber-200 bg-indigo-50 text-lg font-semibold text-indigo-700">
                   {client.profileImageUrl ? (
-                    <img
+                    <Image
                       src={client.profileImageUrl}
                       alt="프로필 이미지"
                       className="h-full w-full object-cover"
+                      width={64}
+                      height={64}
                     />
                   ) : (
                     <span>{avatarInitial}</span>
@@ -1355,6 +1357,7 @@ export default function ClientMyPage() {
                   className="absolute -left-1 -bottom-1 inline-flex h-8 w-8 items-center justify-center rounded-full bg-amber-500 text-xs font-semibold text-white shadow-sm ring-4 ring-white transition hover:bg-amber-600"
                   type="button"
                   onClick={() => router.push("/client/profile/edit")}
+                  disabled={avatarUploading}
                 >
                   <FontAwesomeIcon icon={faPen} className="h-4 w-4" aria-hidden style={{ transform: "scaleX(-1)" }} />
                   <span className="sr-only">프로필 편집</span>
@@ -1362,10 +1365,12 @@ export default function ClientMyPage() {
               </div>
               <div className="flex flex-col gap-1">
                 <div className="flex items-center gap-2">
-                  <img
+                  <Image
                     src={logoImage}
                     alt="Guardian 로고"
                     className="h-6 w-auto sm:h-7"
+                    width={96}
+                    height={24}
                   />
                   <span className="text-sm font-semibold uppercase tracking-[0.12em] text-slate-600 sm:text-base">
                     GUARDIAN
@@ -1799,10 +1804,12 @@ export default function ClientMyPage() {
                         <div className="flex items-center gap-3">
                           <span className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-600">
                             {managerAvatar ? (
-                              <img
+                              <Image
                                 src={managerAvatar}
                                 alt={`${managerName} 프로필`}
                                 className="absolute inset-0 h-full w-full object-cover object-center"
+                                width={48}
+                                height={48}
                               />
                             ) : (
                               <span>{managerName.slice(0, 1)}</span>

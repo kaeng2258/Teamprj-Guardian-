@@ -762,12 +762,16 @@ function GuardianChatPage() {
     });
     client.activate();
     stompRef.current = client;
+
+    const cleanupThreadSubsRef = threadSubsRef.current;
+    const cleanupStompClient = client;
+
     return () => {
-      threadSubsRef.current.forEach((sub) => sub.unsubscribe());
-      threadSubsRef.current.clear();
+      cleanupThreadSubsRef.forEach((sub) => sub.unsubscribe());
+      cleanupThreadSubsRef.clear();
       subChatRef.current?.unsubscribe();
       subRtcRef.current?.unsubscribe();
-      client.deactivate();
+      cleanupStompClient.deactivate();
       cleanupPeer();
       stopLocalStream();
       void stopShareStream();
@@ -816,14 +820,14 @@ function GuardianChatPage() {
           await extractApiError(response, "메시지를 전송하지 못했습니다.")
         );
       }
-    } catch (error) {
+    } catch (e: unknown) {
       setRoomActionMessage(
-        error instanceof Error
-          ? error.message
+        e instanceof Error
+          ? e.message
           : "메시지를 전송하지 못했습니다."
       );
     }
-  }, [endpoints, inputValue]);
+  }, [endpoints, inputValue, currentRoomRef, meIdRef]);
 
   const openRoom = useCallback(async () => {
     if (!clientIdInput || !managerIdInput) {
@@ -852,10 +856,10 @@ function GuardianChatPage() {
       await loadThreads();
       await selectRoom(room.roomId);
       setRoomActionMessage("채팅방을 열었습니다.");
-    } catch (error) {
+    } catch (e: unknown) {
       setRoomActionMessage(
-        error instanceof Error
-          ? error.message
+        e instanceof Error
+          ? e.message
           : "채팅방을 생성하지 못했습니다."
       );
     } finally {

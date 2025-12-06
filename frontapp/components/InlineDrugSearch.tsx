@@ -29,9 +29,9 @@ export function InlineDrugSearch() {
     setLoading(true);
     setErr(null);
     try {
-      const data = await (api as any).drugSearchSimple(q.trim(), 10);
+      const data = await api.drugSearchSimple(q.trim(), 10);
       setItems(data.items);
-    } catch (e: any) {
+    } catch (e: Error) {
       setErr(e.message);
       setItems([]);
     } finally {

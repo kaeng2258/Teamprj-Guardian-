@@ -41,7 +41,7 @@ export function DrugDetailModal({ itemSeq, onClose }: Props) {
         setErr(null);
         const data: DrugDetail = await api.drugDetail(itemSeq);
         setDetail(data);
-      } catch (e: any) {
+      } catch (e: Error) {
         setErr(e.message ?? "상세 조회 중 오류가 발생했습니다.");
       }
     })();

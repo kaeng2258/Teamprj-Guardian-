@@ -405,7 +405,7 @@ useEffect(() => {
         setRtcStatus("connected");
         client.subscribe(`/topic/rtc/${roomId}`, async (frame) => {
           try {
-            const msg = JSON.parse(frame.body) as any;
+            const msg = JSON.parse(frame.body) as RTCSignalMessage;
             if (!msg || msg.from === me.id) return;
             await handleRtcSignalRef.current(msg);
           } catch (e) {
@@ -455,8 +455,9 @@ useEffect(() => {
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
       sendRtc("offer", { sdp: offer.sdp });
-    } catch (e: any) {
-      alert("카메라 접근 실패: " + e.message);
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e);
+      alert("카메라 접근 실패: " + message);
     }
   };
 

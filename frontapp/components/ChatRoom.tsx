@@ -48,6 +48,32 @@ const buildKey = (m: ChatMessage) => {
 };
 
 
+type RtcMessageType = "candidate" | "offer" | "answer" | "video-off";
+
+interface RtcOfferAnswerMessage {
+  type: "offer" | "answer";
+  sdp: string;
+  from: number;
+}
+
+interface RtcCandidateMessage {
+  type: "candidate";
+  candidate: RTCIceCandidateInit;
+  from: number;
+}
+
+interface RtcVideoOffMessage {
+  type: "video-off";
+  from: number;
+}
+
+type RTCSignalMessage = RtcOfferAnswerMessage | RtcCandidateMessage | RtcVideoOffMessage;
+
+interface RtcPayload {
+  sdp?: string;
+  candidate?: RTCIceCandidateInit;
+}
+
 // --------- 컴포넌트 ---------
 export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
   const router = useRouter();
@@ -96,8 +122,8 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
       try {
         const res = await fetch(`${API_BASE_URL}/api/chat/rooms/${roomId}`);
         if (!res.ok) return;
-        const data = await res.json();
-        setThread(data as ThreadInfo);
+        const data: ThreadInfo = await res.json();
+        setThread(data);
       } catch {
         // 무시
       }
@@ -300,7 +326,7 @@ useEffect(() => {
   const localStreamRef = useRef<MediaStream | null>(null);
   const rtcClientRef = useRef<Client | null>(null);
 
-  const sendRtc = useCallback((type: string, payload: any = {}) => {
+  const sendRtc = useCallback((type: RtcMessageType, payload: RtcPayload = {}) => {
     const client = rtcClientRef.current;
     if (!client || !client.connected || !roomId || !me.id) return;
     const body = { type, from: me.id, ...payload };
@@ -338,17 +364,17 @@ useEffect(() => {
     return pc;
   }, [sendRtc]);
 
-  const handleRtcSignal = useCallback(async (msg: any) => {
+  const handleRtcSignal = useCallback(async (msg: RTCSignalMessage) => {
     const pc = ensurePc();
 
-    if (msg.type === "offer" && msg.sdp) {
+    if (msg.type === "offer" && "sdp" in msg) {
       await pc.setRemoteDescription({ type: "offer", sdp: msg.sdp });
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
       sendRtc("answer", { sdp: answer.sdp });
-    } else if (msg.type === "answer" && msg.sdp) {
+    } else if (msg.type === "answer" && "sdp" in msg) {
       await pc.setRemoteDescription({ type: "answer", sdp: msg.sdp });
-    } else if (msg.type === "candidate" && msg.candidate) {
+    } else if (msg.type === "candidate" && "candidate" in msg) {
       try {
         await pc.addIceCandidate(new RTCIceCandidate(msg.candidate));
       } catch (e) {

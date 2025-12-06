@@ -2,10 +2,15 @@
 
 import { useRef } from "react";
 
+interface User {
+  id?: number;
+  name: string;
+}
+
 interface ProfileImageProps {
   profileImageUrl: string;
   saving: boolean;
-  user: any;
+  user: User | null;
   handleUpload: (file: File | null) => void;
   handleResetImage: () => void;
   role: "CLIENT" | "MANAGER";

@@ -104,6 +104,10 @@ export default function Home() {
   const [registerDetailAddress, setRegisterDetailAddress] = useState("");
   const [registerError, setRegisterError] = useState("");
   const [registerLoading, setRegisterLoading] = useState(false);
+  const [passwordStatus, setPasswordStatus] = useState<"idle" | "valid" | "invalid">("idle");
+  const [passwordMessage, setPasswordMessage] = useState("");
+  const [confirmStatus, setConfirmStatus] = useState<"idle" | "valid" | "invalid">("idle");
+  const [confirmMessage, setConfirmMessage] = useState("");
   const inputClassName =
     "w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-[15px] transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 focus:outline-none placeholder:text-slate-400";
   const labelClassName = "flex flex-col gap-2 text-sm font-medium text-slate-800";
@@ -203,6 +207,29 @@ export default function Home() {
     }
   };
 
+  const validatePassword = (value: string) => {
+    if (!value) {
+      return { valid: false, message: "비밀번호를 입력해주세요." };
+    }
+    if (value.length < 8) {
+      return { valid: false, message: "비밀번호는 8자 이상이어야 합니다." };
+    }
+    if (!/[A-Za-z]/.test(value) || !/\d/.test(value)) {
+      return { valid: false, message: "영문과 숫자를 모두 포함해야 합니다." };
+    }
+    return { valid: true, message: "안전한 비밀번호입니다." };
+  };
+
+  const validateConfirmPassword = (confirm: string, password: string) => {
+    if (!confirm) {
+      return { valid: false, message: "비밀번호 확인을 입력해주세요." };
+    }
+    if (confirm !== password) {
+      return { valid: false, message: "비밀번호 확인이 일치하지 않습니다." };
+    }
+    return { valid: true, message: "비밀번호가 일치합니다." };
+  };
+
   const handleRegisterSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setRegisterMessage("");
@@ -235,8 +262,19 @@ export default function Home() {
       return;
     }
 
-    if (registerPassword !== registerConfirmPassword) {
-      setRegisterError("비밀번호 확인이 일치하지 않습니다.");
+    const passwordCheck = validatePassword(registerPassword);
+    if (!passwordCheck.valid) {
+      setPasswordStatus("invalid");
+      setPasswordMessage(passwordCheck.message);
+      setRegisterError(passwordCheck.message);
+      return;
+    }
+
+    const confirmCheck = validateConfirmPassword(registerConfirmPassword, registerPassword);
+    if (!confirmCheck.valid) {
+      setConfirmStatus("invalid");
+      setConfirmMessage(confirmCheck.message);
+      setRegisterError(confirmCheck.message);
       return;
     }
 
@@ -300,6 +338,10 @@ export default function Home() {
       setEmailCheckStatus("idle");
       setEmailCheckMessage("");
       setCheckedEmail("");
+      setPasswordStatus("idle");
+      setPasswordMessage("");
+      setConfirmStatus("idle");
+      setConfirmMessage("");
     } catch (error) {
       setRegisterError("서버에 연결할 수 없습니다. 잠시 후 다시 시도해주세요.");
     } finally {
@@ -663,12 +705,37 @@ export default function Home() {
                                     aria-label="회원가입 비밀번호"
                                     autoComplete="new-password"
                                     className={inputClassName}
-                                    onChange={(event) => setRegisterPassword(event.target.value)}
+                                    onChange={(event) => {
+                                      const value = event.target.value;
+                                      setRegisterPassword(value);
+                                      const result = validatePassword(value);
+                                      setPasswordStatus(result.valid ? "valid" : "invalid");
+                                      setPasswordMessage(result.message);
+                                      if (registerConfirmPassword) {
+                                        const confirmResult = validateConfirmPassword(
+                                          registerConfirmPassword,
+                                          value
+                                        );
+                                        setConfirmStatus(confirmResult.valid ? "valid" : "invalid");
+                                        setConfirmMessage(confirmResult.message);
+                                      }
+                                    }}
                                     placeholder="영문, 숫자 포함 8자 이상"
                                     required
                                     type="password"
                                     value={registerPassword}
                                   />
+                                  {passwordMessage && (
+                                    <p
+                                      className={`text-sm ${
+                                        passwordStatus === "valid"
+                                          ? "text-emerald-700"
+                                          : "text-rose-700"
+                                      }`}
+                                    >
+                                      {passwordMessage}
+                                    </p>
+                                  )}
                                 </label>
                                 <label className={labelClassName}>
                                   <span>비밀번호 확인</span>
@@ -676,14 +743,29 @@ export default function Home() {
                                     aria-label="비밀번호 확인"
                                     autoComplete="new-password"
                                     className={inputClassName}
-                                    onChange={(event) =>
-                                      setRegisterConfirmPassword(event.target.value)
-                                    }
+                                    onChange={(event) => {
+                                      const value = event.target.value;
+                                      setRegisterConfirmPassword(value);
+                                      const result = validateConfirmPassword(value, registerPassword);
+                                      setConfirmStatus(result.valid ? "valid" : "invalid");
+                                      setConfirmMessage(result.message);
+                                    }}
                                     placeholder="비밀번호를 다시 입력하세요"
                                     required
                                     type="password"
                                     value={registerConfirmPassword}
                                   />
+                                  {confirmMessage && (
+                                    <p
+                                      className={`text-sm ${
+                                        confirmStatus === "valid"
+                                          ? "text-emerald-700"
+                                          : "text-rose-700"
+                                      }`}
+                                    >
+                                      {confirmMessage}
+                                    </p>
+                                  )}
                                 </label>
                               </div>
 

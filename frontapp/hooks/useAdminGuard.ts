@@ -13,11 +13,22 @@ type GuardianAuthPayload = {
 
 export function useAdminGuard() {
   const router = useRouter();
-  const [ready, setReady] = useState(false);
+  const [ready] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      const raw = window.localStorage.getItem("guardian_auth");
+      if (!raw) return false;
+      const parsed: GuardianAuthPayload = JSON.parse(raw);
+      const role = parsed.role?.toUpperCase().trim();
+      return Boolean(role && role.includes("ADMIN"));
+    } catch {
+      return false;
+    }
+  });
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-
+    if (ready) return;
     try {
       const raw = window.localStorage.getItem("guardian_auth");
 
@@ -36,14 +47,11 @@ export function useAdminGuard() {
         router.replace("/");
         return;
       }
-
-      // ADMIN 확인 완료
-      setReady(true);
     } catch (error) {
       console.error("[useAdminGuard] auth parse error:", error);
       router.replace("/");
     }
-  }, [router]);
+  }, [ready, router]);
 
   return ready;
 }

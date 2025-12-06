@@ -567,7 +567,7 @@ function GuardianChatPage() {
       track.addEventListener("ended", () => {
         void stopShareStream();
       });
-    } catch (error) {
+    } catch {
       setRtcError("화면 공유를 시작하지 못했습니다.");
     }
   }, [ensurePeer, shareOn, stopShareStream]);
@@ -581,7 +581,7 @@ function GuardianChatPage() {
         await fetch(endpoints.read(roomId, meIdRef.current), {
           method: "POST",
         });
-      } catch (error) {
+      } catch {
         // ignore markRead failure
       }
     },

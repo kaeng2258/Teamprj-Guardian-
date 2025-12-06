@@ -11,31 +11,20 @@ export default function ChatRoomPage() {
   const params = useParams();
   const roomId = Number(params.roomId);
   const [initial, setInitial] = useState<ChatMessage[]>([]);
-  const [me, setMe] = useState<{ id: number; name: string }>({
-    id: 0,
-    name: "",
-  });
-  const [err, setErr] = useState<string | null>(null);
-
-  // ✅ 내 정보(localStorage)에서 가져오기
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
+  const [me] = useState<{ id: number; name: string }>(() => {
+    if (typeof window === "undefined") {
+      return { id: 0, name: "" };
+    }
     const rawId = window.localStorage.getItem("userId");
     const id = rawId ? Number(rawId) : 0;
-
-    // 로그인 시 userName 을 꼭 localStorage 에 넣어두면 가장 좋음
-    // 예: localStorage.setItem("userName", loginResult.name);
     const storedName =
-      window.localStorage.getItem("userName") ??
-      window.localStorage.getItem("userEmail") ??
-      "";
-
-    setMe({
+      window.localStorage.getItem("userName") ?? window.localStorage.getItem("userEmail") ?? "";
+    return {
       id,
       name: storedName || (id ? `사용자#${id}` : "Me"),
-    });
-  }, []);
+    };
+  });
+  const [err, setErr] = useState<string | null>(null);
 
   // ✅ 기존 대화 이력 가져오기
   useEffect(() => {

@@ -27,8 +27,8 @@ custom:
 
 webpush:
   vapid:
-    public-key: "BBYI8uB4QjU8uB0SaKnqpEKsqPYV80d5_dmuhzKzzYi8daE8tJi1-cV5SywwzgsgN9Ti5vcbR3uSBkEjy3YvyMo"
-    private-key: "Aiwoalc4GXseoWGsOfSSqwDiuFtITXp2kDCSRq1HAWo"
-    subject: "mailto:dev@guardian.local"
+    public-key: "${WEB_PUSH_PUBLIC_KEY:}"
+    private-key: "${WEB_PUSH_PRIVATE_KEY:}"
+    subject: "${WEB_PUSH_SUBJECT:mailto:dev@guardian.local}"
   scheduler:
     timezone: "Asia/Seoul"

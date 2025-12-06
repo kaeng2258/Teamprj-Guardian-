@@ -130,6 +130,13 @@ public class MedicationLogService {
             DayOfWeek targetDay = current.getDayOfWeek();
             int scheduledCount = (int) alarms.stream()
                     .filter(alarm -> alarmDays.getOrDefault(alarm.getId(), Set.of()).contains(targetDay))
+                    // 생성(등록)일 이전 날짜에는 스케줄로 잡지 않음
+                    .filter(alarm -> {
+                        LocalDate createdDate = alarm.getCreatedAt() != null
+                                ? alarm.getCreatedAt().toLocalDate()
+                                : current;
+                        return !createdDate.isAfter(current);
+                    })
                     .count();
             int takenCount = (int) alarms.stream()
                     .filter(alarm -> planLogDates.getOrDefault(alarm.getId(), Set.of()).contains(current))

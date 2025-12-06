@@ -40,10 +40,11 @@ type ThreadInfo = {
 };
 
 const buildKey = (m: ChatMessage) => {
-  if (m.id != null) return `id:${m.id}`;
+  const ident = m.messageId ?? m.id;
+  if (ident != null) return `id:${ident}`;
 
   const ts = m.sentAt ?? m.createdAt ?? "";
-  return `${m.roomId}:${m.senderId}:${ts}:${m.content}`;
+  return `${m.roomId}:${m.senderId}:${ts}:${m.content}:${m.messageType ?? ""}`;
 };
 
 
@@ -276,6 +277,13 @@ useEffect(() => {
     if (!iso) return "";
     const d = new Date(iso);
     return d.toLocaleString();
+  };
+
+  const isEmergencyNotice = (m: ChatMessage) => {
+    const type = (m.messageType ?? "").trim().toUpperCase();
+    if (type === "NOTICE" || type === "EMERGENCY" || type === "ALERT") return true;
+    const content = (m.content ?? "").replace(/\s+/g, "");
+    return /긴급호출|비상호출|긴급|비상/.test(content);
   };
 
   const title = useMemo(
@@ -588,9 +596,21 @@ const rtcTextClass = connected ? "text-emerald-700" : "text-slate-500";
             ) : (
               <ul className="flex flex-col gap-3 text-sm">
                 {messages.map((m, idx) => {
-                  const mine = m.senderId === me.id;
+                  const emergency = isEmergencyNotice(m);
+                  const mine = m.senderId === resolvedMe.id;
                   const name = resolveName(m.senderId, m.senderName);
+                  const alertOwner = name;
                   const avatar = resolveAvatar(m.senderId);
+                  const bubbleBase = emergency
+                    ? "bg-red-50 text-red-900 border border-red-200"
+                    : mine
+                    ? "bg-emerald-500 text-white"
+                    : "bg-white text-slate-900";
+                  const metaText = emergency
+                    ? "text-red-500"
+                    : mine
+                    ? "text-emerald-50/80"
+                    : "text-slate-400";
                   return (
                     <li
                       key={idx}
@@ -599,35 +619,35 @@ const rtcTextClass = connected ? "text-emerald-700" : "text-slate-500";
                       }`}
                     >
                       <div
-                        className={`max-w-[70%] rounded-2xl px-3.5 py-2.5 shadow-sm ${
-                          mine
-                            ? "bg-emerald-500 text-white"
-                            : "bg-white text-slate-900"
-                        }`}
+                        className={`max-w-[70%] rounded-2xl px-3.5 py-2.5 shadow-sm ${bubbleBase}`}
                       >
                         {!mine && (
                           <div className="mb-0.5 flex items-center gap-2">
                             <span className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-slate-100 text-[11px] font-semibold text-emerald-700">
-                              <img
-                                src={avatar}
-                                alt={`${name} 프로필`}
-                                className="h-full w-full object-cover"
-                              />
+                              {avatar && (
+                                <img
+                                  src={avatar}
+                                  alt={`${name} 프로필`}
+                                  className="h-full w-full object-cover"
+                                />
+                              )}
                             </span>
                             <span className="text-xs font-semibold text-emerald-700">
                               {name}
                             </span>
                           </div>
                         )}
+                        {emergency && (
+                          <div className="mb-1 inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-semibold text-red-700">
+                            <span className="h-2 w-2 rounded-full bg-red-500" />
+                            {alertOwner}님의 비상 호출입니다
+                          </div>
+                        )}
                         <div className="whitespace-pre-wrap break-words">
                           {m.content}
                         </div>
                         <div
-                          className={`mt-1 text-[10px] ${
-                            mine
-                              ? "text-emerald-50/80"
-                              : "text-slate-400"
-                          }`}
+                          className={`mt-1 text-[10px] ${metaText}`}
                         >
                           {fmt(m.sentAt ?? m.createdAt)}
                         </div>
@@ -652,7 +672,7 @@ const rtcTextClass = connected ? "text-emerald-700" : "text-slate-500";
             <button
               type="submit"
               className="rounded-full bg-emerald-500 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-600 disabled:cursor-not-allowed disabled:bg-slate-300"
-              disabled={!input.trim() || !me.id}
+              disabled={!input.trim() || !resolvedMe.id}
             >
               전송
             </button>

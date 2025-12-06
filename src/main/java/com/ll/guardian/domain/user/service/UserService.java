@@ -65,6 +65,7 @@ public class UserService {
                         .email(request.email())
                         .password(passwordEncoder.encode(request.password()))
                         .name(request.name())
+                        .phone(request.phone())
                         .birthDate(request.birthDate())
                         .gender(request.gender())
                         .zipCode(request.zipCode())
@@ -100,7 +101,8 @@ public class UserService {
                 saved.getProfileImageUrl(),
                 saved.getAddress(),
                 saved.getDetailAddress(),
-                saved.getZipCode());
+                saved.getZipCode(),
+                saved.getPhone());
     }
 
     public UserResponse updateUser(Long userId, UserUpdateRequest request) {
@@ -117,6 +119,7 @@ public class UserService {
                 request.zipCode(),
                 request.address(),
                 request.detailAddress(),
+                request.phone(),
                 request.profileImageUrl(),
                 request.status());
 
@@ -144,10 +147,11 @@ public class UserService {
                         user.getProfileImageUrl(),
                         profile.getAddress(),
                         profile.getDetailAddress(),
-                        profile.getZipCode());
-            }
-        }
-
+                        profile.getZipCode(),
+                        user.getPhone());
+            } // Closing brace for if (profile != null)
+        } // Closing brace for if (user.getRole() == UserRole.CLIENT)
+        // This is the default return for the updateUser method
         return new UserResponse(
                 user.getId(),
                 user.getEmail(),
@@ -159,7 +163,8 @@ public class UserService {
                 user.getProfileImageUrl(),
                 user.getAddress(),
                 user.getDetailAddress(),
-                user.getZipCode());
+                user.getZipCode(),
+                user.getPhone());
     }
 
     public void deleteUser(Long userId) {
@@ -192,7 +197,8 @@ public class UserService {
                                             user.getDetailAddress() != null
                                                     ? user.getDetailAddress()
                                                     : profile.getDetailAddress(),
-                                            user.getZipCode() != null ? user.getZipCode() : profile.getZipCode()))
+                                            user.getZipCode() != null ? user.getZipCode() : profile.getZipCode(),
+                                            user.getPhone()))
                     .orElse(
                             new UserResponse(
                                     user.getId(),
@@ -205,7 +211,8 @@ public class UserService {
                                     user.getProfileImageUrl(),
                                     user.getAddress(),
                                     user.getDetailAddress(),
-                                    user.getZipCode()));
+                                    user.getZipCode(),
+                                    user.getPhone()));
         }
 
         return new UserResponse(
@@ -219,7 +226,8 @@ public class UserService {
                 user.getProfileImageUrl(),
                 user.getAddress(),
                 user.getDetailAddress(),
-                user.getZipCode());
+                user.getZipCode(),
+                user.getPhone());
     }
 
     @Transactional(readOnly = true)
@@ -259,6 +267,7 @@ public class UserService {
                     user.getZipCode(),
                     user.getAddress(),
                     user.getDetailAddress(),
+                    user.getPhone(),
                     url,
                     null);
 
@@ -281,7 +290,8 @@ public class UserService {
                             user.getDetailAddress() != null
                                     ? user.getDetailAddress()
                                     : profile.getDetailAddress(),
-                            user.getZipCode() != null ? user.getZipCode() : profile.getZipCode());
+                            user.getZipCode() != null ? user.getZipCode() : profile.getZipCode(),
+                            user.getPhone());
                 }
             }
 
@@ -296,7 +306,8 @@ public class UserService {
                     user.getProfileImageUrl(),
                     user.getAddress(),
                     user.getDetailAddress(),
-                    user.getZipCode());
+                    user.getZipCode(),
+                    user.getPhone());
         } catch (IOException e) {
             log.error("Failed to store profile image at {}: {}", profileImageDir, e.getMessage(), e);
             throw new GuardianException(HttpStatus.INTERNAL_SERVER_ERROR, "프로필 이미지를 저장하지 못했습니다.");

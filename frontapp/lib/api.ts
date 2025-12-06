@@ -32,11 +32,16 @@ export type ChatRoomSummary = {
 };
 
 export type ChatMessageDTO = {
-  id: number;
+  messageId?: number;
+  id?: number;
+  roomId?: number;
   senderId: number;
-  senderName: string;
+  senderName?: string | null;
   content: string;
-  createdAt: string;
+  messageType?: string | null;
+  fileUrl?: string | null;
+  createdAt?: string;
+  sentAt?: string;
 };
 
 export type DrugSummaryItem = {

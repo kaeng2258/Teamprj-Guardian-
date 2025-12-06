@@ -31,9 +31,13 @@ public class CareAssignmentService {
         User client = getUser(request.clientId());
         User manager = getUser(request.managerId());
 
-        careMatchRepository.findByClientId(client.getId()).stream()
-                .filter(CareMatch::isCurrent)
-                .forEach(match -> match.deactivate(LocalDate.now()));
+        // 이미 같은 매니저가 활성 배정되어 있으면 새로 만들지 않고 기존 배정 반환
+        CareMatch existing = careMatchRepository
+                .findFirstByClientIdAndManagerIdAndCurrentTrue(client.getId(), manager.getId())
+                .orElse(null);
+        if (existing != null) {
+            return CareAssignmentResponse.from(existing);
+        }
 
         CareMatch newMatch = CareMatch.builder()
                 .client(client)

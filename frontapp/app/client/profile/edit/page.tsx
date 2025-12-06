@@ -1,15 +1,16 @@
 "use client";
 
 import { resolveProfileImageUrl } from "@/lib/image";
+import PhoneNumberInput from "@/components/PhoneNumberInput";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "";
 const DEFAULT_PROFILE_IMG = "/image/픽토그램.png";
 const primaryActionButton =
-  "inline-flex items-center justify-center gap-2 rounded-full bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-[1px] hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-indigo-300";
+  "inline-flex items-center justify-center gap-2 rounded-full bg-amber-500 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-[1px] hover:bg-amber-600 disabled:cursor-not-allowed disabled:bg-amber-300";
 const subtleActionButton =
-  "inline-flex items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition hover:-translate-y-[1px] hover:border-indigo-200 hover:text-indigo-800 hover:shadow-sm disabled:cursor-not-allowed disabled:opacity-60";
+  "inline-flex items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition hover:-translate-y-[1px] hover:border-amber-200 hover:text-amber-700 hover:shadow-sm disabled:cursor-not-allowed disabled:opacity-60";
 type ThemeMode = "light" | "dark";
 type TextSizeMode = "normal" | "large";
 type IconProps = { className?: string };
@@ -23,12 +24,50 @@ const normalizeBirthDate = (value?: string | null) => {
   return value;
 };
 
+const parsePhoneParts = (value?: string | null): [string, string, string] => {
+  if (!value) return ["", "", ""];
+  const parts = value.split("-");
+  return [parts[0] ?? "", parts[1] ?? "", parts[2] ?? ""];
+};
+
+const extractLoginErrorMessage = async (
+  res: Response,
+  fallback = "비밀번호가 올바르지 않습니다.",
+): Promise<string> => {
+  try {
+    const data = (await res.clone().json()) as { message?: string };
+    if (data?.message && typeof data.message === "string" && data.message.trim()) {
+      return data.message.trim();
+    }
+  } catch {
+    /* ignore */
+  }
+  try {
+    const text = (await res.text()).trim();
+    if (!text) return fallback;
+    try {
+      const parsed = JSON.parse(text) as { message?: string };
+      if (parsed?.message && typeof parsed.message === "string" && parsed.message.trim()) {
+        return parsed.message.trim();
+      }
+    } catch {
+      /* ignore */
+    }
+    if (text.startsWith("{") && text.endsWith("}")) return fallback;
+    return text;
+  } catch {
+    return fallback;
+  }
+  return fallback;
+};
+
 type UserSummary = {
   id: number;
   email: string;
   name: string;
   birthDate?: string | null;
   gender?: string | null;
+  phone?: string | null;
   zipCode?: string | null;
   address?: string | null;
   detailAddress?: string | null;
@@ -98,6 +137,9 @@ export default function ClientProfileEditPage() {
   const [error, setError] = useState("");
   const [birthDate, setBirthDate] = useState("");
   const [gender, setGender] = useState("");
+  const [phone1, setPhone1] = useState("");
+  const [phone2, setPhone2] = useState("");
+  const [phone3, setPhone3] = useState("");
   const [zipCode, setZipCode] = useState("");
   const [address, setAddress] = useState("");
   const [detailAddress, setDetailAddress] = useState("");
@@ -157,6 +199,10 @@ export default function ClientProfileEditPage() {
         setEmail(data.email ?? "");
         setBirthDate(normalizeBirthDate(data.birthDate));
         setGender(data.gender ?? "");
+        const [p1, p2, p3] = parsePhoneParts(data.phone);
+        setPhone1(p1);
+        setPhone2(p2);
+        setPhone3(p3);
         setZipCode(data.zipCode ? String(data.zipCode) : "");
         setAddress(data.address ?? "");
         setDetailAddress(data.detailAddress ?? "");
@@ -263,10 +309,21 @@ const authHeaders = (): Record<string, string> => {
       setError("이름을 입력해주세요.");
       return;
     }
+    if (
+      !phone1 ||
+      !phone2 ||
+      !phone3 ||
+      phone2.length < 4 ||
+      phone3.length < 4
+    ) {
+      setError("연락처를 모두 입력해주세요.");
+      return;
+    }
     if (!currentPassword.trim()) {
       setError("비밀번호를 입력해야 개인정보를 수정할 수 있습니다.");
       return;
     }
+    const phone = [phone1, phone2, phone3].join("-");
     setSaving(true);
     setError("");
     setMessage("");
@@ -279,6 +336,7 @@ const authHeaders = (): Record<string, string> => {
           name: name.trim(),
           birthDate: birthDate || null,
           gender: gender || null,
+          phone,
           zipCode: zipCode || null,
           address: address || null,
           detailAddress: detailAddress || null,
@@ -295,8 +353,11 @@ const authHeaders = (): Record<string, string> => {
       setUser(data);
       setProfileImageUrl(resolveProfileImageUrl(data.profileImageUrl) || DEFAULT_PROFILE_IMG);
       setBirthDate(normalizeBirthDate(data.birthDate));
+      const [np1, np2, np3] = parsePhoneParts(data.phone);
+      setPhone1(np1);
+      setPhone2(np2);
+      setPhone3(np3);
       setMessage("개인정보가 저장되었습니다.");
-      setCurrentPassword("");
     } catch (e: any) {
       setError(e instanceof Error ? e.message : "저장에 실패했습니다.");
     } finally {
@@ -310,6 +371,17 @@ const authHeaders = (): Record<string, string> => {
       setError("비밀번호를 입력해야 개인정보를 수정할 수 있습니다.");
       return;
     }
+    if (
+      !phone1 ||
+      !phone2 ||
+      !phone3 ||
+      phone2.length < 4 ||
+      phone3.length < 4
+    ) {
+      setError("연락처를 모두 입력해주세요.");
+      return;
+    }
+    const phone = [phone1, phone2, phone3].join("-");
     setSaving(true);
     setError("");
     setMessage("");
@@ -322,6 +394,7 @@ const authHeaders = (): Record<string, string> => {
           name: name.trim(),
           birthDate: birthDate || null,
           gender: gender || null,
+          phone,
           zipCode: zipCode || null,
           address: address || null,
           detailAddress: detailAddress || null,
@@ -337,8 +410,11 @@ const authHeaders = (): Record<string, string> => {
       const data: UserSummary = await res.json();
       setUser(data);
       setProfileImageUrl(resolveProfileImageUrl(data.profileImageUrl) || DEFAULT_PROFILE_IMG);
+      const [np1, np2, np3] = parsePhoneParts(data.phone);
+      setPhone1(np1);
+      setPhone2(np2);
+      setPhone3(np3);
       setMessage("기본 이미지로 변경되었습니다.");
-      setCurrentPassword("");
     } catch (e: any) {
       setError(e instanceof Error ? e.message : "기본 이미지로 변경에 실패했습니다.");
     } finally {
@@ -525,8 +601,8 @@ const authHeaders = (): Record<string, string> => {
         body: JSON.stringify({ email, password: unlockPassword }),
       });
       if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || "비밀번호가 올바르지 않습니다.");
+        const message = await extractLoginErrorMessage(res);
+        throw new Error(message);
       }
       type LoginPayload = {
         userId: number;
@@ -571,7 +647,7 @@ const authHeaders = (): Record<string, string> => {
         <header className="flex flex-col gap-4 border-b border-slate-200 pb-4">
           <div className="flex items-start gap-4 sm:gap-6">
             <div className="relative">
-              <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border-2 border-indigo-200 bg-indigo-50 text-lg font-semibold text-indigo-700">
+              <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border-2 border-amber-200 bg-amber-50 text-lg font-semibold text-amber-700">
                 {profileImageUrl ? (
                   <img src={profileImageUrl} alt="프로필 이미지" className="h-full w-full object-cover" />
                 ) : (
@@ -588,7 +664,7 @@ const authHeaders = (): Record<string, string> => {
               {imageMenuOpen && (
                 <div className="absolute left-0 top-full z-10 mt-2 w-44 rounded-md border border-slate-200 bg-white p-1 shadow-lg">
                   <button
-                    className="block w-full rounded px-2 py-1 text-left text-xs font-semibold text-slate-700 hover:bg-indigo-50"
+                    className="block w-full rounded px-2 py-1 text-left text-xs font-semibold text-slate-700 hover:bg-amber-50"
                     type="button"
                     onClick={() => {
                       setImageMenuOpen(false);
@@ -598,7 +674,7 @@ const authHeaders = (): Record<string, string> => {
                     새 이미지 업로드
                   </button>
                   <button
-                    className="mt-1 block w-full rounded px-2 py-1 text-left text-xs font-semibold text-slate-700 hover:bg-indigo-50"
+                    className="mt-1 block w-full rounded px-2 py-1 text-left text-xs font-semibold text-slate-700 hover:bg-amber-50"
                     type="button"
                     onClick={() => {
                       setImageMenuOpen(false);
@@ -623,14 +699,14 @@ const authHeaders = (): Record<string, string> => {
               />
             </div>
             <div className="flex flex-1 flex-col gap-1">
-              <p className="text-sm font-semibold uppercase tracking-[0.08em] text-indigo-600">Client</p>
+              <p className="text-sm font-semibold uppercase tracking-[0.08em] text-amber-600">Client</p>
               <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">
                 {user?.name ? `${user.name}님` : "클라이언트 마이페이지"}
               </h1>
               <p className="text-sm text-slate-600">이름과 프로필 이미지를 변경할 수 있습니다.</p>
             </div>
             <button
-              className="ml-auto inline-flex h-10 items-center justify-center rounded-lg border border-slate-300 px-4 text-sm font-semibold text-slate-700 transition hover:border-indigo-400 hover:text-indigo-900"
+              className="ml-auto inline-flex h-10 items-center justify-center rounded-lg border border-slate-300 px-4 text-sm font-semibold text-slate-700 transition hover:border-amber-300 hover:text-amber-800"
               type="button"
               onClick={() => router.back()}
             >
@@ -645,7 +721,7 @@ const authHeaders = (): Record<string, string> => {
               <p className="text-sm font-semibold text-slate-700">비밀번호를 입력하면 개인정보를 수정할 수 있습니다.</p>
               <button
                 type="button"
-                className="mt-3 inline-flex items-center justify-center rounded-full border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm font-semibold text-indigo-700 transition hover:-translate-y-0.5 hover:border-indigo-300 hover:shadow-sm"
+                className="mt-3 inline-flex items-center justify-center rounded-full border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-700 transition hover:-translate-y-0.5 hover:border-amber-300 hover:shadow-sm"
                 onClick={() => setUnlockModalOpen(true)}
               >
                 비밀번호 입력하기
@@ -676,7 +752,7 @@ const authHeaders = (): Record<string, string> => {
                   <input
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900/60"
+                    className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900/60"
                     placeholder="이름을 입력하세요"
                   />
                 </label>
@@ -686,7 +762,7 @@ const authHeaders = (): Record<string, string> => {
                     type="date"
                     value={birthDate}
                     onChange={(e) => setBirthDate(e.target.value)}
-                    className={`rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none ${
+                    className={`rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none ${
                       birthDate ? "text-slate-900" : "text-slate-400"
                     } dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-100`}
                     placeholder="YYYY-MM-DD"
@@ -698,12 +774,25 @@ const authHeaders = (): Record<string, string> => {
                 <select
                   value={gender}
                   onChange={(e) => setGender(e.target.value)}
-                  className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900/60"
+                  className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900/60"
                 >
                   <option value="">선택해주세요</option>
                   <option value="MALE">남성</option>
                   <option value="FEMALE">여성</option>
                 </select>
+              </label>
+              <label className="flex flex-col gap-1 text-sm text-slate-700 dark:text-slate-200">
+                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">연락처</span>
+                <PhoneNumberInput
+                  inputClassName="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900/60"
+                  onChange={({ first, middle, last }) => {
+                    setPhone1(first);
+                    setPhone2(middle);
+                    setPhone3(last);
+                  }}
+                  parts={{ first: phone1, middle: phone2, last: phone3 }}
+                  placeholders={{ first: "010", middle: "0000", last: "0000" }}
+                />
               </label>
               <div className="grid gap-3 sm:grid-cols-3">
                 <label className="flex flex-col gap-1 text-sm text-slate-700 dark:text-slate-200 sm:col-span-1">
@@ -711,7 +800,7 @@ const authHeaders = (): Record<string, string> => {
                   <input
                     value={zipCode}
                     onChange={(e) => setZipCode(e.target.value)}
-                    className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900/60"
+                    className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900/60"
                     placeholder="우편번호"
                   />
                 </label>
@@ -720,7 +809,7 @@ const authHeaders = (): Record<string, string> => {
                   <input
                     value={address}
                     onChange={(e) => setAddress(e.target.value)}
-                    className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900/60"
+                    className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900/60"
                     placeholder="주소"
                   />
                 </label>
@@ -728,7 +817,7 @@ const authHeaders = (): Record<string, string> => {
                   <button
                     type="button"
                     onClick={handleAddressSearch}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-indigo-400 hover:text-indigo-900 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-200"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-amber-300 hover:text-amber-800 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-200"
                   >
                     주소 검색
                   </button>
@@ -738,7 +827,7 @@ const authHeaders = (): Record<string, string> => {
                   <input
                     value={detailAddress}
                     onChange={(e) => setDetailAddress(e.target.value)}
-                    className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900/60"
+                    className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900/60"
                     placeholder="상세 주소"
                   />
                 </label>
@@ -772,7 +861,7 @@ const authHeaders = (): Record<string, string> => {
                   disabled={pushStatus === "requesting"}
                   className={`relative inline-flex h-10 w-32 items-center justify-between rounded-full border px-3 text-[11px] font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${
                     pushEnabled
-                      ? "border-indigo-500 bg-indigo-50 text-indigo-700 shadow-sm"
+                      ? "border-amber-500 bg-amber-50 text-amber-800 shadow-sm"
                       : "border-slate-200 bg-slate-100 text-slate-700 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
                   } ${pushStatus === "requesting" ? "opacity-60" : "hover:-translate-y-[1px] hover:shadow-sm"}`}
                   aria-pressed={pushEnabled}
@@ -781,7 +870,7 @@ const authHeaders = (): Record<string, string> => {
                   <span className="flex items-center gap-2">
                     <span
                       className={`flex h-7 w-7 items-center justify-center rounded-full bg-white/90 shadow-sm ${
-                        pushEnabled ? "text-indigo-600" : "text-slate-600"
+                        pushEnabled ? "text-amber-600" : "text-slate-600"
                       }`}
                     >
                       <BellIcon className="h-4 w-4" />
@@ -789,12 +878,12 @@ const authHeaders = (): Record<string, string> => {
                     <span className="sr-only">{pushEnabled ? "알림 켜짐" : "알림 꺼짐"}</span>
                   </span>
                   <span
-                    className={`relative flex h-7 w-14 items-center rounded-full transition ${pushEnabled ? "bg-indigo-100" : "bg-slate-200/90"}`}
+                    className={`relative flex h-7 w-14 items-center rounded-full transition ${pushEnabled ? "bg-amber-100" : "bg-slate-200/90"}`}
                   >
                     <span
                       className={`absolute left-1 h-5 w-5 rounded-full ring-1 ring-slate-200 transition-all duration-200 ${
                         pushEnabled
-                          ? "translate-x-7 bg-indigo-600 shadow-lg"
+                          ? "translate-x-7 bg-amber-500 shadow-lg"
                           : "translate-x-0 bg-white shadow-sm"
                       }`}
                     />
@@ -814,7 +903,7 @@ const authHeaders = (): Record<string, string> => {
                   onClick={toggleTheme}
                   className={`relative inline-flex h-10 w-32 items-center justify-between rounded-full border px-3 text-[11px] font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${
                     theme === "dark"
-                      ? "border-indigo-500 bg-gradient-to-r from-slate-800 to-indigo-600 text-white shadow-sm"
+                      ? "border-amber-500 bg-gradient-to-r from-slate-800 to-amber-600 text-white shadow-sm"
                       : "border-slate-300 bg-slate-100 text-slate-700 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
                   }`}
                   aria-pressed={theme === "dark"}
@@ -823,7 +912,7 @@ const authHeaders = (): Record<string, string> => {
                   <span className="flex items-center gap-2">
                     <span
                       className={`flex h-7 w-7 items-center justify-center rounded-full bg-white/90 shadow-sm ${
-                        theme === "dark" ? "text-indigo-600" : "text-amber-500"
+                        theme === "dark" ? "text-amber-500" : "text-amber-500"
                       }`}
                     >
                       <ThemeIcon mode={theme} className="h-4 w-4" />
@@ -831,12 +920,12 @@ const authHeaders = (): Record<string, string> => {
                     <span className="sr-only">{theme === "dark" ? "다크 모드" : "라이트 모드"}</span>
                   </span>
                   <span
-                    className={`relative flex h-7 w-14 items-center rounded-full transition ${theme === "dark" ? "bg-indigo-200/60" : "bg-slate-200/90"}`}
+                    className={`relative flex h-7 w-14 items-center rounded-full transition ${theme === "dark" ? "bg-amber-200/60" : "bg-slate-200/90"}`}
                   >
                     <span
                       className={`absolute left-1 h-5 w-5 rounded-full ring-1 ring-slate-200 transition-all duration-200 ${
                         theme === "dark"
-                          ? "translate-x-7 bg-indigo-700 shadow-lg"
+                          ? "translate-x-7 bg-amber-600 shadow-lg"
                           : "translate-x-0 bg-white shadow-sm"
                       }`}
                     />
@@ -853,7 +942,7 @@ const authHeaders = (): Record<string, string> => {
                   onClick={toggleTextSize}
                   className={`relative inline-flex h-10 w-32 items-center justify-between rounded-full border px-3 text-[11px] font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${
                     textSize === "large"
-                      ? "border-indigo-500 bg-gradient-to-r from-indigo-500 to-blue-600 text-white shadow-sm"
+                      ? "border-amber-500 bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-sm"
                       : "border-slate-300 bg-slate-100 text-slate-700 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
                   }`}
                   aria-pressed={textSize === "large"}
@@ -862,7 +951,7 @@ const authHeaders = (): Record<string, string> => {
                   <span className="flex items-center gap-2">
                     <span
                       className={`flex h-7 w-7 items-center justify-center rounded-full bg-white/90 shadow-sm ${
-                        textSize === "large" ? "text-indigo-600" : "text-slate-600"
+                        textSize === "large" ? "text-amber-600" : "text-slate-600"
                       }`}
                     >
                       <TextSizeIcon large={textSize === "large"} className="h-4 w-4" />
@@ -870,12 +959,12 @@ const authHeaders = (): Record<string, string> => {
                     <span className="sr-only">{textSize === "large" ? "큰 글씨" : "보통 글씨"}</span>
                   </span>
                   <span
-                    className={`relative flex h-7 w-14 items-center rounded-full transition ${textSize === "large" ? "bg-indigo-200/60" : "bg-slate-200/90"}`}
+                    className={`relative flex h-7 w-14 items-center rounded-full transition ${textSize === "large" ? "bg-amber-200/60" : "bg-slate-200/90"}`}
                   >
                     <span
                       className={`absolute left-1 h-5 w-5 rounded-full ring-1 ring-slate-200 transition-all duration-200 ${
                         textSize === "large"
-                          ? "translate-x-7 bg-indigo-700 shadow-lg"
+                          ? "translate-x-7 bg-amber-600 shadow-lg"
                           : "translate-x-0 bg-white shadow-sm"
                       }`}
                     />
@@ -921,7 +1010,7 @@ const authHeaders = (): Record<string, string> => {
                 type="password"
                 value={unlockPassword}
                 onChange={(e) => setUnlockPassword(e.target.value)}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none dark:border-slate-600 dark:bg-slate-900/60 dark:text-slate-50"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none dark:border-slate-600 dark:bg-slate-900/60 dark:text-slate-50"
                 placeholder="비밀번호"
               />
               {unlockError && <p className="text-sm text-rose-600">{unlockError}</p>}
@@ -929,7 +1018,7 @@ const authHeaders = (): Record<string, string> => {
             <div className="mt-4 flex justify-end gap-2">
               <button
                 type="button"
-                className="h-10 rounded-md bg-indigo-600 px-4 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-indigo-300"
+                className="h-10 rounded-md bg-amber-500 px-4 text-sm font-semibold text-white transition hover:bg-amber-600 disabled:cursor-not-allowed disabled:bg-amber-300"
                 onClick={() => void handleUnlockProfile()}
                 disabled={unlocking}
               >

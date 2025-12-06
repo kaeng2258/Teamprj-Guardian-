@@ -15,4 +15,5 @@ public record UserResponse(
         String profileImageUrl,
         String address,
         String detailAddress,
-        String zipCode) {}
+        String zipCode,
+        String phone) {}

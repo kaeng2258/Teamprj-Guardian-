@@ -3825,29 +3825,33 @@ const WeeklyDayCard = ({
                             <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3">
                               <p className="text-sm font-semibold text-slate-800">주요 항목 {activeStat.items.length}건</p>
                               <ul className="mt-2 space-y-2">
-                                {activeStat.items.map((item: any, idx) => (
-                                  <li
-                                    key={`${activeStat.key}-item-${idx}`}
-                                    className="flex items-start gap-2 rounded-lg bg-white px-3 py-2 text-sm text-slate-800 shadow-sm transition hover:-translate-y-0.5 hover:shadow"
-                                  >
-                                    <span className="mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-indigo-100 text-[11px] font-semibold text-indigo-700">
-                                      {idx + 1}
-                                    </span>
-                                    <button
-                                      type="button"
-                                      className="flex-1 text-left leading-relaxed focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500"
-                                      onClick={() => {
-                                        const targetId = typeof item === "string" ? null : item.clientId;
-                                        if (targetId) {
-                                          setClientModalClientId(targetId);
-                                          setActiveStat(null);
-                                        }
-                                      }}
+                                {activeStat.items.map((item, idx) => {
+                                  const label = typeof item === "string" ? item : item.label;
+                                  const clientId =
+                                    typeof item === "string" ? null : item.clientId ?? null;
+                                  return (
+                                    <li
+                                      key={`${activeStat.key}-item-${idx}`}
+                                      className="flex items-start gap-2 rounded-lg bg-white px-3 py-2 text-sm text-slate-800 shadow-sm transition hover:-translate-y-0.5 hover:shadow"
                                     >
-                                      {typeof item === "string" ? item : item.label}
-                                    </button>
-                                  </li>
-                                ))}
+                                      <span className="mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-indigo-100 text-[11px] font-semibold text-indigo-700">
+                                        {idx + 1}
+                                      </span>
+                                      <button
+                                        type="button"
+                                        className="flex-1 text-left leading-relaxed focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500"
+                                        onClick={() => {
+                                          if (clientId) {
+                                            setClientModalClientId(clientId);
+                                            setActiveStat(null);
+                                          }
+                                        }}
+                                      >
+                                        {label}
+                                      </button>
+                                    </li>
+                                  );
+                                })}
                               </ul>
                             </div>
                           )

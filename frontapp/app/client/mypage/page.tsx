@@ -985,8 +985,8 @@ export default function ClientMyPage() {
             return `${time} / ${a.alertType ?? ""} / ${a.status ?? ""}`;
           });
         setEmergencyAlerts(list);
-      } catch (e: any) {
-        setEmergencyError(e instanceof Error ? e.message : "알림을 불러오지 못했습니다.");
+      } catch (error: unknown) {
+        setEmergencyError(error instanceof Error ? error.message : "알림을 불러오지 못했습니다.");
       } finally {
         setEmergencyLoaded(true);
       }

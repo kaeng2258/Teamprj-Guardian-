@@ -204,8 +204,8 @@ const res = await fetch(`${API_BASE_URL}/api/users/${id}`, {
         setAddress(data.address ?? "");
         setDetailAddress(data.detailAddress ?? "");
         setProfileImageUrl(resolveProfileImageUrl(data.profileImageUrl) || DEFAULT_PROFILE_IMG);
-      } catch (e: any) {
-        setError(e instanceof Error ? e.message : "내 정보를 불러오지 못했습니다.");
+      } catch (error: unknown) {
+        setError(error instanceof Error ? error.message : "내 정보를 불러오지 못했습니다.");
       } finally {
         setLoading(false);
       }
@@ -356,8 +356,8 @@ const authHeaders = (): Record<string, string> => {
       setPhone2(np2);
       setPhone3(np3);
       setMessage("개인정보가 저장되었습니다.");
-    } catch (e: any) {
-      setError(e instanceof Error ? e.message : "저장에 실패했습니다.");
+    } catch (error: unknown) {
+      setError(error instanceof Error ? error.message : "저장에 실패했습니다.");
     } finally {
       setSaving(false);
     }
@@ -413,8 +413,8 @@ const authHeaders = (): Record<string, string> => {
       setPhone2(np2);
       setPhone3(np3);
       setMessage("기본 이미지로 변경되었습니다.");
-    } catch (e: any) {
-      setError(e instanceof Error ? e.message : "기본 이미지로 변경에 실패했습니다.");
+    } catch (error: unknown) {
+      setError(error instanceof Error ? error.message : "기본 이미지로 변경에 실패했습니다.");
     } finally {
       setSaving(false);
     }
@@ -447,8 +447,8 @@ const authHeaders = (): Record<string, string> => {
       const data: UserSummary = await res.json();
       setProfileImageUrl(resolveProfileImageUrl(data.profileImageUrl) || DEFAULT_PROFILE_IMG);
       setMessage("프로필 이미지가 업데이트되었습니다.");
-    } catch (e: any) {
-      setError(e instanceof Error ? e.message : "이미지 업로드 실패");
+    } catch (error: unknown) {
+      setError(error instanceof Error ? error.message : "이미지 업로드 실패");
     } finally {
       setSaving(false);
     }
@@ -563,9 +563,11 @@ const authHeaders = (): Record<string, string> => {
       setPushEnabled(true);
       setPushStatus("idle");
       setPushMessage("모바일 푸시 알림이 활성화되었습니다.");
-    } catch (e: any) {
+    } catch (error: unknown) {
       setPushStatus("error");
-      setPushMessage(e instanceof Error ? e.message : "푸시 알림을 설정하지 못했습니다.");
+      setPushMessage(
+        error instanceof Error ? error.message : "푸시 알림을 설정하지 못했습니다.",
+      );
     }
   }, [API_BASE_URL, pushServiceEnabled, supportsPushApi, vapidPublicKey, user?.id]);
 
@@ -622,8 +624,8 @@ const authHeaders = (): Record<string, string> => {
       setProfileLocked(false);
       setUnlockModalOpen(false);
       setUnlockPassword("");
-    } catch (e: any) {
-      setUnlockError(e instanceof Error ? e.message : "비밀번호가 올바르지 않습니다.");
+    } catch (error: unknown) {
+      setUnlockError(error instanceof Error ? error.message : "비밀번호가 올바르지 않습니다.");
     } finally {
       setUnlocking(false);
     }

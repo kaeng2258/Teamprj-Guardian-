@@ -31,8 +31,9 @@ export function InlineDrugSearch() {
     try {
       const data = await api.drugSearchSimple(q.trim(), 10);
       setItems(data.items);
-    } catch (e: Error) {
-      setErr(e.message);
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : "검색 중 오류가 발생했습니다.";
+      setErr(message);
       setItems([]);
     } finally {
       setLoading(false);

@@ -251,6 +251,7 @@ export default function ClientMyPage() {
   const defaultProfileImage = resolveProfileImageUrl("/image/픽토그램.png") || "/image/픽토그램.png";
   const logoImage = resolveProfileImageUrl("/image/logo.png") || "/image/logo.png";
   const [managerProfiles, setManagerProfiles] = useState<Record<number, string>>({});
+  const [managerPhones, setManagerPhones] = useState<Record<number, string>>({});
 
   const handleStatAction = () => {};
 
@@ -510,8 +511,8 @@ export default function ClientMyPage() {
         new Set(
           plans
             .map((p) => p.managerId)
-            .filter((id): id is number => typeof id === "number" && Number.isFinite(id))
-        )
+            .filter((id): id is number => typeof id === "number" && Number.isFinite(id)),
+        ),
       ).filter((id) => !managerProfiles[id]);
 
       if (ids.length === 0) return;
@@ -520,11 +521,18 @@ export default function ClientMyPage() {
         try {
           const res = await fetch(`${API_BASE_URL}/api/users/${id}`);
           if (!res.ok) continue;
-          const detail: { profileImageUrl?: string | null } = await res.json();
+          const detail: { profileImageUrl?: string | null; phone?: string | null } = await res.json();
           setManagerProfiles((prev) => ({
             ...prev,
             [id]: resolveProfileImageUrl(detail.profileImageUrl) || defaultProfileImage,
           }));
+          const phone = detail.phone?.trim();
+          if (phone) {
+            setManagerPhones((prev) => ({
+              ...prev,
+              [id]: phone,
+            }));
+          }
         } catch {
           // ignore individual fetch errors
         }
@@ -1742,11 +1750,11 @@ export default function ClientMyPage() {
                   managerRaw && managerRaw.length > 0
                     ? `${managerRaw} 매니저`
                     : managerFallback || "담당 매니저 정보 없음";
-                const managerMeta = [
-                  plan.managerOrganization?.trim(),
-                  plan.managerEmail?.trim(),
-                  plan.managerPhone?.trim(),
-                ]
+                const managerPhone =
+                  plan.managerPhone?.trim() ||
+                  (plan.managerId ? managerPhones[plan.managerId] : "") ||
+                  "";
+                const managerMeta = [plan.managerOrganization?.trim(), plan.managerEmail?.trim()]
                   .filter((value) => value && value.length > 0)
                   .join(" · ");
                 const managerAvatar =
@@ -1782,12 +1790,12 @@ export default function ClientMyPage() {
                     <div className="mt-3 rounded-xl border border-slate-200 bg-white px-3 py-2">
                       <div className="flex items-center justify-between gap-3">
                         <div className="flex items-center gap-3">
-                          <span className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-600">
+                          <span className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-600">
                             {managerAvatar ? (
                               <img
                                 src={managerAvatar}
                                 alt={`${managerName} 프로필`}
-                                className="h-full w-full object-cover"
+                                className="absolute inset-0 h-full w-full object-cover object-center"
                               />
                             ) : (
                               <span>{managerName.slice(0, 1)}</span>
@@ -1802,6 +1810,21 @@ export default function ClientMyPage() {
                             </p>
                             <p className="text-xs text-slate-500">
                               {managerMeta || "연락처 정보 없음"}
+                            </p>
+                            <p className="text-xs text-slate-500">
+                              {managerPhone ? (
+                                <>
+                                  전화번호{" "}
+                                  <a
+                                    className="font-semibold text-slate-700 underline decoration-dotted underline-offset-2"
+                                    href={`tel:${managerPhone.replace(/[^0-9+]/g, "")}`}
+                                  >
+                                    {managerPhone}
+                                  </a>
+                                </>
+                              ) : (
+                                "전화번호 정보 없음"
+                              )}
                             </p>
                           </div>
                         </div>

@@ -274,7 +274,7 @@ const managerQuickActions: Array<{
 }> = [
   {
     value: "client",
-    label: "복약 관리",
+    label: "복약 즐겨찾기",
     description: "배정 및 복약 일정",
     accent: "bg-indigo-600",
     icon: <PillIcon className="h-4 w-4" />,
@@ -4143,7 +4143,7 @@ const WeeklyDayCard = ({
         <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:p-6">
           <div className="flex flex-col gap-2 border-b border-slate-200 pb-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-lg font-semibold text-slate-900">복약 관리</h2>
+              <h2 className="text-lg font-semibold text-slate-900">복약 즐겨찾기</h2>
               <p className="text-sm text-slate-600">
                 복약 스케줄을 등록하거나 복약 여부를 대신 기록할 수 있습니다.
               </p>
@@ -4223,7 +4223,7 @@ const WeeklyDayCard = ({
                         setClientModalClientId(client.clientId);
                       }
                     }}
-                    aria-label={`${client.clientName}님의 복약 관리 열기`}
+                    aria-label={`${client.clientName}님의 복약 즐겨찾기 열기`}
                   >
                     <button
                       className={`favorite-heart absolute right-3 top-3 ${favorite ? "on" : ""}`}
@@ -4439,7 +4439,7 @@ const WeeklyDayCard = ({
           />
           <div className="fixed inset-0 z-50 px-3 py-6 sm:flex sm:items-start sm:justify-center">
             <div
-              aria-label={`${selectedClient.clientName}님의 복약 관리`}
+              aria-label={`${selectedClient.clientName}님의 복약 즐겨찾기`}
               aria-modal="true"
               className="relative mx-auto w-full max-w-[calc(72rem+2px)] overflow-hidden rounded-3xl bg-white shadow-2xl"
               role="dialog"
@@ -4466,7 +4466,7 @@ const WeeklyDayCard = ({
                       </div>
                       <div className="flex flex-col gap-1">
                         <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-indigo-600">
-                          복약 관리
+                          복약 즐겨찾기
                         </p>
                         <h3 className="text-xl font-bold text-slate-900">
                           {selectedClient.clientName} 님

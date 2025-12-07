@@ -34,7 +34,7 @@ jobs:
           username: ${{ secrets.EC2_USER2 }}
           key: ${{ secrets.EC2_SSH_KEY2 }}
           source: "build/libs/guardian.jar"
-          target: "/home/ec2-user/app/backend/guardian.jar"
+          target: "/home/ec2-user/app/backend"
 
       # ✅ 백엔드 서비스 재시작
       - name: Restart backend service

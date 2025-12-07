@@ -26,19 +26,13 @@ jobs:
           echo "==== build/libs 내용 ===="
           ls -l build/libs
 
-          # 생성된 jar 이름을 guardian.jar 로 통일
-          JAR_FILE=$(ls build/libs/*SNAPSHOT.jar 2>/dev/null || ls build/libs/*.jar)
-          echo "선택된 JAR: $JAR_FILE"
-          mv "$JAR_FILE" build/libs/guardian.jar
-          ls -l build/libs
-
       - name: Upload jar to EC2
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.EC2_HOST2 }}
           username: ${{ secrets.EC2_USER2 }}
           key: ${{ secrets.EC2_SSH_KEY2 }}
-          source: "build/libs/guardian.jar"
+          source: "build/libs/*.jar"        # ❗ 모든 jar 업로드
           target: "/home/ec2-user/app/backend"
 
       - name: Restart backend service

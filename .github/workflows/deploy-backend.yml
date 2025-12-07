@@ -19,6 +19,7 @@ jobs:
           java-version: 17
 
       - name: Build backend
+        working-directory: .
         run: |
           chmod +x gradlew
           ./gradlew clean bootJar
@@ -32,16 +33,19 @@ jobs:
           host: ${{ secrets.EC2_HOST2 }}
           username: ${{ secrets.EC2_USER2 }}
           key: ${{ secrets.EC2_SSH_KEY2 }}
-          source: "build/libs/*.jar"        # ❗ 모든 jar 업로드
+          source: "build/libs/*.jar"
           target: "/home/ec2-user/app/backend"
 
-      - name: Restart backend service
+      - name: Restart backend on EC2
         uses: appleboy/ssh-action@v0.1.7
         with:
           host: ${{ secrets.EC2_HOST2 }}
           username: ${{ secrets.EC2_USER2 }}
           key: ${{ secrets.EC2_SSH_KEY2 }}
           script: |
+            cd /home/ec2-user/app/backend
+            LATEST_JAR=$(ls -t *.jar | head -n 1)
+            cp "$LATEST_JAR" guardian.jar
             sudo systemctl daemon-reload
             sudo systemctl restart guardian-backend
             sudo systemctl status guardian-backend --no-pager -l

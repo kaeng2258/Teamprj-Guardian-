@@ -18,14 +18,24 @@ jobs:
           distribution: temurin
           java-version: 17
 
+      # 루트가 바로 백엔드 프로젝트
       - name: Build backend
-        working-directory: .
         run: |
+          pwd
+          ls
           chmod +x gradlew
           ./gradlew clean bootJar
 
           echo "==== build/libs 내용 ===="
           ls -l build/libs
+
+      # jar 있는지 한 번 더 확인 (디버그용)
+      - name: Debug - check jar before upload
+        run: |
+          echo "==== workspace root ===="
+          pwd
+          echo "==== build/libs ===="
+          ls -l build/libs || echo "build/libs 없음"
 
       - name: Upload jar to EC2
         uses: appleboy/scp-action@v0.1.7
@@ -33,19 +43,39 @@ jobs:
           host: ${{ secrets.EC2_HOST2 }}
           username: ${{ secrets.EC2_USER2 }}
           key: ${{ secrets.EC2_SSH_KEY2 }}
+          # ✅ 네 구조 기준: jar 는 build/libs 에 생김
           source: "build/libs/*.jar"
-          target: "/home/ec2-user/app/backend"
+          target: "/home/ec2-user/app/backend/"
 
-      - name: Restart backend on EC2
+      - name: Rename latest jar and restart service
         uses: appleboy/ssh-action@v0.1.7
         with:
           host: ${{ secrets.EC2_HOST2 }}
           username: ${{ secrets.EC2_USER2 }}
           key: ${{ secrets.EC2_SSH_KEY2 }}
           script: |
+            set -e
             cd /home/ec2-user/app/backend
-            LATEST_JAR=$(ls -t *.jar | head -n 1)
+
+            echo "=== EC2 backend 디렉토리 내용 ==="
+            pwd
+            ls -l
+
+            # 최신 jar 찾기
+            LATEST_JAR=$(ls -t *.jar 2>/dev/null | head -n 1 || true)
+
+            if [ -z "$LATEST_JAR" ]; then
+              echo "❌ EC2 /home/ec2-user/app/backend 에 jar 가 없습니다. (scp 에서 뭔가 실패한 상태)"
+              ls -l
+              exit 1
+            fi
+
+            echo "선택된 최신 JAR: $LATEST_JAR"
             cp "$LATEST_JAR" guardian.jar
+
+            echo "=== 최종 guardian.jar 상태 ==="
+            ls -l guardian.jar
+
             sudo systemctl daemon-reload
             sudo systemctl restart guardian-backend
             sudo systemctl status guardian-backend --no-pager -l

@@ -25,7 +25,7 @@ jobs:
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.EC2_HOST2 }}
-          username: ${{ secrets.EC_USER2 }}
+          username: ${{ secrets.EC2_USER2 }}
           key: ${{ secrets.EC2_SSH_KEY2 }}
           source: "frontapp/*"
           target: "/home/ec2-user/app/frontend"

@@ -9,9 +9,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - name: Use Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: 20
 
@@ -21,16 +23,16 @@ jobs:
           npm ci
           npm run build
 
-      - name: Upload frontend files
+      - name: Upload frontend source to EC2
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.EC2_HOST2 }}
-          username: ${{ secrets.EC2_USER2 }}
+          username: ${{ secrets.EC2_USER2 }}   # ❗ EC_USER2 말고 EC2_USER2
           key: ${{ secrets.EC2_SSH_KEY2 }}
           source: "frontapp/*"
           target: "/home/ec2-user/app/frontend"
 
-      - name: Restart frontend service
+      - name: Install deps & restart frontend service on EC2
         uses: appleboy/ssh-action@v0.1.7
         with:
           host: ${{ secrets.EC2_HOST2 }}
@@ -39,5 +41,6 @@ jobs:
           script: |
             cd /home/ec2-user/app/frontend
             npm ci --omit=dev
+            sudo systemctl daemon-reload
             sudo systemctl restart guardian-frontend
             sudo systemctl status guardian-frontend --no-pager -l

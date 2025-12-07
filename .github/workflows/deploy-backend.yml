@@ -18,15 +18,20 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      # ✅ 루트에서 바로 빌드 (backend/ 폴더 없음!)
       - name: Build backend
         run: |
           chmod +x gradlew
           ./gradlew clean bootJar
-          # 결과 jar 이름을 guardian.jar 로 통일
-          mv build/libs/*.jar build/libs/guardian.jar
 
-      # ✅ 빌드된 jar를 EC2로 복사
+          echo "==== build/libs 내용 ===="
+          ls -l build/libs
+
+          # 생성된 jar 이름을 guardian.jar 로 통일
+          JAR_FILE=$(ls build/libs/*SNAPSHOT.jar 2>/dev/null || ls build/libs/*.jar)
+          echo "선택된 JAR: $JAR_FILE"
+          mv "$JAR_FILE" build/libs/guardian.jar
+          ls -l build/libs
+
       - name: Upload jar to EC2
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -36,7 +41,6 @@ jobs:
           source: "build/libs/guardian.jar"
           target: "/home/ec2-user/app/backend"
 
-      # ✅ 백엔드 서비스 재시작
       - name: Restart backend service
         uses: appleboy/ssh-action@v0.1.7
         with:

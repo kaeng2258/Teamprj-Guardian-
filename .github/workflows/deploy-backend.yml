@@ -9,28 +9,34 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-java@v4
+      - name: Set up JDK
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 17
 
+      # ✅ 루트에서 바로 빌드 (backend/ 폴더 없음!)
       - name: Build backend
-        working-directory: backend
         run: |
           chmod +x gradlew
           ./gradlew clean bootJar
+          # 결과 jar 이름을 guardian.jar 로 통일
+          mv build/libs/*.jar build/libs/guardian.jar
 
+      # ✅ 빌드된 jar를 EC2로 복사
       - name: Upload jar to EC2
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.EC2_HOST2 }}
           username: ${{ secrets.EC2_USER2 }}
           key: ${{ secrets.EC2_SSH_KEY2 }}
-          source: "backend/build/libs/*.jar"
-          target: "/home/ec2-user/app/backend/guardian.jar"
+          source: "build/libs/guardian.jar"
+          target: "/home/ec2-user/app/backend"
 
+      # ✅ 백엔드 서비스 재시작
       - name: Restart backend service
         uses: appleboy/ssh-action@v0.1.7
         with:
@@ -38,5 +44,6 @@ jobs:
           username: ${{ secrets.EC2_USER2 }}
           key: ${{ secrets.EC2_SSH_KEY2 }}
           script: |
+            sudo systemctl daemon-reload
             sudo systemctl restart guardian-backend
             sudo systemctl status guardian-backend --no-pager -l

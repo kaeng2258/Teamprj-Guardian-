@@ -1,0 +1,42 @@
+name: Deploy Backend
+
+on:
+  push:
+    branches: [ "sh4" ]
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Build backend
+        working-directory: backend
+        run: |
+          chmod +x gradlew
+          ./gradlew clean bootJar
+
+      - name: Upload jar to EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST2 }}
+          username: ${{ secrets.EC2_USER2 }}
+          key: ${{ secrets.EC2_SSH_KEY2 }}
+          source: "backend/build/libs/*.jar"
+          target: "/home/ec2-user/app/backend/guardian.jar"
+
+      - name: Restart backend service
+        uses: appleboy/ssh-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST2 }}
+          username: ${{ secrets.EC2_USER2 }}
+          key: ${{ secrets.EC2_SSH_KEY2 }}
+          script: |
+            sudo systemctl restart guardian-backend
+            sudo systemctl status guardian-backend --no-pager -l

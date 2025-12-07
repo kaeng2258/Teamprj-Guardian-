@@ -1,7 +1,7 @@
 # 8443 쓰고 싶으면 바꾸세요
 spring:
   profiles:
-    active: dev
+    active: prod
     include: secret
   servlet:
     multipart:

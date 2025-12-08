@@ -2,6 +2,35 @@
 const nextConfig = {
     output: "standalone",
   reactStrictMode: true,
+  images: {
+    domains: ["localhost"],
+    remotePatterns: [
+      {
+        protocol: "http",
+        hostname: "localhost",
+        port: "8081",
+        pathname: "/image/**",
+      },
+      {
+        protocol: "https",
+        hostname: "localhost",
+        port: "8081",
+        pathname: "/image/**",
+      },
+      {
+        protocol: "http",
+        hostname: "localhost",
+        port: "8081",
+        pathname: "/files/**",
+      },
+      {
+        protocol: "https",
+        hostname: "localhost",
+        port: "8081",
+        pathname: "/files/**",
+      },
+    ],
+  },
   /* config options here */
   async rewrites() {
   return [

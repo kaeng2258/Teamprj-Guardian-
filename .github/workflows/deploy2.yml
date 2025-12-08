@@ -37,9 +37,9 @@ jobs:
       - name: Upload backend JAR to EC2
         uses: appleboy/scp-action@v0.1.7
         with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
+          host: ${{ secrets.EC2_HOST2 }}
+          username: ${{ secrets.EC2_USER2 }}
+          key: ${{ secrets.EC2_SSH_KEY2 }}
           # ✅ 로컬에서 빌드되는 경로: build/libs/*.jar
           source: "build/libs/*.jar"
           target: "/home/ec2-user/app/backend"
@@ -47,9 +47,9 @@ jobs:
       - name: Rename latest jar and restart backend
         uses: appleboy/ssh-action@v0.1.7
         with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
+          host: ${{ secrets.EC2_HOST2 }}
+          username: ${{ secrets.EC2_USER2 }}
+          key: ${{ secrets.EC2_SSH_KEY2 }}
           command_timeout: 600s
           script: |
             set -e

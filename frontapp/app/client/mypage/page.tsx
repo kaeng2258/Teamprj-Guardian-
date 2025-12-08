@@ -1432,6 +1432,8 @@ export default function ClientMyPage() {
                   <Image
                     src={logoImage}
                     alt="Guardian 로고"
+                    loader={externalImageLoader}
+                    unoptimized
                     className="h-6 w-auto sm:h-7"
                     width={96}
                     height={24}

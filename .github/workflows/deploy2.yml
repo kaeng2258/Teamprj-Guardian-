@@ -2,7 +2,7 @@ name: Deploy Backend & Frontend
 
 on:
   push:
-    branches: ["sh4"]
+    branches: [ "sh4" ]
 
 jobs:
   backend:
@@ -44,35 +44,35 @@ jobs:
           source: "build/libs/*.jar"
           target: "/home/ec2-user/app/backend"
 
-      - name: Rename latest jar and restart backend
+      - name: Restart backend service
         uses: appleboy/ssh-action@v0.1.7
         with:
-          host: ${{ secrets.EC2_HOST2 }}
-          username: ${{ secrets.EC2_USER2 }}
-          key: ${{ secrets.EC2_SSH_KEY2 }}
-          command_timeout: 600s
-          script: |
-            set -e
-            cd /home/ec2-user/app/backend
+            host: ${{ secrets.EC2_HOST2 }}
+            username: ${{ secrets.EC2_USER2 }}
+            key: ${{ secrets.EC2_SSH_KEY2 }}
+            command_timeout: 600s
+            script: |
+              set -e
+              cd /home/ec2-user/app/backend
 
-            echo "=== EC2 backend 디렉토리 내용 ==="
-            pwd
-            ls -l
+              echo "=== EC2 backend 디렉토리 내용 ==="
+              pwd
+              ls -l
 
-            # 최신 JAR 하나 선택
-            LATEST_JAR=$(ls -t *.jar 2>/dev/null | head -n 1 || true)
-            if [ -z "$LATEST_JAR" ]; then
-              echo "❌ JAR 파일을 찾지 못했습니다."
-              exit 1
-            fi
+              # guardian.jar 존재 확인
+              if [ ! -f guardian.jar ]; then
+                echo "❌ guardian.jar 파일을 찾지 못했습니다."
+                echo "현재 디렉토리의 JAR 목록:"
+                ls -l *.jar || echo "JAR 파일 없음"
+                exit 1
+              fi
 
-            echo "선택된 최신 JAR: $LATEST_JAR"
-            cp "$LATEST_JAR" guardian.jar
+              echo "사용할 JAR: guardian.jar"
 
-            echo "=== guardian-backend 서비스 재시작 ==="
-            sudo systemctl daemon-reload
-            sudo systemctl restart guardian-backend
-            sudo systemctl status guardian-backend --no-pager -l
+              echo "=== guardian-backend 서비스 재시작 ==="
+              sudo systemctl daemon-reload
+              sudo systemctl restart guardian-backend
+              sudo systemctl status guardian-backend --no-pager -l
 
   frontend:
     runs-on: ubuntu-latest

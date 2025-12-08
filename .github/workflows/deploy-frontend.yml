@@ -17,29 +17,24 @@ jobs:
         with:
           node-version: 20
 
-      # 1) GitHub Actions에서 next build 실행
-      - name: Install & Build
+      # (선택) GitHub Actions 빌드 테스트용 - 유지해도 되고, 당장 꼬이면 일단 꺼도 됨
+      - name: Install & Build on CI
         working-directory: frontapp
         run: |
           npm ci
-          npm run build
+          npm run build || echo "CI 빌드는 실패해도 EC2 빌드로 진행합니다"
 
-          echo "==== frontapp 디렉토리 내용 ===="
-          ls -l
-          echo "==== frontapp/.next 내용 ===="
-          ls -l .next || echo ".next 없음"
-
-      # 2) EC2로 frontapp 전체 업로드
+      # 1) EC2로 frontapp 전체 업로드 (폴더 자체를 보냄)
       - name: Upload frontend files to EC2
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.EC2_HOST2 }}
           username: ${{ secrets.EC2_USER2 }}
           key: ${{ secrets.EC2_SSH_KEY2 }}
-          source: "frontapp/*"
-          target: "/home/ec2-user/app/frontend/frontapp"
+          source: "frontapp"                            # ✅ 폴더 자체
+          target: "/home/ec2-user/app/frontend"         # ✅ 여기 밑에 frontapp 생김
 
-      # 3) EC2에서 npm install 후 서비스 재시작
+      # 2) EC2에서 npm 설치 + 빌드 + 서비스 재시작
       - name: Install deps on EC2 and restart frontend
         uses: appleboy/ssh-action@v0.1.7
         with:
@@ -52,12 +47,11 @@ jobs:
 
             echo "=== EC2 frontend/frontapp 디렉토리 내용 ==="
             pwd
-            ls -l
+            ls -R
 
             echo "=== package*.json 확인 ==="
             ls -l package*.json || echo "❌ package.json / package-lock.json 없음"
 
-            # package-lock.json 이 있으면 npm ci, 없으면 npm install
             if [ -f package-lock.json ]; then
               echo "✅ package-lock.json 존재 → npm ci"
               npm ci --omit=dev

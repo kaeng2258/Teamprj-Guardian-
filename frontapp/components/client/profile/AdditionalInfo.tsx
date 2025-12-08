@@ -27,6 +27,15 @@ export default function AdditionalInfo({
   setDetailAddress,
   handleAddressSearch,
 }: AdditionalInfoProps) {
+  const today = new Date(Date.now() - new Date().getTimezoneOffset() * 60000)
+    .toISOString()
+    .split("T")[0];
+
+  const handleBirthDateChange = (value: string) => {
+    if (value && value > today) return;
+    setBirthDate(value);
+  };
+
   return (
     <div className="rounded-2xl border border-slate-200 bg-white/80 p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800">
       <div className="flex items-center justify-between pb-3">
@@ -40,7 +49,8 @@ export default function AdditionalInfo({
             <input
               type="date"
               value={birthDate}
-              onChange={(e) => setBirthDate(e.target.value)}
+              onChange={(e) => handleBirthDateChange(e.target.value)}
+              max={today}
               className={`rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none ${
                 birthDate ? "text-slate-900" : "text-slate-400"
               } dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-100`}

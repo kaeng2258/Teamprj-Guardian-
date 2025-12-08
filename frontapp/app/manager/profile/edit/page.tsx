@@ -321,6 +321,10 @@ const authHeaders = (): Record<string, string> => {
       setError("비밀번호를 입력해야 개인정보를 수정할 수 있습니다.");
       return;
     }
+    if (birthDate && birthDate > today) {
+      setError("생년월일은 오늘 이후 날짜를 선택할 수 없습니다.");
+      return;
+    }
     const phone = [phone1, phone2, phone3].join("-");
     setSaving(true);
     setError("");

@@ -16,6 +16,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -51,6 +52,8 @@ public class UserService {
         if (!request.termsAgreed() || !request.privacyAgreed()) {
             throw new GuardianException(HttpStatus.BAD_REQUEST, "이용약관 및 개인정보 처리에 동의해야 합니다.");
         }
+
+        validateBirthDate(request.birthDate());
 
         userRepository
                 .findByEmail(request.email())
@@ -112,6 +115,8 @@ public class UserService {
             throw new GuardianException(HttpStatus.UNAUTHORIZED, "비밀번호가 일치하지 않아 개인정보를 수정할 수 없습니다.");
         }
 
+        validateBirthDate(request.birthDate());
+
         user.updateProfile(
                 request.name(),
                 request.birthDate(),
@@ -165,6 +170,12 @@ public class UserService {
                 user.getDetailAddress(),
                 user.getZipCode(),
                 user.getPhone());
+    }
+
+    private void validateBirthDate(LocalDate birthDate) {
+        if (birthDate != null && birthDate.isAfter(LocalDate.now())) {
+            throw new GuardianException(HttpStatus.BAD_REQUEST, "생년월일은 오늘 이전 날짜만 입력 가능합니다.");
+        }
     }
 
     public void deleteUser(Long userId) {

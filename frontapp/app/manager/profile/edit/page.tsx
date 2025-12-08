@@ -155,6 +155,11 @@ export default function ManagerProfileEditPage() {
   const [theme, setTheme] = useState<ThemeMode>("light");
   const [textSize, setTextSize] = useState<TextSizeMode>("normal");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const today = useMemo(
+    () =>
+      new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().split("T")[0],
+    [],
+  );
 
   const avatarInitial = useMemo(() => {
     if (name && name.trim().length > 0) return name.trim().slice(0, 1).toUpperCase();
@@ -763,6 +768,7 @@ const authHeaders = (): Record<string, string> => {
                     type="date"
                     value={birthDate}
                     onChange={(e) => setBirthDate(e.target.value)}
+                    max={today}
                     className={`rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none ${
                       birthDate ? "text-slate-900" : "text-slate-400"
                     } dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-100`}

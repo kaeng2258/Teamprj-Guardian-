@@ -2,3 +2,22 @@ spring:
   profiles:
     active: test
     include: "" # secret 프로필 제외하여 테스트 환경을 단순화
+  security:
+    oauth2:
+      client:
+        registration:
+          kakao:
+            clientId: test-client-id
+  mail:
+    password: test-password
+custom:
+  security:
+    oauth2:
+      client:
+        registration:
+          kakao:
+            devUser:
+              oauthId: test-oauth-id
+              nickname: test-nickname
+jwt:
+  secret: dGVzdC1zZWNyZXQta2V5LXRlc3Qtc2VjcmV0LWtleS10ZXN0LXNlY3JldC1rZXk= # test-secret-key-test-secret-key-test-secret-key in base64

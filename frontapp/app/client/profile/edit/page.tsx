@@ -774,6 +774,8 @@ const authHeaders = (): Record<string, string> => {
                     value={birthDate}
                     onChange={(e) => setBirthDate(e.target.value)}
                     max={today}
+                    disabled
+                    title="생년월일은 수정할 수 없습니다."
                     className={`rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none ${
                       birthDate ? "text-slate-900" : "text-slate-400"
                     } dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-100`}
@@ -905,7 +907,7 @@ const authHeaders = (): Record<string, string> => {
               </div>
               <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-700 dark:bg-slate-900/50">
                 <div>
-                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-100"></p>
+                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">다크 모드</p>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
                     인터페이스 색상을 {theme === "dark" ? "밝게" : "어둡게"} 전환합니다.
                   </p>

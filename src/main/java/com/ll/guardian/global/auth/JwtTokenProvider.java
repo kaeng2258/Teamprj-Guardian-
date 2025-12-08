@@ -7,22 +7,28 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Date;
 import org.springframework.beans.factory.annotation.Value;
+import jakarta.annotation.PostConstruct;
 import org.springframework.stereotype.Component;
 
 @Component
 public class JwtTokenProvider {
 
-    private final Algorithm algorithm;
+    @Value("${jwt.secret}")
+    private String secret;
+    private Algorithm algorithm;
     private final Duration accessTokenValidity;
     private final Duration refreshTokenValidity;
 
     public JwtTokenProvider(
-            @Value("${jwt.secret}") String secret,
             @Value("${jwt.access-token-validity}") Duration accessTokenValidity,
             @Value("${jwt.refresh-token-validity}") Duration refreshTokenValidity) {
-        this.algorithm = Algorithm.HMAC256(secret);
         this.accessTokenValidity = accessTokenValidity;
         this.refreshTokenValidity = refreshTokenValidity;
+    }
+
+    @PostConstruct
+    public void init() {
+        this.algorithm = Algorithm.HMAC256(secret);
     }
 
     public String createAccessToken(String subject) {

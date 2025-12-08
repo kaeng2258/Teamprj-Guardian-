@@ -1,18 +1,19 @@
-name: Deploy Backend and Frontend
+name: Deploy Backend & Frontend
 
 on:
   push:
     branches: ["sh4"]
 
 jobs:
-  ##############################
-  # 1) Backend 배포
-  ##############################
   backend:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        # ✅ 백엔드는 루트에 있음 (backend 폴더 없음)
+        working-directory: .
 
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Set up JDK 17
@@ -21,34 +22,35 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      - name: Build backend (bootJar)
-        working-directory: backend
+      - name: Build backend JAR
         run: |
+          echo "=== repo 루트 내용 ==="
+          pwd
+          ls -l
+
           chmod +x gradlew
           ./gradlew clean bootJar -x test
 
-          echo "=== backend/build/libs 내용 ==="
+          echo "=== build/libs 내용 ==="
           ls -l build/libs
 
-      # backend/build/libs/*.jar → EC2:/home/ec2-user/app/backend 로 업로드
-      # strip_components: 3 이라서 backend/build/libs/ 를 잘라내고 jar만 떨어지게 함
-      - name: Upload backend jar to EC2
+      - name: Upload backend JAR to EC2
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          source: "backend/build/libs/*.jar"
+          # ✅ 로컬에서 빌드되는 경로: build/libs/*.jar
+          source: "build/libs/*.jar"
           target: "/home/ec2-user/app/backend"
-          strip_components: 3
 
-      - name: Rename latest jar and restart backend service
+      - name: Rename latest jar and restart backend
         uses: appleboy/ssh-action@v0.1.7
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          command_timeout: 20m
+          command_timeout: 600s
           script: |
             set -e
             cd /home/ec2-user/app/backend
@@ -57,43 +59,36 @@ jobs:
             pwd
             ls -l
 
-            # 최신 JAR를 guardian.jar 로 통일
+            # 최신 JAR 하나 선택
             LATEST_JAR=$(ls -t *.jar 2>/dev/null | head -n 1 || true)
             if [ -z "$LATEST_JAR" ]; then
-              echo "❌ /home/ec2-user/app/backend 에 jar 가 없습니다. (scp 실패 가능성)"
-              ls -l
+              echo "❌ JAR 파일을 찾지 못했습니다."
               exit 1
             fi
 
             echo "선택된 최신 JAR: $LATEST_JAR"
             cp "$LATEST_JAR" guardian.jar
 
-            echo "=== 최종 guardian.jar 상태 ==="
-            ls -l guardian.jar
-
-            echo "=== backend 서비스 재시작 ==="
+            echo "=== guardian-backend 서비스 재시작 ==="
             sudo systemctl daemon-reload
             sudo systemctl restart guardian-backend
             sudo systemctl status guardian-backend --no-pager -l
 
-  ##############################
-  # 2) Frontend 배포
-  ##############################
   frontend:
     runs-on: ubuntu-latest
-    needs: backend   # 백엔드 성공 후에 프론트 배포 (원하면 빼도 됨)
+    needs: backend
 
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Node
+      - name: Set up Node 20
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      # GitHub Actions 런너에서만 빌드 수행
-      - name: Install & Build frontend (on GitHub Actions)
+      # ✅ 로컬에서 Next.js 빌드 (frontapp 폴더)
+      - name: Install & Build frontend
         working-directory: frontapp
         run: |
           npm ci
@@ -101,38 +96,27 @@ jobs:
 
           echo "==== frontapp 디렉토리 내용 ===="
           ls -l
-
           echo "==== frontapp/.next 내용 ===="
           ls -l .next || echo ".next 없음"
 
-      # 빌드 결과 + 실행에 필요한 파일들만 EC2 로 업로드
-      # frontapp/ 를 strip_components: 1 로 잘라서
-      # EC2:/home/ec2-user/app/frontend/frontapp 아래에 바로 반영
-      - name: Upload built frontend to EC2
+      # ✅ 빌드된 frontapp 전체를 EC2로 복사
+      - name: Upload frontend to EC2
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.EC2_HOST2 }}
           username: ${{ secrets.EC2_USER2 }}
           key: ${{ secrets.EC2_SSH_KEY2 }}
-          source: |
-            frontapp/.next/**
-            frontapp/public/**
-            frontapp/package.json
-            frontapp/package-lock.json
-            frontapp/next.config.mjs
-            frontapp/tsconfig.json
-            frontapp/server.js
-          target: /home/ec2-user/app/frontend/frontapp
-          strip_components: 1
+          source: "frontapp/*"
+          target: "/home/ec2-user/app/frontend"
 
-      # EC2 에서는 빌드 다시 하지 않고, npm ci + 서비스 재시작만
-      - name: Install deps on EC2 and restart frontend
+      # ✅ EC2에서 의존성 설치 + 빌드 + 서비스 재시작
+      - name: Install deps & restart frontend on EC2
         uses: appleboy/ssh-action@v0.1.7
         with:
           host: ${{ secrets.EC2_HOST2 }}
           username: ${{ secrets.EC2_USER2 }}
           key: ${{ secrets.EC2_SSH_KEY2 }}
-          command_timeout: 20m
+          command_timeout: 900s
           script: |
             set -e
             cd /home/ec2-user/app/frontend/frontapp
@@ -145,14 +129,17 @@ jobs:
             ls -l package*.json || echo "❌ package.json / package-lock.json 없음"
 
             if [ -f package-lock.json ]; then
-              echo "✅ package-lock.json 존재 → npm ci"
+              echo "✅ package-lock.json 존재 → npm ci --omit=dev"
               npm ci --omit=dev
             else
-              echo "⚠ package-lock.json 없음 → npm install"
+              echo "⚠ package-lock.json 없음 → npm install --omit=dev"
               npm install --omit=dev
             fi
 
-            echo "=== frontend 서비스 재시작 ==="
+            echo "=== Next.js build ==="
+            npm run build
+
+            echo "=== guardian-frontend 서비스 재시작 ==="
             sudo systemctl daemon-reload
             sudo systemctl restart guardian-frontend
             sudo systemctl status guardian-frontend --no-pager -l

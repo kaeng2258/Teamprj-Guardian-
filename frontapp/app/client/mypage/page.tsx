@@ -3,7 +3,7 @@ import MyChatRooms from "@/components/MyChatRooms";
 import { InlineDrugSearch } from "@/components/InlineDrugSearch";
 import { resolveProfileImageUrl } from "@/lib/image";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
+import Image, { type ImageLoader } from "next/image";
 import {
   useCallback,
   useEffect,
@@ -18,6 +18,8 @@ import type { ReactNode } from "react";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "";
+
+const externalImageLoader: ImageLoader = ({ src }) => src;
 
 const PillIcon = ({ className = "h-6 w-6" }: { className?: string }) => (
   <Image
@@ -253,6 +255,7 @@ export default function ClientMyPage() {
   const logoImage = resolveProfileImageUrl("/image/logo.png") || "/image/logo.png";
   const [managerProfiles, setManagerProfiles] = useState<Record<number, string>>({});
   const [managerPhones, setManagerPhones] = useState<Record<number, string>>({});
+  const [managerAccordion, setManagerAccordion] = useState<Record<string, boolean>>({});
 
 
 
@@ -757,6 +760,59 @@ export default function ClientMyPage() {
       .slice(0, 5)
       .map((plan) => ({ label: `${plan.medicineName} / ${plan.alarmTime.slice(0, 5)}`, planId: plan.id }));
   }, [plans, todayToken]);
+
+  type ManagerPlanGroup = {
+    key: string;
+    name: string;
+    phone: string;
+    meta: string;
+    avatar: string;
+    plans: MedicationPlan[];
+  };
+
+  const groupedPlans = useMemo<ManagerPlanGroup[]>(() => {
+    const groups = new Map<string, ManagerPlanGroup>();
+    plans.forEach((plan) => {
+      const managerRaw = plan.managerName?.trim();
+      const managerFallback =
+        plan.managerEmail?.trim() ||
+        plan.managerOrganization?.trim() ||
+        plan.managerPhone?.trim() ||
+        "";
+      const name =
+        managerRaw && managerRaw.length > 0 ? `${managerRaw} 매니저` : managerFallback || "담당 매니저 정보 없음";
+      const phone = plan.managerPhone?.trim() || (plan.managerId ? managerPhones[plan.managerId] : "") || "";
+      const meta = [plan.managerOrganization?.trim(), plan.managerEmail?.trim()]
+        .filter((value) => value && value.length > 0)
+        .join(" · ");
+      const avatar = (plan.managerId && managerProfiles[plan.managerId]) || defaultProfileImage;
+      const key = plan.managerId ? `id-${plan.managerId}` : `name-${name}`;
+      if (!groups.has(key)) {
+        groups.set(key, { key, name, phone, meta, avatar, plans: [] });
+      }
+      groups.get(key)!.plans.push(plan);
+    });
+    return Array.from(groups.values());
+  }, [plans, managerProfiles, defaultProfileImage, managerPhones]);
+
+  useEffect(() => {
+    if (groupedPlans.length === 0) return;
+    setManagerAccordion((prev) => {
+      const next = { ...prev };
+      let changed = false;
+      groupedPlans.forEach((group) => {
+        if (typeof prev[group.key] === "undefined") {
+          next[group.key] = true;
+          changed = true;
+        }
+      });
+      return changed ? next : prev;
+    });
+  }, [groupedPlans]);
+
+  const toggleManagerGroup = (key: string) => {
+    setManagerAccordion((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
 
   type AlertTab = "overdue" | "chat";
   const [alertTab, setAlertTab] = useState<AlertTab>("overdue");
@@ -1351,6 +1407,8 @@ export default function ClientMyPage() {
                     <Image
                       src={client.profileImageUrl}
                       alt="프로필 이미지"
+                      loader={externalImageLoader}
+                      unoptimized
                       className="h-full w-full object-cover"
                       width={64}
                       height={64}
@@ -1735,232 +1793,252 @@ export default function ClientMyPage() {
                 등록된 복약 일정이 없습니다. 담당자에게 일정을 요청해주세요.
               </div>
             ) : (
-              plans.map((plan) => {
-                const log = todayLogs[plan.id];
-                const alreadyConfirmed = Boolean(log);
-                const now = new Date();
-                const planTime = new Date();
-                const [hour, minute] = plan.alarmTime.split(":").map(Number);
-                planTime.setHours(hour ?? 0, minute ?? 0, 0, 0);
-                const diffMs = Math.abs(now.getTime() - planTime.getTime());
-                const currentDayToken = ["SUNDAY","MONDAY","TUESDAY","WEDNESDAY","THURSDAY","FRIDAY","SATURDAY"][now.getDay()];
-                const normalizedDays = plan.daysOfWeek.map((d) => d.toUpperCase());
-                const isSameDay = normalizedDays.includes("ALL") || normalizedDays.includes(currentDayToken);
-                const daySummary =
-                  plan.daysOfWeek.length > 0
-                    ? plan.daysOfWeek.map(mapDayToLabel).join(", ")
-                    : "요일 정보 없음";
-                const withinWindow =
-                  isSameDay
-                  && diffMs <= 60 * 60 * 1000
-                  && plan.daysOfWeek.length > 0;
-                const message = confirmationMessage[plan.id];
-                const statusLabel = alreadyConfirmed
-                  ? `${formatLogTime(log?.logTimestamp)} 확인`
-                  : "미확인";
-                const managerRaw = plan.managerName?.trim();
-                const managerFallback =
-                  plan.managerEmail?.trim() ||
-                  plan.managerOrganization?.trim() ||
-                  plan.managerPhone?.trim() ||
-                  "";
-                const managerName =
-                  managerRaw && managerRaw.length > 0
-                    ? `${managerRaw} 매니저`
-                    : managerFallback || "담당 매니저 정보 없음";
-                const managerPhone =
-                  plan.managerPhone?.trim() ||
-                  (plan.managerId ? managerPhones[plan.managerId] : "") ||
-                  "";
-                const managerMeta = [plan.managerOrganization?.trim(), plan.managerEmail?.trim()]
-                  .filter((value) => value && value.length > 0)
-                  .join(" · ");
-                const managerAvatar =
-                  (plan.managerId && managerProfiles[plan.managerId]) || defaultProfileImage;
-
-                const emergencyMsg = emergencyMessage[plan.id];
-                return (
-                  <article
-                    key={plan.id}
-                    className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4 shadow-sm sm:p-5"
-                  >
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                      <div>
-                        <h3 className="text-base font-semibold text-slate-900 sm:text-lg">
-                          {plan.medicineName}
-                        </h3>
-                        <p className="text-sm text-slate-600">
-                          {`용량: ${plan.dosageAmount}${plan.dosageUnit} / 알람: ${formatAlarmTime(
-                            plan.alarmTime
-                          )} / 요일: ${daySummary}`}
-                        </p>
-                      </div>
-                      <span
-                        className={`inline-flex h-7 items-center rounded-full px-3 text-xs font-medium ${
-                          alreadyConfirmed
-                            ? "bg-emerald-100 text-emerald-700"
-                            : "bg-amber-100 text-amber-700"
-                        }`}
-                      >
-                        {statusLabel}
+              groupedPlans.map((group) => (
+                <article
+                  key={group.key}
+                  className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
+                >
+                  {/*
+                    헤더 영역: 담당자 정보 + 공통 액션 + 별도 토글 버튼
+                  */}
+                  <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+                    <div className="flex w-full items-center gap-3">
+                      <span className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-600">
+                        {group.avatar ? (
+                          <Image
+                            src={group.avatar}
+                            alt={`${group.name} 프로필`}
+                            loader={externalImageLoader}
+                            unoptimized
+                            className="absolute inset-0 h-full w-full object-cover object-center"
+                            width={48}
+                            height={48}
+                          />
+                        ) : (
+                          <span>{group.name.slice(0, 1)}</span>
+                        )}
                       </span>
-                    </div>
-                    <div className="mt-3 rounded-xl border border-slate-200 bg-white px-3 py-2">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-3">
-                          <span className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-600">
-                            {managerAvatar ? (
-                              <Image
-                                src={managerAvatar}
-                                alt={`${managerName} 프로필`}
-                                className="absolute inset-0 h-full w-full object-cover object-center"
-                                width={48}
-                                height={48}
-                              />
-                            ) : (
-                              <span>{managerName.slice(0, 1)}</span>
-                            )}
-                          </span>
-                          <div>
-                            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                              담당 매니저
-                            </p>
-                            <p className="text-sm font-semibold text-slate-900">
-                              {managerName}
-                            </p>
-                            <p className="text-xs text-slate-500">
-                              {managerMeta || "연락처 정보 없음"}
-                            </p>
-                            <p className="text-xs text-slate-500">
-                              {managerPhone ? (
-                                <>
-                                  전화번호{" "}
-                                  <a
-                                    className="font-semibold text-slate-700 underline decoration-dotted underline-offset-2"
-                                    href={`tel:${managerPhone.replace(/[^0-9+]/g, "")}`}
-                                  >
-                                    {managerPhone}
-                                  </a>
-                                </>
-                              ) : (
-                                "전화번호 정보 없음"
-                              )}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex flex-col items-end gap-2 sm:flex-row sm:items-center">
-                          <button
-                            className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-2 text-[13px] font-semibold text-sky-700 transition hover:-translate-y-0.5 hover:border-sky-300 hover:bg-sky-100"
-                            onClick={() => handleChatWithManager(plan)}
-                            type="button"
-                            aria-label="담당 매니저와 채팅"
-                          >
-                            <FontAwesomeIcon icon={faComment} className="h-4 w-4" aria-hidden />
-                            채팅하기
-                          </button>
-                          <button
-                            className="inline-flex items-center gap-2 rounded-full border border-rose-300 bg-rose-50 px-3 py-2 text-[13px] font-semibold text-rose-600 transition hover:-translate-y-0.5 hover:border-rose-400 hover:bg-rose-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
-                            disabled={
-                              emergencySending[plan.id] ||
-                              managerName === "담당 매니저 정보 없음"
-                            }
-                            onClick={() => handleEmergencyCall(plan)}
-                            type="button"
-                            aria-label="담당 매니저에게 비상 호출"
-                          >
-                            <svg
-                              aria-hidden="true"
-                              className="h-4 w-4"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth={2}
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                d="M6.5 12h11l-.9-5.4a1 1 0 0 0-.99-.83H8.39a1 1 0 0 0-.99.83L6.5 12Z"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              />
-                              <path
-                                d="M5 14h14v2H5z"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              />
-                              <path
-                                d="M8 18a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-2H8v2Z"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              />
-                              <path d="M12 4V2" strokeLinecap="round" strokeLinejoin="round" />
-                              <path d="M5.5 6.5 4 5" strokeLinecap="round" strokeLinejoin="round" />
-                              <path d="M18.5 6.5 20 5" strokeLinecap="round" strokeLinejoin="round" />
-                            </svg>
-                            {emergencySending[plan.id] ? "전송 중..." : "비상 호출"}
-                          </button>
-                        </div>
-                      </div>
-                      {emergencyMsg && (
-                        <p
-                          className={`mt-2 text-xs ${
-                            emergencyMsg.type === "success"
-                              ? "text-emerald-700"
-                              : "text-rose-600"
-                          }`}
-                        >
-                          {emergencyMsg.text}
+                      <div className="flex flex-1 flex-col text-sm">
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                          담당 매니저
                         </p>
-                      )}
-                    </div>
-                    <div className="mt-4 space-y-2">
-                      {withinWindow ? (
-                        <div className="flex w-full items-center justify-between gap-3">
-                          <div className="flex items-center gap-2 text-sm">
-                            <span className="font-semibold text-slate-700">
-                              {alreadyConfirmed ? "복용 완료" : "복용 확인 대기"}
-                            </span>
-                            {message && (
-                              <span
-                                className={`text-sm ${
-                                  message.type === "success"
-                                    ? "text-emerald-600"
-                                    : "text-red-600"
-                                }`}
+                        <p className="text-sm font-semibold text-slate-900">{group.name}</p>
+                        <p className="text-xs text-slate-500">
+                          {group.meta || "연락처 정보 없음"}
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          {group.phone ? (
+                            <>
+                              전화번호{" "}
+                              <a
+                                className="font-semibold text-slate-700 underline decoration-dotted underline-offset-2"
+                                href={`tel:${group.phone.replace(/[^0-9+]/g, "")}`}
+                                onClick={(e) => e.stopPropagation()}
                               >
-                                {message.text}
-                              </span>
-                            )}
-                          </div>
-                          <button
-                            className={`${primaryActionButton} w-auto`}
-                            disabled={confirmationState[plan.id] === "confirming" || alreadyConfirmed}
-                            onClick={() => handleMedicationConfirm(plan)}
-                            type="button"
-                          >
-                            {confirmationState[plan.id] === "confirming"
-                              ? "저장 중..."
-                              : "복용 완료"}
-                          </button>
-                        </div>
-                      ) : (
-                        <p className="text-sm text-slate-500">
-                          복용 예정 시각 ±1시간 안에서 확인할 수 있습니다.
+                                {group.phone}
+                              </a>
+                            </>
+                          ) : (
+                            "전화번호 정보 없음"
+                          )}
                         </p>
-                      )}
-                      {!withinWindow && message && (
-                        <p
-                          className={`text-sm ${
-                            message.type === "success"
-                              ? "text-emerald-600"
-                              : "text-red-600"
-                          }`}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-1.5 text-[12px] font-semibold text-sky-700 transition hover:-translate-y-0.5 hover:border-sky-300 hover:bg-sky-100"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const firstPlan = group.plans[0];
+                            if (firstPlan) handleChatWithManager(firstPlan);
+                          }}
+                          type="button"
+                          aria-label="담당 매니저와 채팅"
                         >
-                          {message.text}
-                        </p>
-                      )}
+                          <FontAwesomeIcon icon={faComment} className="h-4 w-4" aria-hidden />
+                          채팅하기
+                        </button>
+                        <button
+                          className="inline-flex items-center gap-2 rounded-full border border-rose-300 bg-rose-50 px-3 py-1.5 text-[12px] font-semibold text-rose-600 transition hover:-translate-y-0.5 hover:border-rose-400 hover:bg-rose-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+                          disabled={group.plans.some((p) => emergencySending[p.id])}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const firstPlan = group.plans[0];
+                            if (firstPlan) handleEmergencyCall(firstPlan);
+                          }}
+                          type="button"
+                          aria-label="담당 매니저에게 비상 호출"
+                        >
+                          <svg
+                            aria-hidden="true"
+                            className="h-4 w-4"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth={2}
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              d="M6.5 12h11l-.9-5.4a1 1 0 0 0-.99-.83H8.39a1 1 0 0 0-.99.83L6.5 12Z"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                            <path d="M5 14h14v2H5z" strokeLinecap="round" strokeLinejoin="round" />
+                            <path
+                              d="M8 18a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-2H8v2Z"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                            <path d="M12 4V2" strokeLinecap="round" strokeLinejoin="round" />
+                            <path d="M5.5 6.5 4 5" strokeLinecap="round" strokeLinejoin="round" />
+                            <path d="M18.5 6.5 20 5" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                          비상 호출
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => toggleManagerGroup(group.key)}
+                          className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-slate-600 transition hover:-translate-y-0.5 hover:border-slate-300 hover:bg-white"
+                          aria-label="복약 일정 접기/펼치기"
+                        >
+                          <svg
+                            className={`h-4 w-4 transition ${managerAccordion[group.key] ? "rotate-180" : ""}`}
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth={2}
+                            viewBox="0 0 24 24"
+                            aria-hidden="true"
+                          >
+                            <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        </button>
+                      </div>
                     </div>
-                  </article>
-                );
-              })
+                  </div>
+
+                  {/*
+                    본문 영역: 부드러운 토글 애니메이션을 위해 max-height 트랜지션 사용
+                  */}
+                  <div
+                    className={`overflow-hidden transition-[max-height] duration-300 ease-in-out ${
+                      managerAccordion[group.key] ? "opacity-100" : "opacity-0"
+                    }`}
+                    style={{
+                      maxHeight:
+                        managerAccordion[group.key] && group.plans.length > 0
+                          ? `${220 + group.plans.length * 260}px`
+                          : "0px",
+                    }}
+                  >
+                    <div className="border-t border-slate-100 bg-slate-50/70 px-4 py-4 sm:px-5 sm:py-5">
+                      <div className="space-y-3">
+                        {group.plans.map((plan) => {
+                          const log = todayLogs[plan.id];
+                          const alreadyConfirmed = Boolean(log);
+                          const now = new Date();
+                          const planTime = new Date();
+                          const [hour, minute] = plan.alarmTime.split(":").map(Number);
+                          planTime.setHours(hour ?? 0, minute ?? 0, 0, 0);
+                          const diffMs = Math.abs(now.getTime() - planTime.getTime());
+                          const currentDayToken = ["SUNDAY","MONDAY","TUESDAY","WEDNESDAY","THURSDAY","FRIDAY","SATURDAY"][now.getDay()];
+                          const normalizedDays = plan.daysOfWeek.map((d) => d.toUpperCase());
+                          const isSameDay = normalizedDays.includes("ALL") || normalizedDays.includes(currentDayToken);
+                          const daySummary =
+                            plan.daysOfWeek.length > 0
+                              ? plan.daysOfWeek.map(mapDayToLabel).join(", ")
+                              : "요일 정보 없음";
+                          const withinWindow =
+                            isSameDay && diffMs <= 60 * 60 * 1000 && plan.daysOfWeek.length > 0;
+                          const message = confirmationMessage[plan.id];
+                          const statusLabel = alreadyConfirmed
+                            ? `${formatLogTime(log?.logTimestamp)} 확인`
+                            : "미확인";
+                          const emergencyMsg = emergencyMessage[plan.id];
+
+                          return (
+                            <div
+                              key={plan.id}
+                              className="rounded-xl border border-slate-200 bg-white px-3 py-3 shadow-sm sm:px-4"
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div>
+                                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                    {plan.alarmTime.slice(0, 5)} / {daySummary}
+                                  </p>
+                                  <h3 className="text-base font-semibold text-slate-900">
+                                    {plan.medicineName}
+                                  </h3>
+                                  <p className="text-sm text-slate-600">
+                                    용량: {plan.dosageAmount}
+                                    {plan.dosageUnit}
+                                  </p>
+                                </div>
+                                <span
+                                  className={`inline-flex h-7 items-center rounded-full px-3 text-xs font-medium ${
+                                    alreadyConfirmed
+                                      ? "bg-emerald-100 text-emerald-700"
+                                      : "bg-amber-100 text-amber-700"
+                                  }`}
+                                >
+                                  {statusLabel}
+                                </span>
+                              </div>
+
+                              <div className="mt-3 space-y-2 rounded-lg bg-slate-50 px-3 py-2">
+                                {withinWindow ? (
+                                  <div className="flex flex-wrap items-center justify-between gap-3">
+                                    <div className="flex items-center gap-2 text-sm">
+                                      <span className="font-semibold text-slate-700">
+                                        {alreadyConfirmed ? "복용 완료" : "복용 확인 대기"}
+                                      </span>
+                                      {message && (
+                                        <span
+                                          className={`text-sm ${
+                                            message.type === "success"
+                                              ? "text-emerald-600"
+                                              : "text-red-600"
+                                          }`}
+                                        >
+                                          {message.text}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <button
+                                      className={`${primaryActionButton} w-auto`}
+                                      disabled={
+                                        confirmationState[plan.id] === "confirming" || alreadyConfirmed
+                                      }
+                                      onClick={() => handleMedicationConfirm(plan)}
+                                      type="button"
+                                    >
+                                      {confirmationState[plan.id] === "confirming"
+                                        ? "저장 중..."
+                                        : "복용 완료"}
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <p className="text-sm text-slate-500">
+                                    복용 예정 시각 ±1시간 안에서 확인할 수 있습니다.
+                                  </p>
+                                )}
+                                {!withinWindow && message && (
+                                  <p
+                                    className={`text-sm ${
+                                      message.type === "success"
+                                        ? "text-emerald-600"
+                                        : "text-red-600"
+                                    }`}
+                                  >
+                                    {message.text}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                </article>
+              ))
             )}
           </div>
         </section>

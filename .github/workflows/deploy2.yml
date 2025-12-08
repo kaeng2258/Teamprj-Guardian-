@@ -125,6 +125,15 @@ jobs:
             pwd
             ls -l
 
+            echo "=== .env* 확인 ==="
+            ls -l .env* || echo "no env files"
+
+            # 🔥 프로덕션에선 .env.local 무시 (삭제)
+            if [ -f .env.local ]; then
+              echo "⚠ Removing .env.local for production build"
+              rm -f .env.local
+            fi
+
             echo "=== package*.json 확인 ==="
             ls -l package*.json || echo "❌ package.json / package-lock.json 없음"
 
@@ -143,4 +152,4 @@ jobs:
             sudo systemctl daemon-reload
             sudo systemctl restart guardian-frontend
             sudo systemctl status guardian-frontend --no-pager -l
-#334425
+

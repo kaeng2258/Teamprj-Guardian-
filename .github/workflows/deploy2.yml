@@ -128,7 +128,7 @@ jobs:
             echo "=== .env* 확인 ==="
             ls -l .env* || echo "no env files"
 
-            # 🔥 프로덕션에선 .env.local 무시 (삭제)
+            # 🔥 프로덕션 빌드 전에 .env.local 제거
             if [ -f .env.local ]; then
               echo "⚠ Removing .env.local for production build"
               rm -f .env.local
@@ -137,6 +137,7 @@ jobs:
             echo "=== package*.json 확인 ==="
             ls -l package*.json || echo "❌ package.json / package-lock.json 없음"
 
+            # 🔥 devDependencies 포함해서 설치 (Tailwind 등)
             if [ -f package-lock.json ]; then
               echo "✅ package-lock.json 존재 → npm ci"
               npm ci
@@ -152,4 +153,3 @@ jobs:
             sudo systemctl daemon-reload
             sudo systemctl restart guardian-frontend
             sudo systemctl status guardian-frontend --no-pager -l
-

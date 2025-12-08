@@ -153,3 +153,5 @@ jobs:
             sudo systemctl daemon-reload
             sudo systemctl restart guardian-frontend
             sudo systemctl status guardian-frontend --no-pager -l
+
+##rebuild

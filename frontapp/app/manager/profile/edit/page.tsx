@@ -773,6 +773,8 @@ const authHeaders = (): Record<string, string> => {
                     value={birthDate}
                     onChange={(e) => setBirthDate(e.target.value)}
                     max={today}
+                    disabled
+                    title="생년월일은 수정할 수 없습니다."
                     className={`rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none ${
                       birthDate ? "text-slate-900" : "text-slate-400"
                     } dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-100`}

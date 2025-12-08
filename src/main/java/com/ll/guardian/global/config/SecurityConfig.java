@@ -83,12 +83,21 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration cfg = new CorsConfiguration();
+
+        // 🔹 로컬 개발용
         cfg.addAllowedOriginPattern("http://localhost:*");
         cfg.addAllowedOriginPattern("https://localhost:*");
         cfg.addAllowedOriginPattern("http://127.0.0.1:*");
         cfg.addAllowedOriginPattern("https://127.0.0.1:*");
         cfg.addAllowedOriginPattern("http://192.168.*.*:*");
         cfg.addAllowedOriginPattern("https://192.168.*.*:*");
+
+        // 🔹 배포용 (예시 도메인들)
+        cfg.addAllowedOriginPattern("https://prjguardian.com");
+        cfg.addAllowedOriginPattern("https://*.prjguardian.com"); // api.prjguardian.com 등
+        cfg.addAllowedOriginPattern("https://guardianprj.shop");
+        cfg.addAllowedOriginPattern("https://*.guardianprj.shop");
+
         cfg.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"));
         cfg.setAllowedHeaders(List.of("*"));
         cfg.setAllowCredentials(true);

@@ -4,7 +4,7 @@
 import React, { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import ChatRoom from "../../../components/ChatRoom";
-import type { ChatMessage } from "@/hooks/useStomp";
+import type { ChatMessage } from "../../../hooks/useStomp";
 import { api } from "../../../lib/api";
 
 export default function ChatRoomPage() {

@@ -1803,7 +1803,18 @@ export default function ClientMyPage() {
                   {/*
                     헤더 영역: 담당자 정보 + 공통 액션 + 별도 토글 버튼
                   */}
-                  <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+                  <div
+                    className="flex flex-col gap-3 border-b border-slate-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5"
+                    onClick={() => toggleManagerGroup(group.key)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        toggleManagerGroup(group.key);
+                      }
+                    }}
+                  >
                     <div className="flex w-full items-center gap-3">
                       <span className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-600">
                         {group.avatar ? (
@@ -1845,7 +1856,18 @@ export default function ClientMyPage() {
                           )}
                         </p>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div
+                        className="flex items-center gap-2"
+                        onClick={(e) => e.stopPropagation()}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            e.stopPropagation();
+                          }
+                        }}
+                        role="group"
+                        tabIndex={-1}
+                      >
                         <button
                           className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-1.5 text-[12px] font-semibold text-sky-700 transition hover:-translate-y-0.5 hover:border-sky-300 hover:bg-sky-100"
                           onClick={(e) => {
@@ -1857,7 +1879,7 @@ export default function ClientMyPage() {
                           aria-label="담당 매니저와 채팅"
                         >
                           <FontAwesomeIcon icon={faComment} className="h-4 w-4" aria-hidden />
-                          채팅하기
+                          <span className="hidden sm:inline">채팅하기</span>
                         </button>
                         <button
                           className="inline-flex items-center gap-2 rounded-full border border-rose-300 bg-rose-50 px-3 py-1.5 text-[12px] font-semibold text-rose-600 transition hover:-translate-y-0.5 hover:border-rose-400 hover:bg-rose-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
@@ -1893,11 +1915,14 @@ export default function ClientMyPage() {
                             <path d="M5.5 6.5 4 5" strokeLinecap="round" strokeLinejoin="round" />
                             <path d="M18.5 6.5 20 5" strokeLinecap="round" strokeLinejoin="round" />
                           </svg>
-                          비상 호출
+                          <span className="hidden sm:inline">비상 호출</span>
                         </button>
                         <button
                           type="button"
-                          onClick={() => toggleManagerGroup(group.key)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleManagerGroup(group.key);
+                          }}
                           className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-slate-600 transition hover:-translate-y-0.5 hover:border-slate-300 hover:bg-white"
                           aria-label="복약 일정 접기/펼치기"
                         >

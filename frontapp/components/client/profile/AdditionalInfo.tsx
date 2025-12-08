@@ -1,5 +1,7 @@
 "use client";
 
+import { useMemo } from "react";
+
 interface AdditionalInfoProps {
   birthDate: string;
   gender: string;
@@ -14,6 +16,10 @@ interface AdditionalInfoProps {
   handleAddressSearch: () => void;
 }
 
+const today = new Date(Date.now() - new Date().getTimezoneOffset() * 60000)
+  .toISOString()
+  .split("T")[0];
+
 export default function AdditionalInfo({
   birthDate,
   gender,
@@ -27,9 +33,6 @@ export default function AdditionalInfo({
   setDetailAddress,
   handleAddressSearch,
 }: AdditionalInfoProps) {
-  const today = new Date(Date.now() - new Date().getTimezoneOffset() * 60000)
-    .toISOString()
-    .split("T")[0];
 
   const handleBirthDateChange = (value: string) => {
     if (value && value > today) return;

@@ -1,0 +1,4 @@
+spring:
+  profiles:
+    active: test
+    include: "" # secret 프로필 제외하여 테스트 환경을 단순화

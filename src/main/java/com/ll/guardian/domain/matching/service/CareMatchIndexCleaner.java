@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Profile;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceUtils;
 import org.springframework.stereotype.Component;
@@ -17,6 +18,7 @@ import org.springframework.stereotype.Component;
  * 안전하게 제거해 매니저-클라이언트 M:N 배정을 허용한다.
  */
 @Component
+@Profile("!test")
 public class CareMatchIndexCleaner {
 
     private static final Logger log = LoggerFactory.getLogger(CareMatchIndexCleaner.class);

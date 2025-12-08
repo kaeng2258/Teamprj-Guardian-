@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { api, type DrugDetail } from "@/lib/api";
+import { api, type DrugDetail } from "../lib/api";
 
 type Props = {
   itemSeq: string;

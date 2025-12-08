@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useState } from "react";
-import { api } from "@/lib/api";
-import { DrugDetailModal } from "@/components/DrugDetailModal";
+import { api } from "../lib/api";
+import { DrugDetailModal } from "../components/DrugDetailModal";
 
 type InlineDrugItem = {
   itemSeq: string;

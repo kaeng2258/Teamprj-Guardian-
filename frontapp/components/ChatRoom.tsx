@@ -1,11 +1,12 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ChatMessage, useStomp } from "@/hooks/useStomp";
 import { Client } from "@stomp/stompjs";
 import SockJS from "sockjs-client";
 import { useRouter } from "next/navigation";
-import { resolveProfileImageUrl } from "@/lib/image";
+import type { ChatMessage } from "../hooks/useStomp";
+import { resolveProfileImageUrl } from "../lib/image";
+
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "";

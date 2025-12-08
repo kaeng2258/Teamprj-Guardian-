@@ -2,7 +2,8 @@
 "use client";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { resolveProfileImageUrl } from "@/lib/image";
+import { resolveProfileImageUrl } from "../lib/image";
+
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "";

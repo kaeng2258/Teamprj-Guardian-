@@ -1,10 +1,10 @@
 "use client";
 import MyChatRooms from "../../../components/MyChatRooms";
 import { InlineDrugSearch } from "../../../components/InlineDrugSearch";
-import { DrugDetailModal } from "@/components/DrugDetailModal";
-import { resolveProfileImageUrl } from "@/lib/image";
+import { resolveProfileImageUrl } from "../../../lib/image";
+import DrugDetailModal from "../../../components/DrugDetailModal";
 import { useRouter } from "next/navigation";
-import { ChatClientPicker } from "@/components/ChatClientPicker";
+import { ChatClientPicker } from "../../../components/ChatClientPicker";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faMagnifyingGlass, faPen, faRotateRight } from "@fortawesome/free-solid-svg-icons";
 import { faComment } from "@fortawesome/free-regular-svg-icons";

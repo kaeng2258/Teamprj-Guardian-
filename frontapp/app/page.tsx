@@ -1,10 +1,10 @@
 "use client";
-
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState, type CSSProperties } from "react";
-import PhoneNumberInput from "@/components/PhoneNumberInput";
+import PhoneNumberInput from "../components/PhoneNumberInput";
 
+//test
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "";
 

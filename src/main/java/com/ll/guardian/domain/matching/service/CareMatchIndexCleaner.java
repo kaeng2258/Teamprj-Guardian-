@@ -1,11 +1,15 @@
 package com.ll.guardian.domain.matching.service;
 
 import jakarta.annotation.PostConstruct;
+import java.sql.Connection;
+import java.sql.DatabaseMetaData;
+import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.datasource.DataSourceUtils;
 import org.springframework.stereotype.Component;
 
 /**
@@ -24,6 +28,10 @@ public class CareMatchIndexCleaner {
 
     @PostConstruct
     public void dropUniqueIndexesOnMatch() {
+        if (isNonMySqlDatabase()) {
+            log.debug("Skipping match index cleanup on non-MySQL database (likely test/H2).");
+            return;
+        }
         try {
             // information_schema 로부터 UNIQUE 인덱스 목록 조회 (PRIMARY 제외)
             String sql = """
@@ -51,6 +59,26 @@ public class CareMatchIndexCleaner {
         } catch (Exception e) {
             // 스키마 조회/드롭 실패 시 서비스 전체를 막지 않도록 로그만 남긴다.
             log.warn("Failed to drop UNIQUE index on match table (M:N assignment).", e);
+        }
+    }
+
+    private boolean isNonMySqlDatabase() {
+        Connection connection = null;
+        try {
+            connection = DataSourceUtils.getConnection(jdbcTemplate.getDataSource());
+            if (connection == null) {
+                return true;
+            }
+            DatabaseMetaData metaData = connection.getMetaData();
+            String product = metaData != null ? metaData.getDatabaseProductName() : "";
+            return product == null || !product.toLowerCase().contains("mysql");
+        } catch (SQLException e) {
+            log.debug("Could not determine database product, skipping index cleanup. reason={}", e.getMessage());
+            return true;
+        } finally {
+            if (connection != null) {
+                DataSourceUtils.releaseConnection(connection, jdbcTemplate.getDataSource());
+            }
         }
     }
 }

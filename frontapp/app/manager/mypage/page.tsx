@@ -2,7 +2,7 @@
 import MyChatRooms from "../../../components/MyChatRooms";
 import { InlineDrugSearch } from "../../../components/InlineDrugSearch";
 import { resolveProfileImageUrl } from "../../../lib/image";
-import DrugDetailModal from "../../../components/DrugDetailModal";
+import { DrugDetailModal } from "../../../components/DrugDetailModal";
 import { useRouter } from "next/navigation";
 import { ChatClientPicker } from "../../../components/ChatClientPicker";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";

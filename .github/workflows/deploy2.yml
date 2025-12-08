@@ -129,11 +129,11 @@ jobs:
             ls -l package*.json || echo "❌ package.json / package-lock.json 없음"
 
             if [ -f package-lock.json ]; then
-              echo "✅ package-lock.json 존재 → npm ci --omit=dev"
-              npm ci --omit=dev
+              echo "✅ package-lock.json 존재 → npm ci"
+              npm ci
             else
-              echo "⚠ package-lock.json 없음 → npm install --omit=dev"
-              npm install --omit=dev
+              echo "⚠ package-lock.json 없음 → npm install"
+              npm install
             fi
 
             echo "=== Next.js build ==="

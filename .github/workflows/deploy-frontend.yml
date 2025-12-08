@@ -41,14 +41,13 @@ jobs:
           host: ${{ secrets.EC2_HOST2 }}
           username: ${{ secrets.EC2_USER2 }}
           key: ${{ secrets.EC2_SSH_KEY2 }}
+          command_timeout: 30m          # ⬅️ 이 줄 추가 (10분 → 30분 같은 넉넉한 값)
           script: |
             set -e
             cd /home/ec2-user/app/frontend/frontapp
-
             echo "=== EC2 frontend/frontapp 디렉토리 내용 ==="
             pwd
-            ls -R
-
+            ls -l
             echo "=== package*.json 확인 ==="
             ls -l package*.json || echo "❌ package.json / package-lock.json 없음"
 
@@ -57,7 +56,7 @@ jobs:
               npm ci --omit=dev
             else
               echo "⚠ package-lock.json 없음 → npm install"
-              npm install --omit=dev
+               npm install --omit=dev
             fi
 
             echo "=== Next.js build ==="

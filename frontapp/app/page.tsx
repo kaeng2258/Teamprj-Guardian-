@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { FormEvent, useEffect, useState, type CSSProperties } from "react";
+import { FormEvent, useEffect, useMemo, useState, type CSSProperties } from "react";
 import PhoneNumberInput from "@/components/PhoneNumberInput";
 
 const API_BASE_URL =
@@ -103,6 +103,7 @@ export default function Home() {
   const [registerAddress, setRegisterAddress] = useState("");
   const [registerDetailAddress, setRegisterDetailAddress] = useState("");
   const [registerError, setRegisterError] = useState("");
+  const [registerBirthDateError, setRegisterBirthDateError] = useState("");
   const [registerLoading, setRegisterLoading] = useState(false);
   const [passwordStatus, setPasswordStatus] = useState<"idle" | "valid" | "invalid">("idle");
   const [passwordMessage, setPasswordMessage] = useState("");
@@ -116,6 +117,11 @@ export default function Home() {
       "rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-800",
     error: "rounded-xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-700",
   };
+  const today = useMemo(
+    () =>
+      new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().split("T")[0],
+    [],
+  );
   const tabSwitchClass = {
     base:
       "relative z-10 flex-1 rounded-2xl px-4 py-2 text-sm font-semibold uppercase tracking-[0.2em] transition-all duration-300 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-slate-50/70 hover:shadow-lg hover:shadow-slate-900/20 active:shadow-inner",
@@ -129,6 +135,7 @@ export default function Home() {
       setRegisterMessage("");
     } else {
       setRegisterError("");
+      setRegisterBirthDateError("");
       setLoginMessage("");
     }
     setActiveTab(mode);
@@ -151,6 +158,20 @@ export default function Home() {
     script.async = true;
     document.body.appendChild(script);
   }, []);
+
+  const handleRegisterBirthDateChange = (value: string) => {
+    setRegisterBirthDate(value);
+    if (value && value > today) {
+      const msg = "생년월일은 오늘 이후 날짜를 선택할 수 없습니다.";
+      setRegisterBirthDateError(msg);
+      setRegisterError(msg);
+    } else {
+      setRegisterBirthDateError("");
+      if (registerError === "생년월일은 오늘 이후 날짜를 선택할 수 없습니다.") {
+        setRegisterError("");
+      }
+    }
+  };
 
   const handleLoginSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -234,6 +255,7 @@ export default function Home() {
     event.preventDefault();
     setRegisterMessage("");
     setRegisterError("");
+    setRegisterBirthDateError("");
     const registerPhone = [registerPhone1, registerPhone2, registerPhone3].join("-");
 
     if (!registerRole) {
@@ -243,6 +265,13 @@ export default function Home() {
 
     if (!registerBirthDate) {
       setRegisterError("생년월일을 입력해주세요.");
+      return;
+    }
+
+    if (registerBirthDate > today) {
+      const msg = "생년월일은 오늘 이후 날짜를 선택할 수 없습니다.";
+      setRegisterBirthDateError(msg);
+      setRegisterError(msg);
       return;
     }
 
@@ -594,12 +623,20 @@ export default function Home() {
                                   className={`${inputClassName} ${
                                     registerBirthDate ? "text-slate-900" : "text-slate-400"
                                   }`}
-                                  onChange={(event) => setRegisterBirthDate(event.target.value)}
+                                  onChange={(event) =>
+                                    handleRegisterBirthDateChange(event.target.value)
+                                  }
                                   placeholder="YYYY-MM-DD"
                                   required
                                   type="date"
+                                  max={today}
                                   value={registerBirthDate}
                                 />
+                                {registerBirthDateError && (
+                                  <span className="text-xs font-semibold text-rose-600">
+                                    {registerBirthDateError}
+                                  </span>
+                                )}
                               </label>
                               <label className={`${labelClassName} md:col-span-2`}>
                                 <span>성별</span>

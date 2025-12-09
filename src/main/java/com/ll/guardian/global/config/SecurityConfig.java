@@ -28,38 +28,38 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-                .csrf(csrf -> csrf.disable())
-                .headers(headers -> headers.frameOptions(frame -> frame.disable()))
-                .authorizeHttpRequests(auth -> auth
-                    .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()   // preflight 허용
-                        .requestMatchers(
-                                "/api/chat/**",
-                                "/api/push/**",
-                                "/ws/**",
-                                "/topic/**",
-                                "/h2-console/**",
-                                "/",
-                                "/index.html",
-                                "/favicon.ico",
-                                "/error",
-                                "/templates/**",
-                                "/chat.html",
-                                "/chat",
-                                "/search.html",
-                                "/search",
-                                "/api/auth/**",
-                                "/api/users/check-email",
-                                "/api/users/register",      // 회원가입 같은 것도 여기
-                                "/swagger-ui/**",
-                                "/v3/api-docs/**"
-                        ).permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
-                        .anyRequest().permitAll()
-                )
-                .formLogin(form -> form.disable())
-                .httpBasic(basic -> basic.disable())
-                .logout(logout -> logout.disable());
+            .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+            .csrf(csrf -> csrf.disable())
+            .headers(headers -> headers.frameOptions(frame -> frame.disable()))
+            .authorizeHttpRequests(auth -> auth
+                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                .requestMatchers(
+                    "/api/chat/**",
+                    "/api/push/**",
+                    "/ws/**",
+                    "/topic/**",
+                    "/h2-console/**",
+                    "/",
+                    "/index.html",
+                    "/favicon.ico",
+                    "/error",
+                    "/templates/**",
+                    "/chat.html",
+                    "/chat",
+                    "/search.html",
+                    "/search",
+                    "/api/auth/**",
+                    "/api/users/check-email",
+                    "/api/users/register",
+                    "/swagger-ui/**",
+                    "/v3/api-docs/**"
+                ).permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
+                .anyRequest().permitAll()
+            )
+            .formLogin(form -> form.disable())
+            .httpBasic(basic -> basic.disable())
+            .logout(logout -> logout.disable());
 
         return http.build();
     }
@@ -88,28 +88,11 @@ public class SecurityConfig {
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
-        CorsConfiguration cfg = new CorsConfiguration();
-
-        // 🔹 로컬 개발용
-        cfg.addAllowedOriginPattern("http://localhost:*");
-        cfg.addAllowedOriginPattern("https://localhost:*");
-        cfg.addAllowedOriginPattern("http://127.0.0.1:*");
-        cfg.addAllowedOriginPattern("https://127.0.0.1:*");
-        cfg.addAllowedOriginPattern("http://192.168.*.*:*");
-        cfg.addAllowedOriginPattern("https://192.168.*.*:*");
-
-        // 🔹 배포용 (예시 도메인들)
-        cfg.addAllowedOriginPattern("https://prjguardian.com");
-        cfg.addAllowedOriginPattern("https://*.prjguardian.com"); // api.prjguardian.com 등
-        cfg.addAllowedOriginPattern("https://guardianprj.shop");
-        cfg.addAllowedOriginPattern("https://*.guardianprj.shop");
-
-        cfg.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"));
-        cfg.setAllowedHeaders(List.of("*"));
-        cfg.setAllowCredentials(true);
-
+        CorsConfiguration cfg = CorsConfig.defaultConfiguration();
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", cfg);
         return source;
     }
+
+    // 이하 userDetailsService / passwordEncoder / authenticationManager 그대로 유지
 }

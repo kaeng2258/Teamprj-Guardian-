@@ -20,11 +20,16 @@ public final class CorsConfig {
             "https://localhost:*",
             "https://127.0.0.1:*",
             "https://192.168.*.*:*",
+
+            // 🔹 실제 배포 도메인들
             "https://prjguardian.com",
+            "https://www.prjguardian.com",
+            "https://api.prjguardian.com",
             "https://*.prjguardian.com",
             "https://guardianprj.shop",
             "https://*.guardianprj.shop"
         ));
+
         configuration.setAllowedMethods(List.of(
             HttpMethod.GET.name(),
             HttpMethod.POST.name(),
@@ -33,6 +38,7 @@ public final class CorsConfig {
             HttpMethod.DELETE.name(),
             HttpMethod.OPTIONS.name()
         ));
+
         configuration.setAllowedHeaders(List.of(
             HttpHeaders.AUTHORIZATION,
             HttpHeaders.CONTENT_TYPE,
@@ -41,15 +47,16 @@ public final class CorsConfig {
             HttpHeaders.ORIGIN,
             "X-Requested-With"
         ));
+
         configuration.setExposedHeaders(List.of(
             HttpHeaders.AUTHORIZATION,
             HttpHeaders.CONTENT_TYPE,
             "Location",
             "Content-Disposition"
         ));
+
         configuration.setAllowCredentials(true);
         configuration.setMaxAge(Duration.ofHours(1).getSeconds());
         return configuration;
     }
-
 }

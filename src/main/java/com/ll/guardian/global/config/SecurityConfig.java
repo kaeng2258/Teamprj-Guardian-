@@ -46,7 +46,12 @@ public class SecurityConfig {
                                 "/chat.html",
                                 "/chat",
                                 "/search.html",
-                                "/search"
+                                "/search",
+                                "/api/auth/**",
+                                "/api/users/check-email",
+                                "/api/users/register",      // 회원가입 같은 것도 여기
+                                "/swagger-ui/**",
+                                "/v3/api-docs/**"
                         ).permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
                         .anyRequest().permitAll()

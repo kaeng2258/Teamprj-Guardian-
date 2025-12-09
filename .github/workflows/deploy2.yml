@@ -84,17 +84,22 @@ jobs:
               mv guardian.jar "$BACKUP_NAME"
             fi
 
-            # 방금 업로드된 JAR 사용
-            if [ ! -f guardian-0.0.1-SNAPSHOT.jar ]; then
-              echo "❌ guardian-0.0.1-SNAPSHOT.jar 를 찾지 못했습니다."
-              ls -l
+            echo "=== build/libs 내용 확인 ==="
+            ls -l build/libs || echo "⚠ build/libs 디렉토리가 없습니다"
+
+            # 🔥 빌드된 JAR 위치: build/libs/guardian-0.0.1-SNAPSHOT.jar
+            if [ ! -f build/libs/guardian-0.0.1-SNAPSHOT.jar ]; then
+              echo "❌ build/libs/guardian-0.0.1-SNAPSHOT.jar 를 찾지 못했습니다."
               exit 1
             fi
 
-            echo "새 JAR 파일: guardian-0.0.1-SNAPSHOT.jar → guardian.jar 로 사용"
-            cp guardian-0.0.1-SNAPSHOT.jar guardian.jar
+            echo "새 JAR 파일: build/libs/guardian-0.0.1-SNAPSHOT.jar → guardian.jar 로 사용"
+            cp build/libs/guardian-0.0.1-SNAPSHOT.jar guardian.jar
 
-            echo "=== guardian-backend 서비스 재
+            echo "=== guardian-backend 서비스 재시작 ==="
+            sudo systemctl daemon-reload
+            sudo systemctl restart guardian-backend
+            sudo systemctl status guardian-backend --no-pager -l
 
   frontend:
     runs-on: ubuntu-latest

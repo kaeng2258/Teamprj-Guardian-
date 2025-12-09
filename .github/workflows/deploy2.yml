@@ -9,7 +9,6 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        # ✅ 백엔드는 루트에 있음 (backend 폴더 없음)
         working-directory: .
 
     steps:
@@ -17,10 +16,11 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: 17
+      ...
+      uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: 17
 
       - name: Build backend JAR
         run: |
@@ -32,18 +32,38 @@ jobs:
           ./gradlew clean bootJar -x test
 
           echo "=== build/libs 내용 ==="
+          ls -l build/libs || echo "⚠ build/libs 없음"
+
+      # ✅ 빌드 결과에 JAR이 실제로 있는지 먼저 확인 (없으면 여기서 실패)
+      - name: Check built JAR exists
+        run: |
+          echo "=== JAR 존재 여부 확인 ==="
+          if [ ! -d build/libs ]; then
+            echo "❌ build/libs 디렉토리가 없습니다."
+            exit 1
+          fi
+
           ls -l build/libs
 
+          JAR_COUNT=$(ls build/libs/*.jar 2>/dev/null | wc -l)
+          if [ "$JAR_COUNT" -eq 0 ]; then
+            echo "❌ build/libs 에 .jar 파일이 없습니다."
+            exit 1
+          fi
+
+          echo "✅ build/libs 에 JAR 파일이 있습니다."
+
+      # ✅ 빌드된 JAR 전부 EC2로 복사
       - name: Upload backend JAR to EC2
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.EC2_HOST2 }}
           username: ${{ secrets.EC2_USER2 }}
           key: ${{ secrets.EC2_SSH_KEY2 }}
-          # ✅ 로컬에서 빌드되는 경로: build/libs/*.jar
-          source: "build/libs/guardian.jar"
+          source: "build/libs/*.jar"
           target: "/home/ec2-user/app/backend/"
 
+      # ✅ EC2에서 가장 최신 JAR를 guardian.jar 로 설정 + 서비스 재시작
       - name: Restart backend service
         uses: appleboy/ssh-action@v0.1.7
         with:
@@ -59,11 +79,15 @@ jobs:
             pwd
             ls -l
 
-            # 이전 guardian.jar 백업 (있으면)
+            # 기존 guardian.jar 백업 (있으면)
             if [ -f guardian.jar ]; then
-              echo "기존 guardian.jar 백업 → guardian_backup_$(date +%Y%m%d%H%M%S).jar"
-              mv guardian.jar guardian_backup_$(date +%Y%m%d%H%M%S).jar
+              BACKUP_NAME="guardian_backup_$(date +%Y%m%d%H%M%S).jar"
+              echo "기존 guardian.jar 백업 → $BACKUP_NAME"
+              mv guardian.jar "$BACKUP_NAME"
             fi
+
+            echo "=== 업로드된 JAR 목록 ==="
+            ls -t *.jar || echo "JAR 파일 없음"
 
             # 방금 업로드된 JAR 중 가장 최신 파일 선택
             NEW_JAR=$(ls -t *.jar | head -n 1)
@@ -81,6 +105,7 @@ jobs:
             sudo systemctl daemon-reload
             sudo systemctl restart guardian-backend
             sudo systemctl status guardian-backend --no-pager -l
+
 
 
   frontend:

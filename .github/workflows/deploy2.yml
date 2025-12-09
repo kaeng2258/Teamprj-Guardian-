@@ -16,11 +16,10 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up JDK 17
-      ...
-      uses: actions/setup-java@v4
-      with:
-        distribution: temurin
-        java-version: 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
 
       - name: Build backend JAR
         run: |
@@ -34,7 +33,7 @@ jobs:
           echo "=== build/libs 내용 ==="
           ls -l build/libs || echo "⚠ build/libs 없음"
 
-      # ✅ 빌드 결과에 JAR이 실제로 있는지 먼저 확인 (없으면 여기서 실패)
+      # 🔍 실제로 JAR이 만들어졌는지 체크
       - name: Check built JAR exists
         run: |
           echo "=== JAR 존재 여부 확인 ==="
@@ -45,25 +44,24 @@ jobs:
 
           ls -l build/libs
 
-          JAR_COUNT=$(ls build/libs/*.jar 2>/dev/null | wc -l)
-          if [ "$JAR_COUNT" -eq 0 ]; then
-            echo "❌ build/libs 에 .jar 파일이 없습니다."
+          if [ ! -f build/libs/guardian-0.0.1-SNAPSHOT.jar ]; then
+            echo "❌ build/libs/guardian-0.0.1-SNAPSHOT.jar 파일이 없습니다."
             exit 1
           fi
 
-          echo "✅ build/libs 에 JAR 파일이 있습니다."
+          echo "✅ JAR 파일 존재: build/libs/guardian-0.0.1-SNAPSHOT.jar"
 
-      # ✅ 빌드된 JAR 전부 EC2로 복사
+      # 🚛 빌드된 JAR을 EC2로 업로드
       - name: Upload backend JAR to EC2
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.EC2_HOST2 }}
           username: ${{ secrets.EC2_USER2 }}
           key: ${{ secrets.EC2_SSH_KEY2 }}
-          source: "build/libs/*.jar"
+          source: "build/libs/guardian-0.0.1-SNAPSHOT.jar"
           target: "/home/ec2-user/app/backend/"
 
-      # ✅ EC2에서 가장 최신 JAR를 guardian.jar 로 설정 + 서비스 재시작
+      # 🔁 EC2에서 guardian.jar로 교체 + 서비스 재시작
       - name: Restart backend service
         uses: appleboy/ssh-action@v0.1.7
         with:
@@ -86,27 +84,17 @@ jobs:
               mv guardian.jar "$BACKUP_NAME"
             fi
 
-            echo "=== 업로드된 JAR 목록 ==="
-            ls -t *.jar || echo "JAR 파일 없음"
-
-            # 방금 업로드된 JAR 중 가장 최신 파일 선택
-            NEW_JAR=$(ls -t *.jar | head -n 1)
-
-            if [ -z "$NEW_JAR" ]; then
-              echo "❌ 새 JAR 파일을 찾지 못했습니다."
-              ls -l *.jar || echo "JAR 파일 없음"
+            # 방금 업로드된 JAR 사용
+            if [ ! -f guardian-0.0.1-SNAPSHOT.jar ]; then
+              echo "❌ guardian-0.0.1-SNAPSHOT.jar 를 찾지 못했습니다."
+              ls -l
               exit 1
             fi
 
-            echo "새 JAR 파일: $NEW_JAR → guardian.jar 로 사용"
-            cp "$NEW_JAR" guardian.jar
+            echo "새 JAR 파일: guardian-0.0.1-SNAPSHOT.jar → guardian.jar 로 사용"
+            cp guardian-0.0.1-SNAPSHOT.jar guardian.jar
 
-            echo "=== guardian-backend 서비스 재시작 ==="
-            sudo systemctl daemon-reload
-            sudo systemctl restart guardian-backend
-            sudo systemctl status guardian-backend --no-pager -l
-
-
+            echo "=== guardian-backend 서비스 재
 
   frontend:
     runs-on: ubuntu-latest

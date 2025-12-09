@@ -1,6 +1,7 @@
 server:
   port: 8081
-
+  ssl:
+    enabled: false
 spring:
   datasource:
     url: jdbc:mariadb://guardian-database.c78m4a0okhan.ap-northeast-2.rds.amazonaws.com:3306/guardian_database
@@ -16,3 +17,5 @@ webpush:
     subject: "${WEB_PUSH_SUBJECT:mailto:support@guardian.com}"
   scheduler:
     timezone: "${WEB_PUSH_TIMEZONE:Asia/Seoul}"
+
+##test

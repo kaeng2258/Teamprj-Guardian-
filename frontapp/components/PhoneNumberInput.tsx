@@ -87,7 +87,7 @@ export default function PhoneNumberInput({
   };
 
   return (
-    <Group gap="xs" grow wrap="nowrap">
+    <Group gap={6} wrap="nowrap" align="center">
       <Input
         ref={firstRef}
         placeholder={placeholders.first}
@@ -97,6 +97,8 @@ export default function PhoneNumberInput({
         aria-label={ariaLabels.first}
         maxLength={maxLengths.first}
         inputMode="numeric"
+        style={{ width: '3.5rem', textAlign: 'center' }}
+        styles={{ input: { textAlign: 'center', padding: '0 4px' } }}
       />
       <Text c="dimmed">-</Text>
       <Input
@@ -109,6 +111,8 @@ export default function PhoneNumberInput({
         aria-label={ariaLabels.middle}
         maxLength={maxLengths.middle}
         inputMode="numeric"
+        style={{ width: '4rem', textAlign: 'center' }}
+        styles={{ input: { textAlign: 'center', padding: '0 4px' } }}
       />
       <Text c="dimmed">-</Text>
       <Input
@@ -121,6 +125,8 @@ export default function PhoneNumberInput({
         aria-label={ariaLabels.last}
         maxLength={maxLengths.last}
         inputMode="numeric"
+        style={{ width: '4rem', textAlign: 'center' }}
+        styles={{ input: { textAlign: 'center', padding: '0 4px' } }}
       />
     </Group>
   );

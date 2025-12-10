@@ -31,7 +31,7 @@ import {
 } from "@mantine/core";
 import { useMediaQuery } from "@mantine/hooks";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faVideo, faVideoSlash, faMicrophone, faMicrophoneSlash, faPaperPlane } from "@fortawesome/free-solid-svg-icons";
+import { faVideo, faVideoSlash, faMicrophone, faMicrophoneSlash, faPaperPlane, faRightFromBracket } from "@fortawesome/free-solid-svg-icons";
 
 // ... existing logic code imports ...
 // I will keep the imports and logic, but replace JSX.
@@ -330,6 +330,7 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
 
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
+  const [remoteVideoOn, setRemoteVideoOn] = useState(false);
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const rtcClientRef = useRef<Client | null>(null);
@@ -362,6 +363,7 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
       if (remoteVideoRef.current) {
         remoteVideoRef.current.srcObject = stream;
       }
+      setRemoteVideoOn(true);
     };
 
     pcRef.current = pc;
@@ -386,6 +388,7 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
       }
     } else if (msg.type === "video-off") {
       if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
+      setRemoteVideoOn(false);
     }
   }, [ensurePc, sendRtc]);
 
@@ -424,6 +427,7 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
       client.deactivate();
       rtcClientRef.current = null;
       setRtcStatus("disconnected");
+      setRemoteVideoOn(false);
     };
   }, [roomId, me.id]);
 
@@ -502,10 +506,39 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
           playsInline
           style={{ width: '100%', height: '100%', objectFit: 'cover' }}
         />
-        {!connected && (
-          <Center style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.6)', zIndex: 1, flexDirection: 'column' }}>
+        {rtcStatus !== "connected" && (
+          <Center
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%',
+              background: 'rgba(0,0,0,0.6)',
+              zIndex: 1,
+              flexDirection: 'column'
+            }}
+          >
             <Loader color="white" type="dots" />
-            <Text c="white" mt="sm">연결 대기중...</Text>
+            <Text c="white" mt="sm">
+              {rtcStatus === "connecting" ? "화상 연결 중..." : "화상채팅이 연결되지 않았습니다."}
+            </Text>
+          </Center>
+        )}
+        {rtcStatus === "connected" && !remoteVideoOn && (
+          <Center
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%',
+              background: 'rgba(0,0,0,0.55)',
+              zIndex: 1,
+              flexDirection: 'column'
+            }}
+          >
+            <Text c="white" fw={600}>상대방 카메라가 꺼져 있습니다.</Text>
           </Center>
         )}
 
@@ -561,9 +594,6 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
             <FontAwesomeIcon icon={micOn ? faMicrophoneSlash : faMicrophone} />
           </ActionIcon>
 
-          <Button color="red" variant="light" onClick={() => router.back()}>
-            나가기
-          </Button>
         </Group>
       </Paper>
     </Paper>
@@ -587,14 +617,21 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
       <Box p="md" style={{ borderBottom: '1px solid var(--mantine-color-gray-3)' }}>
         <Group justify="space-between">
           <Stack gap={0}>
-            <Text fw={700} size="lg">채팅방 #{roomId}</Text>
-            <Group gap={6}>
-              <Indicator color={connected ? "teal" : "gray"} size={8} processing={connected}>
-                <Text size="xs" c={connected ? "teal" : "dimmed"}>
+            <Group gap={8} align="center">
+              <Indicator
+                color={connected ? "teal" : "gray"}
+                size={10}
+                processing={connected}
+                withBorder
+                position="left"
+                styles={{ indicator: { transform: "translate(-50%, calc(-50% + 8px))" } }}
+              >
+                <Text size="xs" c={connected ? "teal" : "dimmed"} ml={10}>
                   {connected ? "상담원 연결됨" : "연결 대기중"}
                 </Text>
               </Indicator>
             </Group>
+            <Text fw={700} size="lg">채팅방 #{roomId}</Text>
           </Stack>
         </Group>
       </Box>
@@ -714,6 +751,25 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
         boxSizing: "border-box",
       }}
     >
+      <Box
+        style={{
+          position: "absolute",
+          top: layoutRows === "60vh 1fr" ? 5 : 31, // 모바일(상단 영역) vs 데스크톱 헤더 높이 근처
+          right: 20,
+          zIndex: 100,
+        }}
+      >
+        <Button
+          variant="outline"
+          color="gray"
+          radius="md"
+          size="sm"
+          onClick={() => router.back()}
+          style={{ paddingInline: 14, borderWidth: 1.2 }}
+        >
+          나가기
+        </Button>
+      </Box>
       <Box
         style={{
           display: "grid",

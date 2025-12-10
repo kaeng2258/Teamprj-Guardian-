@@ -174,9 +174,9 @@ export default function ClientProfileEditPage() {
   useEffect(() => {
     setSupportsPushApi(
       typeof window !== "undefined" &&
-        "serviceWorker" in navigator &&
-        "PushManager" in window &&
-        "Notification" in window,
+      "serviceWorker" in navigator &&
+      "PushManager" in window &&
+      "Notification" in window,
     );
     if (typeof window === "undefined") return;
     const idStr = window.localStorage.getItem("userId");
@@ -189,12 +189,12 @@ export default function ClientProfileEditPage() {
     const load = async () => {
       try {
         const res = await fetch(`${API_BASE_URL}/api/users/${id}`, {
-  credentials: "include",
-  headers: {
-    "Content-Type": "application/json",
-    ...authHeaders(),
-  } satisfies HeadersInit,
-});
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+            ...authHeaders(),
+          } satisfies HeadersInit,
+        });
         if (!res.ok) {
           throw new Error("내 정보를 불러오지 못했습니다.");
         }
@@ -251,20 +251,20 @@ export default function ClientProfileEditPage() {
     }
   }, []);
 
-const authHeaders = (): Record<string, string> => {
-  if (typeof window === "undefined") return {};
+  const authHeaders = (): Record<string, string> => {
+    if (typeof window === "undefined") return {};
 
-  const token = window.localStorage.getItem("accessToken");
-  if (!token) {
-    // 토큰 없으면 헤더 비움
-    return {};
-  }
+    const token = window.localStorage.getItem("accessToken");
+    if (!token) {
+      // 토큰 없으면 헤더 비움
+      return {};
+    }
 
-  // 토큰 있을 때만 Authorization 헤더 추가
-  return {
-    Authorization: `Bearer ${token}`,
+    // 토큰 있을 때만 Authorization 헤더 추가
+    return {
+      Authorization: `Bearer ${token}`,
+    };
   };
-};
 
   useEffect(() => {
     if (typeof document === "undefined") return;
@@ -272,9 +272,9 @@ const authHeaders = (): Record<string, string> => {
       (typeof window !== "undefined" && window.localStorage.getItem("theme")) as ThemeMode | null;
     const savedText =
       (typeof window !== "undefined" && window.localStorage.getItem("textSize")) as
-        | "large"
-        | "normal"
-        | null;
+      | "large"
+      | "normal"
+      | null;
     const prefersDark =
       typeof window !== "undefined" &&
       window.matchMedia &&
@@ -469,7 +469,7 @@ const authHeaders = (): Record<string, string> => {
     let cancelled = false;
     const fetchConfig = async () => {
       try {
-      const res = await fetch(`${API_BASE_URL}/api/push/config`);
+        const res = await fetch(`${API_BASE_URL}/api/push/config`);
         if (!res.ok) return;
         const data: { enabled?: boolean; publicKey?: string } = await res.json();
         if (cancelled) return;
@@ -655,355 +655,342 @@ const authHeaders = (): Record<string, string> => {
     <>
       <div className="min-h-screen bg-slate-50 px-3 py-6 dark:bg-slate-900 sm:px-6 sm:py-10">
         <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 rounded-3xl bg-white p-4 shadow-lg dark:bg-slate-800 dark:text-slate-100 sm:p-8">
-        <header className="flex flex-col gap-4 border-b border-slate-200 pb-4">
-          <div className="flex items-start gap-4 sm:gap-6">
-            <div className="relative">
-              <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border-2 border-amber-200 bg-amber-50 text-lg font-semibold text-amber-700">
-                {profileImageUrl ? (
-                  <img src={profileImageUrl} alt="프로필 이미지" className="h-full w-full object-cover" />
-                ) : (
-                  <span>{avatarInitial}</span>
-                )}
-              </div>
-              <button
-                className="absolute -left-1 -bottom-1 inline-flex h-8 w-8 items-center justify-center rounded-full bg-slate-200 text-xs font-semibold text-slate-700 shadow-sm ring-4 ring-white transition hover:bg-slate-300"
-                type="button"
-                onClick={() => setImageMenuOpen((prev) => !prev)}
-              >
-                Img
-              </button>
-              {imageMenuOpen && (
-                <div className="absolute left-0 top-full z-10 mt-2 w-44 rounded-md border border-slate-200 bg-white p-1 shadow-lg">
-                  <button
-                    className="block w-full rounded px-2 py-1 text-left text-xs font-semibold text-slate-700 hover:bg-amber-50"
-                    type="button"
-                    onClick={() => {
-                      setImageMenuOpen(false);
-                      fileInputRef.current?.click();
-                    }}
-                  >
-                    새 이미지 업로드
-                  </button>
-                  <button
-                    className="mt-1 block w-full rounded px-2 py-1 text-left text-xs font-semibold text-slate-700 hover:bg-amber-50"
-                    type="button"
-                    onClick={() => {
-                      setImageMenuOpen(false);
-                      void handleResetImage();
-                    }}
-                    disabled={saving || !user}
-                  >
-                    기본 이미지로 변경
-                  </button>
-                </div>
-              )}
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                className="sr-only"
-                onChange={(event) => {
-                  const file = event.target.files?.[0] ?? null;
-                  void handleUpload(file);
-                  event.target.value = "";
-                }}
-              />
-            </div>
-            <div className="flex flex-1 flex-col gap-1">
-              <p className="text-sm font-semibold uppercase tracking-[0.08em] text-amber-600">Client</p>
-              <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">
-                {user?.name ? `${user.name}님` : "클라이언트 마이페이지"}
-              </h1>
-              <p className="text-sm text-slate-600">이름과 프로필 이미지를 변경할 수 있습니다.</p>
-            </div>
-            <button
-              className="ml-auto inline-flex h-10 items-center justify-center rounded-lg border border-slate-300 px-4 text-sm font-semibold text-slate-700 transition hover:border-amber-300 hover:text-amber-800"
-              type="button"
-              onClick={() => router.back()}
-            >
-              이전 페이지로
-            </button>
-          </div>
-        </header>
-
-        <div className="relative space-y-4">
-          {profileLocked && (
-            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center rounded-2xl bg-white/70 backdrop-blur-sm">
-              <p className="text-sm font-semibold text-slate-700">비밀번호를 입력하면 개인정보를 수정할 수 있습니다.</p>
-              <button
-                type="button"
-                className="mt-3 inline-flex items-center justify-center rounded-full border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-700 transition hover:-translate-y-0.5 hover:border-amber-300 hover:shadow-sm"
-                onClick={() => setUnlockModalOpen(true)}
-              >
-                비밀번호 입력하기
-              </button>
-            </div>
-          )}
-          <section
-            className={`rounded-2xl border border-slate-200 bg-white/80 p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800 ${
-              profileLocked ? "pointer-events-none select-none blur-[2px] opacity-60" : ""
-            }`}
-          >
-            <div className="flex items-center justify-between pb-3">
-              <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">개인정보</h2>
-              <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">계정/연락처</span>
-            </div>
-            <div className="space-y-3">
-              <label className="flex flex-col gap-1 text-sm text-slate-700 dark:text-slate-200">
-                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">이메일</span>
-                <input
-                  value={email}
-                  readOnly
-                  className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-200"
-                />
-              </label>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <label className="flex flex-col gap-1 text-sm text-slate-700 dark:text-slate-200">
-                  <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">이름</span>
-                  <input
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900/60"
-                    placeholder="이름을 입력하세요"
-                  />
-                </label>
-                <label className="flex flex-col gap-1 text-sm text-slate-700 dark:text-slate-200">
-                  <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">생년월일</span>
-                  <input
-                    type="date"
-                    value={birthDate}
-                    onChange={(e) => setBirthDate(e.target.value)}
-                    max={today}
-                    disabled
-                    title="생년월일은 수정할 수 없습니다."
-                    className={`rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none ${
-                      birthDate ? "text-slate-900" : "text-slate-400"
-                    } dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-100`}
-                    placeholder="YYYY-MM-DD"
-                  />
-                </label>
-              </div>
-              <label className="flex flex-col gap-1 text-sm text-slate-700 dark:text-slate-200">
-                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">성별</span>
-                <select
-                  value={gender}
-                  onChange={(e) => setGender(e.target.value)}
-                  className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900/60"
-                >
-                  <option value="">선택해주세요</option>
-                  <option value="MALE">남성</option>
-                  <option value="FEMALE">여성</option>
-                </select>
-              </label>
-              <label className="flex flex-col gap-1 text-sm text-slate-700 dark:text-slate-200">
-                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">연락처</span>
-                <PhoneNumberInput
-                  inputClassName="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900/60"
-                  onChange={({ first, middle, last }) => {
-                    setPhone1(first);
-                    setPhone2(middle);
-                    setPhone3(last);
-                  }}
-                  parts={{ first: phone1, middle: phone2, last: phone3 }}
-                  placeholders={{ first: "010", middle: "0000", last: "0000" }}
-                />
-              </label>
-              <div className="grid gap-3 sm:grid-cols-3">
-                <label className="flex flex-col gap-1 text-sm text-slate-700 dark:text-slate-200 sm:col-span-1">
-                  <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">우편번호</span>
-                  <input
-                    value={zipCode}
-                    onChange={(e) => setZipCode(e.target.value)}
-                    className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900/60"
-                    placeholder="우편번호"
-                  />
-                </label>
-                <label className="flex flex-col gap-1 text-sm text-slate-700 dark:text-slate-200 sm:col-span-2">
-                  <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">주소</span>
-                  <input
-                    value={address}
-                    onChange={(e) => setAddress(e.target.value)}
-                    className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900/60"
-                    placeholder="주소"
-                  />
-                </label>
-                <div className="sm:col-span-3">
-                  <button
-                    type="button"
-                    onClick={handleAddressSearch}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-amber-300 hover:text-amber-800 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-200"
-                  >
-                    주소 검색
-                  </button>
-                </div>
-                <label className="flex flex-col gap-1 text-sm text-slate-700 dark:text-slate-200 sm:col-span-3">
-                  <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">상세 주소</span>
-                  <input
-                    value={detailAddress}
-                    onChange={(e) => setDetailAddress(e.target.value)}
-                    className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900/60"
-                    placeholder="상세 주소"
-                  />
-                </label>
-              </div>
-            </div>
-          </section>
-
-          <section
-            className={`rounded-2xl border border-slate-200 bg-white/80 p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800 ${
-              profileLocked ? "pointer-events-none select-none blur-[2px] opacity-60" : ""
-            }`}
-          >
-            <div className="flex items-center justify-between pb-3">
-              <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">환경 설정</h2>
-              <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">보기·알림</span>
-            </div>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-700 dark:bg-slate-900/50">
-                <div>
-                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">모바일 푸시 알림</p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">브라우저 푸시를 활성화하여 비상 알림을 받아보세요.</p>
-                  {pushMessage && (
-                    <p className={`mt-1 text-xs ${pushStatus === "error" ? "text-rose-500" : "text-emerald-400"}`}>
-                      {pushMessage}
-                    </p>
+          <header className="flex flex-col gap-4 border-b border-slate-200 pb-4">
+            <div className="flex items-start gap-4 sm:gap-6">
+              <div className="relative">
+                <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border-2 border-amber-200 bg-amber-50 text-lg font-semibold text-amber-700">
+                  {profileImageUrl ? (
+                    <img src={profileImageUrl} alt="프로필 이미지" className="h-full w-full object-cover" />
+                  ) : (
+                    <span>{avatarInitial}</span>
                   )}
                 </div>
                 <button
+                  className="absolute -left-1 -bottom-1 inline-flex h-8 w-8 items-center justify-center rounded-full bg-slate-200 text-xs font-semibold text-slate-700 shadow-sm ring-4 ring-white transition hover:bg-slate-300"
                   type="button"
-                  onClick={() => void handleTogglePush()}
-                  disabled={pushStatus === "requesting"}
-                  className={`relative inline-flex h-10 w-32 items-center justify-between rounded-full border px-3 text-[11px] font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${
-                    pushEnabled
+                  onClick={() => setImageMenuOpen((prev) => !prev)}
+                >
+                  Img
+                </button>
+                {imageMenuOpen && (
+                  <div className="absolute left-0 top-full z-10 mt-2 w-44 rounded-md border border-slate-200 bg-white p-1 shadow-lg">
+                    <button
+                      className="block w-full rounded px-2 py-1 text-left text-xs font-semibold text-slate-700 hover:bg-amber-50"
+                      type="button"
+                      onClick={() => {
+                        setImageMenuOpen(false);
+                        fileInputRef.current?.click();
+                      }}
+                    >
+                      새 이미지 업로드
+                    </button>
+                    <button
+                      className="mt-1 block w-full rounded px-2 py-1 text-left text-xs font-semibold text-slate-700 hover:bg-amber-50"
+                      type="button"
+                      onClick={() => {
+                        setImageMenuOpen(false);
+                        void handleResetImage();
+                      }}
+                      disabled={saving || !user}
+                    >
+                      기본 이미지로 변경
+                    </button>
+                  </div>
+                )}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="sr-only"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0] ?? null;
+                    void handleUpload(file);
+                    event.target.value = "";
+                  }}
+                />
+              </div>
+              <div className="flex flex-1 flex-col gap-1">
+                <p className="text-sm font-semibold uppercase tracking-[0.08em] text-amber-600">Client</p>
+                <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">
+                  {user?.name ? `${user.name}님` : "클라이언트 마이페이지"}
+                </h1>
+                <p className="text-sm text-slate-600">이름과 프로필 이미지를 변경할 수 있습니다.</p>
+              </div>
+              <button
+                className="ml-auto inline-flex h-10 items-center justify-center rounded-lg border border-slate-300 px-4 text-sm font-semibold text-slate-700 transition hover:border-amber-300 hover:text-amber-800"
+                type="button"
+                onClick={() => router.back()}
+              >
+                이전 페이지로
+              </button>
+            </div>
+          </header>
+
+          <div className="relative space-y-4">
+            {profileLocked && (
+              <div className="absolute inset-0 z-10 flex flex-col items-center justify-center rounded-2xl bg-white/70 backdrop-blur-sm">
+                <p className="text-sm font-semibold text-slate-700">비밀번호를 입력하면 개인정보를 수정할 수 있습니다.</p>
+                <button
+                  type="button"
+                  className="mt-3 inline-flex items-center justify-center rounded-full border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-700 transition hover:-translate-y-0.5 hover:border-amber-300 hover:shadow-sm"
+                  onClick={() => setUnlockModalOpen(true)}
+                >
+                  비밀번호 입력하기
+                </button>
+              </div>
+            )}
+            <section
+              className={`rounded-2xl border border-slate-200 bg-white/80 p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800 ${profileLocked ? "pointer-events-none select-none blur-[2px] opacity-60" : ""
+                }`}
+            >
+              <div className="flex items-center justify-between pb-3">
+                <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">개인정보</h2>
+                <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">계정/연락처</span>
+              </div>
+              <div className="space-y-3">
+                <label className="flex flex-col gap-1 text-sm text-slate-700 dark:text-slate-200">
+                  <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">이메일</span>
+                  <input
+                    value={email}
+                    readOnly
+                    className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-200"
+                  />
+                </label>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="flex flex-col gap-1 text-sm text-slate-700 dark:text-slate-200">
+                    <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">이름</span>
+                    <input
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900/60"
+                      placeholder="이름을 입력하세요"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1 text-sm text-slate-700 dark:text-slate-200">
+                    <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">생년월일</span>
+                    <input
+                      type="date"
+                      value={birthDate}
+                      onChange={(e) => setBirthDate(e.target.value)}
+                      max={today}
+                      disabled
+                      title="생년월일은 수정할 수 없습니다."
+                      className={`rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none ${birthDate ? "text-slate-900" : "text-slate-400"
+                        } dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-100`}
+                      placeholder="YYYY-MM-DD"
+                    />
+                  </label>
+                </div>
+                <label className="flex flex-col gap-1 text-sm text-slate-700 dark:text-slate-200">
+                  <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">성별</span>
+                  <select
+                    value={gender}
+                    onChange={(e) => setGender(e.target.value)}
+                    className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900/60"
+                  >
+                    <option value="">선택해주세요</option>
+                    <option value="MALE">남성</option>
+                    <option value="FEMALE">여성</option>
+                  </select>
+                </label>
+                <label className="flex flex-col gap-1 text-sm text-slate-700 dark:text-slate-200">
+                  <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">연락처</span>
+                  <PhoneNumberInput
+                    onChange={({ first, middle, last }) => {
+                      setPhone1(first);
+                      setPhone2(middle);
+                      setPhone3(last);
+                    }}
+                    parts={{ first: phone1, middle: phone2, last: phone3 }}
+                    placeholders={{ first: "010", middle: "0000", last: "0000" }}
+                  />
+                </label>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <label className="flex flex-col gap-1 text-sm text-slate-700 dark:text-slate-200 sm:col-span-1">
+                    <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">우편번호</span>
+                    <input
+                      value={zipCode}
+                      onChange={(e) => setZipCode(e.target.value)}
+                      className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900/60"
+                      placeholder="우편번호"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1 text-sm text-slate-700 dark:text-slate-200 sm:col-span-2">
+                    <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">주소</span>
+                    <input
+                      value={address}
+                      onChange={(e) => setAddress(e.target.value)}
+                      className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900/60"
+                      placeholder="주소"
+                    />
+                  </label>
+                  <div className="sm:col-span-3">
+                    <button
+                      type="button"
+                      onClick={handleAddressSearch}
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-amber-300 hover:text-amber-800 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-200"
+                    >
+                      주소 검색
+                    </button>
+                  </div>
+                  <label className="flex flex-col gap-1 text-sm text-slate-700 dark:text-slate-200 sm:col-span-3">
+                    <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">상세 주소</span>
+                    <input
+                      value={detailAddress}
+                      onChange={(e) => setDetailAddress(e.target.value)}
+                      className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900/60"
+                      placeholder="상세 주소"
+                    />
+                  </label>
+                </div>
+              </div>
+            </section>
+
+            <section
+              className={`rounded-2xl border border-slate-200 bg-white/80 p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800 ${profileLocked ? "pointer-events-none select-none blur-[2px] opacity-60" : ""
+                }`}
+            >
+              <div className="flex items-center justify-between pb-3">
+                <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">환경 설정</h2>
+                <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">보기·알림</span>
+              </div>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-700 dark:bg-slate-900/50">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">모바일 푸시 알림</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">브라우저 푸시를 활성화하여 비상 알림을 받아보세요.</p>
+                    {pushMessage && (
+                      <p className={`mt-1 text-xs ${pushStatus === "error" ? "text-rose-500" : "text-emerald-400"}`}>
+                        {pushMessage}
+                      </p>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void handleTogglePush()}
+                    disabled={pushStatus === "requesting"}
+                    className={`relative inline-flex h-10 w-32 items-center justify-between rounded-full border px-3 text-[11px] font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${pushEnabled
                       ? "border-amber-500 bg-amber-50 text-amber-800 shadow-sm"
                       : "border-slate-200 bg-slate-100 text-slate-700 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
-                  } ${pushStatus === "requesting" ? "opacity-60" : "hover:-translate-y-[1px] hover:shadow-sm"}`}
-                  aria-pressed={pushEnabled}
-                  aria-label="모바일 푸시 알림 설정"
-                >
-                  <span className="flex items-center gap-2">
-                    <span
-                      className={`flex h-7 w-7 items-center justify-center rounded-full bg-white/90 shadow-sm ${
-                        pushEnabled ? "text-amber-600" : "text-slate-600"
-                      }`}
-                    >
-                      <BellIcon className="h-4 w-4" />
-                    </span>
-                    <span className="sr-only">{pushEnabled ? "알림 켜짐" : "알림 꺼짐"}</span>
-                  </span>
-                  <span
-                    className={`relative flex h-7 w-14 items-center rounded-full transition ${pushEnabled ? "bg-amber-100" : "bg-slate-200/90"}`}
+                      } ${pushStatus === "requesting" ? "opacity-60" : "hover:-translate-y-[1px] hover:shadow-sm"}`}
+                    aria-pressed={pushEnabled}
+                    aria-label="모바일 푸시 알림 설정"
                   >
+                    <span className="flex items-center gap-2">
+                      <span
+                        className={`flex h-7 w-7 items-center justify-center rounded-full bg-white/90 shadow-sm ${pushEnabled ? "text-amber-600" : "text-slate-600"
+                          }`}
+                      >
+                        <BellIcon className="h-4 w-4" />
+                      </span>
+                      <span className="sr-only">{pushEnabled ? "알림 켜짐" : "알림 꺼짐"}</span>
+                    </span>
                     <span
-                      className={`absolute left-1 h-5 w-5 rounded-full ring-1 ring-slate-200 transition-all duration-200 ${
-                        pushEnabled
+                      className={`relative flex h-7 w-14 items-center rounded-full transition ${pushEnabled ? "bg-amber-100" : "bg-slate-200/90"}`}
+                    >
+                      <span
+                        className={`absolute left-1 h-5 w-5 rounded-full ring-1 ring-slate-200 transition-all duration-200 ${pushEnabled
                           ? "translate-x-7 bg-amber-500 shadow-lg"
                           : "translate-x-0 bg-white shadow-sm"
-                      }`}
-                    />
-                  </span>
-                  <span className="sr-only">{pushEnabled ? "푸시 켜짐" : "푸시 꺼짐"}</span>
-                </button>
-              </div>
-              <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-700 dark:bg-slate-900/50">
-                <div>
-                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">다크 모드</p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    인터페이스 색상을 {theme === "dark" ? "밝게" : "어둡게"} 전환합니다.
-                  </p>
+                          }`}
+                      />
+                    </span>
+                    <span className="sr-only">{pushEnabled ? "푸시 켜짐" : "푸시 꺼짐"}</span>
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={toggleTheme}
-                  className={`relative inline-flex h-10 w-32 items-center justify-between rounded-full border px-3 text-[11px] font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${
-                    theme === "dark"
+                <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-700 dark:bg-slate-900/50">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">다크 모드</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      인터페이스 색상을 {theme === "dark" ? "밝게" : "어둡게"} 전환합니다.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={toggleTheme}
+                    className={`relative inline-flex h-10 w-32 items-center justify-between rounded-full border px-3 text-[11px] font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${theme === "dark"
                       ? "border-amber-500 bg-gradient-to-r from-slate-800 to-amber-600 text-white shadow-sm"
                       : "border-slate-300 bg-slate-100 text-slate-700 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
-                  }`}
-                  aria-pressed={theme === "dark"}
-                  aria-label="다크 모드 토글"
-                >
-                  <span className="flex items-center gap-2">
-                    <span
-                      className={`flex h-7 w-7 items-center justify-center rounded-full bg-white/90 shadow-sm ${
-                        theme === "dark" ? "text-amber-500" : "text-amber-500"
                       }`}
-                    >
-                      <ThemeIcon mode={theme} className="h-4 w-4" />
-                    </span>
-                    <span className="sr-only">{theme === "dark" ? "다크 모드" : "라이트 모드"}</span>
-                  </span>
-                  <span
-                    className={`relative flex h-7 w-14 items-center rounded-full transition ${theme === "dark" ? "bg-amber-200/60" : "bg-slate-200/90"}`}
+                    aria-pressed={theme === "dark"}
+                    aria-label="다크 모드 토글"
                   >
+                    <span className="flex items-center gap-2">
+                      <span
+                        className={`flex h-7 w-7 items-center justify-center rounded-full bg-white/90 shadow-sm ${theme === "dark" ? "text-amber-500" : "text-amber-500"
+                          }`}
+                      >
+                        <ThemeIcon mode={theme} className="h-4 w-4" />
+                      </span>
+                      <span className="sr-only">{theme === "dark" ? "다크 모드" : "라이트 모드"}</span>
+                    </span>
                     <span
-                      className={`absolute left-1 h-5 w-5 rounded-full ring-1 ring-slate-200 transition-all duration-200 ${
-                        theme === "dark"
+                      className={`relative flex h-7 w-14 items-center rounded-full transition ${theme === "dark" ? "bg-amber-200/60" : "bg-slate-200/90"}`}
+                    >
+                      <span
+                        className={`absolute left-1 h-5 w-5 rounded-full ring-1 ring-slate-200 transition-all duration-200 ${theme === "dark"
                           ? "translate-x-7 bg-amber-600 shadow-lg"
                           : "translate-x-0 bg-white shadow-sm"
-                      }`}
-                    />
-                  </span>
-                </button>
-              </div>
-              <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-700 dark:bg-slate-900/50">
-                <div>
-                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">큰 글씨 모드</p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">가독성을 위해 텍스트 크기를 확대합니다.</p>
+                          }`}
+                      />
+                    </span>
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={toggleTextSize}
-                  className={`relative inline-flex h-10 w-32 items-center justify-between rounded-full border px-3 text-[11px] font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${
-                    textSize === "large"
+                <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-700 dark:bg-slate-900/50">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">큰 글씨 모드</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">가독성을 위해 텍스트 크기를 확대합니다.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={toggleTextSize}
+                    className={`relative inline-flex h-10 w-32 items-center justify-between rounded-full border px-3 text-[11px] font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${textSize === "large"
                       ? "border-amber-500 bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-sm"
                       : "border-slate-300 bg-slate-100 text-slate-700 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
-                  }`}
-                  aria-pressed={textSize === "large"}
-                  aria-label="큰 글씨 모드 토글"
-                >
-                  <span className="flex items-center gap-2">
-                    <span
-                      className={`flex h-7 w-7 items-center justify-center rounded-full bg-white/90 shadow-sm ${
-                        textSize === "large" ? "text-amber-600" : "text-slate-600"
                       }`}
-                    >
-                      <TextSizeIcon large={textSize === "large"} className="h-4 w-4" />
-                    </span>
-                    <span className="sr-only">{textSize === "large" ? "큰 글씨" : "보통 글씨"}</span>
-                  </span>
-                  <span
-                    className={`relative flex h-7 w-14 items-center rounded-full transition ${textSize === "large" ? "bg-amber-200/60" : "bg-slate-200/90"}`}
+                    aria-pressed={textSize === "large"}
+                    aria-label="큰 글씨 모드 토글"
                   >
+                    <span className="flex items-center gap-2">
+                      <span
+                        className={`flex h-7 w-7 items-center justify-center rounded-full bg-white/90 shadow-sm ${textSize === "large" ? "text-amber-600" : "text-slate-600"
+                          }`}
+                      >
+                        <TextSizeIcon large={textSize === "large"} className="h-4 w-4" />
+                      </span>
+                      <span className="sr-only">{textSize === "large" ? "큰 글씨" : "보통 글씨"}</span>
+                    </span>
                     <span
-                      className={`absolute left-1 h-5 w-5 rounded-full ring-1 ring-slate-200 transition-all duration-200 ${
-                        textSize === "large"
+                      className={`relative flex h-7 w-14 items-center rounded-full transition ${textSize === "large" ? "bg-amber-200/60" : "bg-slate-200/90"}`}
+                    >
+                      <span
+                        className={`absolute left-1 h-5 w-5 rounded-full ring-1 ring-slate-200 transition-all duration-200 ${textSize === "large"
                           ? "translate-x-7 bg-amber-600 shadow-lg"
                           : "translate-x-0 bg-white shadow-sm"
-                      }`}
-                    />
-                  </span>
-                </button>
+                          }`}
+                      />
+                    </span>
+                  </button>
+                </div>
               </div>
-            </div>
-          </section>
-        </div>
+            </section>
+          </div>
 
-        {(message || error) && (
-          <p className={`text-sm ${error ? "text-rose-600" : "text-emerald-700"}`}>{error || message}</p>
-        )}
+          {(message || error) && (
+            <p className={`text-sm ${error ? "text-rose-600" : "text-emerald-700"}`}>{error || message}</p>
+          )}
 
-        <div className={`flex justify-start gap-2 ${profileLocked ? "pointer-events-none select-none opacity-60" : ""}`}>
-          <button
-            className={primaryActionButton}
-            disabled={saving || !user}
-            onClick={handleSave}
-            type="button"
-          >
-            {saving ? "저장 중..." : "저장하기"}
-          </button>
-        </div>
-      </main>
+          <div className={`flex justify-start gap-2 ${profileLocked ? "pointer-events-none select-none opacity-60" : ""}`}>
+            <button
+              className={primaryActionButton}
+              disabled={saving || !user}
+              onClick={handleSave}
+              type="button"
+            >
+              {saving ? "저장 중..." : "저장하기"}
+            </button>
+          </div>
+        </main>
       </div>
 
       {unlockModalOpen && (

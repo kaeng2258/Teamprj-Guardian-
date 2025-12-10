@@ -1,9 +1,27 @@
-// frontapp/components/MyChatRooms.tsx
 "use client";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { resolveProfileImageUrl } from "@/lib/image";
+import {
+  Avatar,
+  Badge,
+  Button,
+  Card,
+  Container,
+  Group,
+  Stack,
+  Text,
+  TextInput,
+  Title,
+  UnstyledButton,
+  Loader,
+  Alert,
+  Paper,
+  Box,
+  Indicator,
+} from "@mantine/core";
 
+// ... Types ...
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "";
 
@@ -82,16 +100,16 @@ export default function MyChatRooms({
           { method: "POST" },
         );
       } catch {
-        // ignore read sync errors
+        // ignore
       } finally {
         setThreads((prev) =>
           prev.map((t) =>
             t.roomId === roomId
               ? {
-                  ...t,
-                  readByManager: role === "MANAGER" ? true : t.readByManager,
-                  readByClient: role === "CLIENT" ? true : t.readByClient,
-                }
+                ...t,
+                readByManager: role === "MANAGER" ? true : t.readByManager,
+                readByClient: role === "CLIENT" ? true : t.readByClient,
+              }
               : t,
           ),
         );
@@ -157,7 +175,6 @@ export default function MyChatRooms({
       }
     };
     void loadProfileImages();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [threads, role]);
 
   useEffect(() => {
@@ -191,7 +208,9 @@ export default function MyChatRooms({
     setThreads((prev) => sortThreads(prev, bookmarked));
   }, [bookmarkKey, bookmarked, bookmarksHydrated]);
 
-  const handleLeaveRoom = async (roomId: number) => {
+  const handleLeaveRoom = async (roomId: number, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
     if (!effectiveUserId) {
       setActionError("사용자 정보를 확인할 수 없습니다.");
       return;
@@ -217,7 +236,9 @@ export default function MyChatRooms({
     }
   };
 
-  const toggleBookmark = (roomId: number) => {
+  const toggleBookmark = (roomId: number, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
     if (!bookmarkKey) return;
     if (!bookmarksHydrated) return;
     setBookmarked((prev) => {
@@ -241,30 +262,25 @@ export default function MyChatRooms({
   }, [role, searchKeyword, threads]);
 
   return (
-    <section className="flex flex-col gap-4 rounded-2xl border border-sky-200 bg-gradient-to-br from-sky-50 via-white to-emerald-50/70 p-6 shadow-sm dark:border-slate-700 dark:from-slate-800 dark:via-slate-900 dark:to-slate-800">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-bold text-slate-900">내 채팅방</h2>
-          <p className="mt-1 text-sm text-slate-600">
-            현재 배정된 상대와의 대화를 한눈에 확인하세요.
-          </p>
-        </div>
-      </div>
+    <Card withBorder radius="md" p="md" bg="var(--mantine-color-body)">
+      <Group justify="space-between" mb="md">
+        <Box>
+          <Title order={4}>내 채팅방</Title>
+          <Text size="xs" c="dimmed">현재 배정된 상대와의 대화</Text>
+        </Box>
+        {role === "CLIENT" && (
+          <TextInput size="xs" placeholder="검색..." value={searchKeyword} onChange={(e) => setSearchKeyword(e.currentTarget.value)} />
+        )}
+      </Group>
 
-      {loading && (
-        <p className="mt-3 text-sm text-slate-600">
-          채팅방을 불러오는 중입니다...
-        </p>
-      )}
-      {err && <p className="mt-3 text-sm text-red-600">{err}</p>}
+      {loading && <Text size="sm" ta="center">목록을 불러오는 중...</Text>}
+      {err && <Alert color="red">{err}</Alert>}
 
       {!loading && !err && threads.length === 0 && (
-        <p className="mt-3 text-sm text-slate-600">
-          현재 개설된 채팅방이 없습니다.
-        </p>
+        <Text size="sm" c="dimmed" ta="center" py="xl">채팅방이 없습니다.</Text>
       )}
 
-      <ul className="mt-4 grid gap-3">
+      <Stack gap="sm">
         {threads.map((t) => {
           const roomId = t.roomId;
           const otherName = role === "MANAGER" ? t.clientName : t.managerName;
@@ -277,118 +293,60 @@ export default function MyChatRooms({
           const lastTime = t.lastMessageAt ?? undefined;
           const lastSnippet = t.lastMessageSnippet ?? "";
           const unread = role === "MANAGER" ? t.readByManager === false : t.readByClient === false;
+          const isBookmarked = bookmarked.includes(roomId);
 
           return (
-            <li
+            <Paper
+              component={Link}
+              href={`/chat/${roomId}`}
               key={roomId}
-              className="group rounded-2xl border border-sky-100 bg-white p-3 shadow-sm transition hover:-translate-y-0.5 hover:border-sky-300 hover:shadow-lg"
+              withBorder
+              p="sm"
+              radius="md"
+              onClick={() => void handleMarkThreadAsRead(roomId)}
+              style={{ textDecoration: 'none', color: 'inherit', transition: 'box-shadow 0.2s' }}
+              onMouseEnter={(e: any) => e.currentTarget.style.boxShadow = 'var(--mantine-shadow-sm)'}
+              onMouseLeave={(e: any) => e.currentTarget.style.boxShadow = 'none'}
             >
-              <Link
-                href={`/chat/${roomId}`}
-                className="flex flex-col gap-2"
-                onClick={() => void handleMarkThreadAsRead(roomId)}
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-3">
-                    <span className="relative inline-flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full border border-sky-100 bg-sky-50 text-sm font-semibold text-sky-700 shadow-inner">
-                      <img
-                        src={avatar}
-                        alt={`${displayName} 프로필`}
-                        className="h-full w-full object-cover"
-                      />
-                      <span className="pointer-events-none absolute inset-0 rounded-full ring-1 ring-white/80 ring-offset-1" />
-                    </span>
-                    <p className="text-sm font-semibold text-slate-900">{displayName}</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {unread && (
-                      <span className="inline-flex min-w-[20px] items-center justify-center rounded-full bg-sky-500 px-1.5 py-0.5 text-[10px] font-semibold text-white shadow-sm">
-                        NEW
-                      </span>
-                    )}
-                    <button
-                      type="button"
-                      className={`bookmark-star inline-flex h-7 w-7 items-center justify-center rounded-full border text-[13px] font-bold transition ${
-                        bookmarked.includes(roomId)
-                          ? "on border-lime-300 bg-lime-100 text-lime-700"
-                          : "border-slate-200 bg-white text-slate-400 hover:border-lime-200 hover:text-lime-500"
-                      }`}
-                      title="상단에 고정하기"
-                      aria-label={bookmarked.includes(roomId) ? "북마크 해제" : "북마크 추가"}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        toggleBookmark(roomId);
-                      }}
+              <Group align="center" wrap="nowrap">
+                <Indicator disabled={!unread} color="red" size={10} offset={4} withBorder>
+                  <Avatar src={avatar} size="md" radius="xl" />
+                </Indicator>
+
+                <Box style={{ flex: 1, minWidth: 0 }}>
+                  <Group justify="space-between" align="center" mb={2}>
+                    <Text fw={600} size="sm" truncate>{displayName}</Text>
+                    <Group gap="xs">
+                      <UnstyledButton onClick={(e) => toggleBookmark(roomId, e)}>
+                        <Text c={isBookmarked ? "yellow" : "gray.4"}>★</Text>
+                      </UnstyledButton>
+                      {lastTime && (
+                        <Text size="xs" c="dimmed">
+                          {new Date(lastTime).toLocaleDateString()}
+                        </Text>
+                      )}
+                    </Group>
+                  </Group>
+                  <Group justify="space-between" align="center">
+                    <Text size="xs" c="dimmed" lineClamp={1}>
+                      {lastSnippet || "대화가 없습니다."}
+                    </Text>
+                    <Button
+                      variant="subtle"
+                      color="red"
+                      size="compact-xs"
+                      loading={leaving === roomId}
+                      onClick={(e) => handleLeaveRoom(roomId, e)}
                     >
-                      ★
-                    </button>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex flex-col gap-1">
-                    <p className="line-clamp-1 text-[13px] text-slate-700">
-                      {lastSnippet || "최근 메시지가 없습니다."}
-                    </p>
-                    {lastTime && (
-                      <small className="text-[11px] text-slate-500">
-                        {new Date(lastTime).toLocaleString()}
-                      </small>
-                    )}
-                  </div>
-                  <button
-                    type="button"
-                    className={`shrink-0 inline-flex items-center justify-center rounded-md border px-3 py-1.5 text-[11px] font-semibold transition ${
-                      leaving === roomId
-                        ? "border-rose-300 bg-rose-50 text-rose-600"
-                        : "border-slate-200 bg-white text-slate-700 hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700"
-                    } disabled:cursor-not-allowed disabled:opacity-60`}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      void handleLeaveRoom(roomId);
-                    }}
-                    disabled={leaving === roomId}
-                  >
-                    {leaving === roomId ? "나가는 중..." : "나가기"}
-                  </button>
-                </div>
-              </Link>
-            </li>
+                      나가기
+                    </Button>
+                  </Group>
+                </Box>
+              </Group>
+            </Paper>
           );
         })}
-      </ul>
-
-      {actionError && <p className="text-sm text-red-600">{actionError}</p>}
-      <style jsx>{`
-        .bookmark-star {
-          position: relative;
-          transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
-          box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
-        }
-        .bookmark-star:hover {
-          transform: translateY(-1px);
-          box-shadow: 0 6px 14px rgba(0, 0, 0, 0.1);
-        }
-        .bookmark-star.on {
-          animation: bookmark-pop 0.45s ease;
-          box-shadow: 0 6px 14px rgba(163, 230, 53, 0.25);
-        }
-        @keyframes bookmark-pop {
-          0% {
-            transform: scale(1);
-          }
-          40% {
-            transform: scale(1.18);
-          }
-          70% {
-            transform: scale(0.95);
-          }
-          100% {
-            transform: scale(1);
-          }
-        }
-      `}</style>
-    </section>
+      </Stack>
+    </Card>
   );
 }

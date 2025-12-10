@@ -947,6 +947,7 @@ function GuardianChatPage() {
         html,
         body {
           height: 100%;
+          width: 100%;
           overflow: hidden;
         }
         body {
@@ -957,7 +958,10 @@ function GuardianChatPage() {
             "Apple SD Gothic Neo", sans-serif;
         }
         .shell {
-          height: 100vh;
+          height: 100dvh;
+          width: 100vw;
+          min-height: 0;
+          min-width: 0;
           display: grid;
           grid-template-columns: 3fr 2fr;
           gap: 12px;
@@ -970,6 +974,8 @@ function GuardianChatPage() {
           gap: 12px;
           min-width: 0;
           overflow: hidden;
+          height: 100%;
+          min-height: 0;
         }
         .avbar {
           display: flex;
@@ -1011,14 +1017,17 @@ function GuardianChatPage() {
           border-radius: 12px;
           padding: 10px;
           min-height: 0;
+          height: 100%;
           overflow: hidden;
         }
         .videoGrid {
           display: grid;
           grid-template-columns: 1fr 1fr;
+          grid-template-rows: 1fr;
           grid-auto-rows: 1fr;
           gap: 8px;
           min-height: 0;
+          height: 100%;
           overflow: hidden;
         }
         .tile {
@@ -1028,6 +1037,7 @@ function GuardianChatPage() {
           overflow: hidden;
           border: 1px solid var(--border);
           min-height: 0;
+          height: 100%;
         }
         .tile small {
           position: absolute;
@@ -1042,7 +1052,7 @@ function GuardianChatPage() {
         video {
           width: 100%;
           height: 100%;
-          object-fit: contain;
+          object-fit: cover;
           background: #000;
           display: block;
         }
@@ -1052,6 +1062,8 @@ function GuardianChatPage() {
           gap: 10px;
           min-width: 0;
           overflow: hidden;
+          height: 100%;
+          min-height: 0;
         }
         .roomBar {
           display: flex;
@@ -1083,8 +1095,9 @@ function GuardianChatPage() {
           border: 1px solid var(--border);
           border-radius: 12px;
           padding: 8px;
-          max-height: 180px;
+          max-height: 22vh;
           overflow: auto;
+          min-height: 0;
         }
         .th {
           padding: 8px;
@@ -1124,6 +1137,7 @@ function GuardianChatPage() {
           min-height: 0;
           display: flex;
           flex-direction: column;
+          height: 100%;
           overflow: hidden;
         }
         .msgs {
@@ -1131,6 +1145,7 @@ function GuardianChatPage() {
           overflow: auto;
           padding: 12px;
           min-height: 0;
+          max-height: 100%;
         }
         .empty {
           color: var(--muted);
@@ -1193,6 +1208,9 @@ function GuardianChatPage() {
           background: linear-gradient(180deg, #0b1220, #0a0f1c);
           border: 1px solid var(--border);
           border-radius: 12px;
+          position: sticky;
+          bottom: 0;
+          z-index: 3;
         }
         .composer input {
           flex: 1;

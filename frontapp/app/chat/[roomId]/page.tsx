@@ -41,16 +41,5 @@ export default function ChatRoomPage() {
     })();
   }, [roomId]);
 
-  return (
-    <div className="min-h-screen bg-slate-50 px-4 py-10">
-      <main className="mx-auto w-full max-w-6xl rounded-2xl bg-white p-6 shadow-xl">
-        {err && (
-          <p className="mb-3 text-sm text-red-600">
-            에러: {err}
-          </p>
-        )}
-        <ChatRoom roomId={roomId} me={me} initialMessages={initial} />
-      </main>
-    </div>
-  );
+  return <ChatRoom roomId={roomId} me={me} initialMessages={initial} />;
 }

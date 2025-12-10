@@ -12,6 +12,7 @@ import {
   Box,
   Button,
   Card,
+  Center,
   Container,
   Flex,
   Grid,
@@ -478,145 +479,256 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
     };
   }, []);
 
-  return (
-    <Container size="xl" py="md">
-      <Paper withBorder radius="md" p="md" mb="md">
-        <Group justify="space-between" align="center">
-          <Group>
-            <ActionIcon variant="light" color="gray" onClick={() => router.back()}>
-              ←
-            </ActionIcon>
-            <Stack gap={0}>
-              <Text fw={700}>실시간 채팅방 #{roomId}</Text>
-              <Text size="xs" c="dimmed">담당자와 클라이언트간의 실시간 소통</Text>
-            </Stack>
-          </Group>
-          <Badge color={connected ? "teal" : "gray"} variant="light">
-            {connected ? "실시간 연결됨" : "연결 대기중"}
-          </Badge>
+  const renderVideoPanel = (extraStyle?: React.CSSProperties) => (
+    <Paper
+      withBorder
+      radius="md"
+      p="0"
+      bg="gray.9"
+      style={{
+        flex: 1,
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
+        overflow: "hidden",
+        minHeight: 0,
+        ...extraStyle,
+      }}
+    >
+      <Box style={{ flex: 1, position: 'relative', width: '100%', overflow: 'hidden' }}>
+        <video
+          ref={remoteVideoRef}
+          autoPlay
+          playsInline
+          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+        />
+        {!connected && (
+          <Center style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.6)', zIndex: 1, flexDirection: 'column' }}>
+            <Loader color="white" type="dots" />
+            <Text c="white" mt="sm">연결 대기중...</Text>
+          </Center>
+        )}
+
+        {/* Local Video Overlay */}
+        {camOn && (
+          <Paper
+            shadow="xl"
+            radius="md"
+            withBorder
+            style={{
+              position: 'absolute',
+              right: 20,
+              top: 20,
+              width: 180,
+              aspectRatio: '4/3',
+              zIndex: 10,
+              overflow: 'hidden',
+              borderColor: 'rgba(255,255,255,0.2)'
+            }}
+          >
+            <video
+              ref={localVideoRef}
+              autoPlay
+              muted
+              playsInline
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            />
+          </Paper>
+        )}
+      </Box>
+
+      {/* Controls Bar */}
+      <Paper p="md" bg="rgba(0,0,0,0.8)" radius={0} style={{ zIndex: 2 }}>
+        <Group justify="center" gap="xl">
+          <ActionIcon
+            variant={camOn ? "filled" : "light"}
+            color={camOn ? "gray" : "red"}
+            size="xl"
+            radius="xl"
+            onClick={camOn ? stopCamera : startCamera}
+          >
+            <FontAwesomeIcon icon={camOn ? faVideoSlash : faVideo} />
+          </ActionIcon>
+
+          <ActionIcon
+            variant={micOn ? "filled" : "light"}
+            color={micOn ? "gray" : "red"}
+            size="xl"
+            radius="xl"
+            disabled={!camOn}
+            onClick={toggleMic}
+          >
+            <FontAwesomeIcon icon={micOn ? faMicrophoneSlash : faMicrophone} />
+          </ActionIcon>
+
+          <Button color="red" variant="light" onClick={() => router.back()}>
+            나가기
+          </Button>
         </Group>
       </Paper>
+    </Paper>
+  );
 
-      <Grid>
-        {/* Video Area */}
-        <Grid.Col span={{ base: 12, lg: 5 }}>
-          <Paper withBorder radius="md" p="xs" bg="gray.9" h="100%" style={{ minHeight: '300px', display: 'flex', flexDirection: 'column' }}>
-            <Group mb="xs" justify="center">
-              <Button
-                leftSection={<FontAwesomeIcon icon={camOn ? faVideoSlash : faVideo} />}
-                color={camOn ? "red" : "teal"}
-                onClick={camOn ? stopCamera : startCamera}
-                size="xs"
-              >
-                {camOn ? "카메라 끄기" : "카메라 켜기"}
-              </Button>
-              <Button
-                leftSection={<FontAwesomeIcon icon={micOn ? faMicrophoneSlash : faMicrophone} />}
-                disabled={!camOn}
-                color={micOn ? "teal" : "gray"}
-                variant="light"
-                onClick={toggleMic}
-                size="xs"
-              >
-                {micOn ? "마이크 끄기" : "마이크 켜기"}
-              </Button>
+  const renderChatPanel = (extraStyle?: React.CSSProperties) => (
+    <Paper
+      withBorder
+      radius="md"
+      h="100%"
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        minHeight: 0,
+        height: "100%",
+        position: "relative",
+        ...extraStyle,
+      }}
+    >
+      {/* Chat Header */}
+      <Box p="md" style={{ borderBottom: '1px solid var(--mantine-color-gray-3)' }}>
+        <Group justify="space-between">
+          <Stack gap={0}>
+            <Text fw={700} size="lg">채팅방 #{roomId}</Text>
+            <Group gap={6}>
+              <Indicator color={connected ? "teal" : "gray"} size={8} processing={connected}>
+                <Text size="xs" c={connected ? "teal" : "dimmed"}>
+                  {connected ? "상담원 연결됨" : "연결 대기중"}
+                </Text>
+              </Indicator>
             </Group>
+          </Stack>
+        </Group>
+      </Box>
 
-            <Box style={{ position: 'relative', flex: 1, borderRadius: 'var(--mantine-radius-md)', overflow: 'hidden', background: '#000' }}>
-              <video
-                ref={remoteVideoRef}
-                autoPlay
-                playsInline
-                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-              />
-              {camOn && (
-                <Paper
-                  shadow="md"
-                  style={{
-                    position: 'absolute',
-                    right: 10,
-                    top: 10,
-                    width: 120,
-                    height: 90,
-                    overflow: 'hidden',
-                    zIndex: 10,
-                    border: '1px solid rgba(255,255,255,0.3)'
-                  }}
-                >
-                  <video
-                    ref={localVideoRef}
-                    autoPlay
-                    muted
-                    playsInline
-                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                  />
-                </Paper>
-              )}
-              <Text c="white" size="xs" style={{ position: 'absolute', bottom: 10, left: 10, background: 'rgba(0,0,0,0.5)', padding: '2px 8px', borderRadius: 4 }}>
-                상대방 화면
-              </Text>
-            </Box>
-          </Paper>
-        </Grid.Col>
-
-        {/* Chat Area */}
-        <Grid.Col span={{ base: 12, lg: 7 }}>
-          <Paper withBorder radius="md" h="100%" style={{ height: '600px', display: 'flex', flexDirection: 'column' }}>
-            <ScrollArea p="md" style={{ flex: 1 }} viewportRef={logRef}>
-              <Stack gap="sm">
-                {messages.length === 0 ? (
-                  <Text ta="center" c="dimmed" mt="xl">메시지가 없습니다.</Text>
-                ) : (
-                  messages.map((m, idx) => {
-                    const mine = m.senderId === resolvedMe.id;
-                    const name = resolveName(m.senderId, m.senderName);
-                    const avatar = resolveAvatar(m.senderId);
-                    const isNotice = isEmergencyNotice(m);
-
-                    return (
-                      <Group key={idx} align="flex-start" justify={mine ? "flex-end" : "flex-start"} wrap="nowrap">
-                        {!mine && (
-                          <Avatar src={avatar} radius="xl" size="sm" alt={name} />
-                        )}
-                        <Stack gap={2} style={{ maxWidth: '70%' }}>
-                          {!mine && <Text size="xs" c="dimmed">{name}</Text>}
-                          <Paper
-                            p="sm"
-                            radius="md"
-                            bg={isNotice ? "red.1" : mine ? "teal.6" : "gray.1"}
-                            c={isNotice ? "red.9" : mine ? "white" : "black"}
-                          >
-                            <Text size="sm">{m.content}</Text>
-                          </Paper>
-                          <Text size="xs" c="dimmed" ta={mine ? "right" : "left"}>
-                            {fmt(m.sentAt ?? m.createdAt)}
-                          </Text>
-                        </Stack>
-                      </Group>
-                    );
-                  })
-                )}
-              </Stack>
-            </ScrollArea>
-
-            <Paper p="sm" withBorder style={{ borderTop: '1px solid var(--mantine-color-gray-3)', borderBottom: 0, borderLeft: 0, borderRight: 0 }}>
-              <form onSubmit={handleSend}>
-                <Group>
-                  <TextInput
-                    placeholder="메시지를 입력하세요"
-                    value={input}
-                    onChange={(e) => setInput(e.currentTarget.value)}
-                    style={{ flex: 1 }}
-                  />
-                  <Button type="submit" disabled={!input.trim()}>
+      {/* Messages List - Container with min-height: 0 is CRITICAL for nested flex scrolling */}
+      <Box style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+        <ScrollArea
+          p="md"
+          type="auto"
+          scrollHideDelay={0}
+          viewportRef={logRef}
+          style={{ flex: 1, height: "100%", maxHeight: "100%" }}
+          styles={{ viewport: { height: "100%", maxHeight: "100%" } }}
+        >
+          <Stack gap="md">
+            {messages.length === 0 ? (
+              <Center h={200}>
+                <Stack align="center" gap="xs">
+                  <ThemeIcon color="gray" variant="light" size={40} radius="xl">
                     <FontAwesomeIcon icon={faPaperPlane} />
-                  </Button>
-                </Group>
-              </form>
-            </Paper>
-          </Paper>
-        </Grid.Col>
-      </Grid>
-    </Container>
+                  </ThemeIcon>
+                  <Text c="dimmed" size="sm">대화를 시작해보세요.</Text>
+                </Stack>
+              </Center>
+            ) : (
+              messages.map((m, idx) => {
+                const mine = m.senderId === resolvedMe.id;
+                const name = resolveName(m.senderId, m.senderName);
+                const avatar = resolveAvatar(m.senderId);
+                const isNotice = isEmergencyNotice(m);
+
+                return (
+                  <Group key={idx} align="flex-start" justify={mine ? "flex-end" : "flex-start"} wrap="nowrap">
+                    {!mine && (
+                      <Avatar src={avatar} radius="xl" size="md" />
+                    )}
+                    <Stack gap={4} style={{ maxWidth: '75%' }}>
+                      {!mine && <Text size="xs" c="dimmed" ml={4}>{name}</Text>}
+                      <Paper
+                        p="sm"
+                        px="md"
+                        radius="xl"
+                        style={{
+                          borderTopLeftRadius: !mine ? 0 : undefined,
+                          borderTopRightRadius: mine ? 0 : undefined
+                        }}
+                        bg={isNotice ? "red.1" : mine ? "indigo.6" : "gray.1"}
+                        c={isNotice ? "red.9" : mine ? "white" : "black"}
+                      >
+                        <Text size="sm" style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>{m.content}</Text>
+                      </Paper>
+                      <Text size="xs" c="dimmed" ta={mine ? "right" : "left"} mr={mine ? 4 : 0} ml={!mine ? 4 : 0}>
+                        {fmt(m.sentAt ?? m.createdAt)}
+                      </Text>
+                    </Stack>
+                  </Group>
+                );
+              })
+            )}
+          </Stack>
+        </ScrollArea>
+      </Box>
+
+      {/* Input Area */}
+      <Box
+        p="md"
+        style={{
+          borderTop: '1px solid var(--mantine-color-gray-3)',
+          position: 'sticky',
+          bottom: 0,
+          background: 'white',
+          zIndex: 5,
+        }}
+        bg="white"
+      >
+        <form onSubmit={handleSend}>
+          <Group gap="xs" align="flex-end">
+            <TextInput
+              placeholder="메시지를 입력하세요..."
+              value={input}
+              onChange={(e) => setInput(e.currentTarget.value)}
+              style={{ flex: 1 }}
+              variant="filled"
+              radius="md"
+              size="md"
+              autoComplete="off"
+            />
+            <ActionIcon
+              type="submit"
+              disabled={!input.trim()}
+              variant="filled"
+              color="indigo"
+              size="lg"
+              radius="md"
+              h={42} w={42}
+            >
+              <FontAwesomeIcon icon={faPaperPlane} />
+            </ActionIcon>
+          </Group>
+        </form>
+      </Box>
+    </Paper>
+  );
+
+  const layoutCols = isMobile ? "1fr" : "2fr 1fr";
+  const layoutRows = isMobile ? "60vh 1fr" : "1fr";
+
+  return (
+    <Box
+      style={{
+        position: "fixed",
+        inset: 0,
+        height: "100vh",
+        width: "100vw",
+        overflow: "hidden",
+        padding: 12,
+        boxSizing: "border-box",
+      }}
+    >
+      <Box
+        style={{
+          display: "grid",
+          gridTemplateColumns: layoutCols,
+          gridTemplateRows: layoutRows,
+          gap: 12,
+          height: "100%",
+          width: "100%",
+          minHeight: 0,
+          minWidth: 0,
+        }}
+      >
+        <Box style={{ minHeight: 0, minWidth: 0 }}>{renderVideoPanel()}</Box>
+        <Box style={{ minHeight: 0, minWidth: 0 }}>{renderChatPanel()}</Box>
+      </Box>
+    </Box>
   );
 }

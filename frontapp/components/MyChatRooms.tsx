@@ -299,6 +299,8 @@ export default function MyChatRooms({
             <Paper
               component={Link}
               href={`/chat/${roomId}`}
+              target="_blank"
+              rel="noopener noreferrer"
               key={roomId}
               withBorder
               p="sm"

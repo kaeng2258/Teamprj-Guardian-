@@ -4,6 +4,7 @@ import { resolveProfileImageUrl } from "@/lib/image";
 import PhoneNumberInput from "@/components/PhoneNumberInput";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Modal, Button, PasswordInput, Text, Group, Stack } from "@mantine/core";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "";
 const DEFAULT_PROFILE_IMG = "/image/픽토그램.png";
@@ -995,50 +996,45 @@ export default function ManagerProfileEditPage() {
         </main>
       </div>
 
-      {unlockModalOpen && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center px-4">
-          <div
-            className="absolute inset-0 bg-slate-900/50"
-            onClick={() => {
-              if (!unlocking) setUnlockModalOpen(false);
+      <Modal
+        opened={unlockModalOpen}
+        onClose={() => {
+          if (!unlocking) setUnlockModalOpen(false);
+        }}
+        centered
+        radius="lg"
+        title="비밀번호 확인"
+        overlayProps={{ backgroundOpacity: 0.55, blur: 3 }}
+        closeOnClickOutside={!unlocking}
+        closeOnEscape={!unlocking}
+        withCloseButton={false}
+      >
+        <Stack>
+          <Text size="sm" c="dimmed">
+            개인정보 수정을 위해 현재 비밀번호를 입력해주세요.
+          </Text>
+
+          <PasswordInput
+            placeholder="비밀번호"
+            value={unlockPassword}
+            onChange={(e) => setUnlockPassword(e.currentTarget.value)}
+            error={unlockError}
+            disabled={unlocking}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') void handleUnlockProfile();
             }}
           />
-          <div className="relative w-full max-w-md rounded-2xl bg-white p-5 shadow-xl dark:bg-slate-800">
-            <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">비밀번호 확인</h3>
-            <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-              개인정보 수정을 위해 현재 비밀번호를 입력해주세요.
-            </p>
-            <div className="mt-4 space-y-2">
-              <input
-                type="password"
-                value={unlockPassword}
-                onChange={(e) => setUnlockPassword(e.target.value)}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none dark:border-slate-600 dark:bg-slate-900/60 dark:text-slate-50"
-                placeholder="비밀번호"
-              />
-              {unlockError && <p className="text-sm text-rose-600">{unlockError}</p>}
-            </div>
-            <div className="mt-4 flex justify-end gap-2">
-              <button
-                type="button"
-                className="h-10 rounded-md bg-indigo-600 px-4 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-indigo-300"
-                onClick={() => void handleUnlockProfile()}
-                disabled={unlocking}
-              >
-                {unlocking ? "확인 중..." : "확인"}
-              </button>
-              <button
-                type="button"
-                className="h-10 rounded-md border border-slate-300 px-3 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:text-slate-900 dark:border-slate-600 dark:text-slate-200"
-                onClick={() => setUnlockModalOpen(false)}
-                disabled={unlocking}
-              >
-                취소
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+
+          <Group justify="flex-end" mt="md">
+            <Button variant="default" onClick={() => setUnlockModalOpen(false)} disabled={unlocking}>
+              취소
+            </Button>
+            <Button color="indigo" onClick={() => void handleUnlockProfile()} loading={unlocking}>
+              확인
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
     </>
   );
 }

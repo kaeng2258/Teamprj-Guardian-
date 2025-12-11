@@ -1,4 +1,5 @@
 "use client";
+import { Modal } from "@mantine/core";
 import MyChatRooms from "@/components/MyChatRooms";
 import { InlineDrugSearch } from "@/components/InlineDrugSearch";
 import { DrugDetailModal } from "@/components/DrugDetailModal";
@@ -272,28 +273,28 @@ const managerQuickActions: Array<{
   accent: string;
   icon?: JSX.Element;
 }> = [
-  {
-    value: "client",
-    label: "복약 즐겨찾기",
-    description: "배정 및 복약 일정",
-    accent: "bg-indigo-600",
-    icon: <PillIcon className="h-4 w-4" />,
-  },
-  {
-    value: "drug",
-    label: "약 검색",
-    description: "e약은요 기반 약품 조회",
-    accent: "bg-emerald-500",
-    icon: <FontAwesomeIcon icon={byPrefixAndName.fas["magnifying-glass"]} className="h-4 w-4" />,
-  },
-  {
-    value: "chat",
-    label: "채팅방",
-    description: "실시간 상담 및 공지",
-    accent: "bg-sky-500",
-    icon: <FontAwesomeIcon icon={byPrefixAndName.far["comment"]} className="h-4 w-4" />,
-  },
-];
+    {
+      value: "client",
+      label: "복약 즐겨찾기",
+      description: "배정 및 복약 일정",
+      accent: "bg-indigo-600",
+      icon: <PillIcon className="h-4 w-4" />,
+    },
+    {
+      value: "drug",
+      label: "약 검색",
+      description: "e약은요 기반 약품 조회",
+      accent: "bg-emerald-500",
+      icon: <FontAwesomeIcon icon={byPrefixAndName.fas["magnifying-glass"]} className="h-4 w-4" />,
+    },
+    {
+      value: "chat",
+      label: "채팅방",
+      description: "실시간 상담 및 공지",
+      accent: "bg-sky-500",
+      icon: <FontAwesomeIcon icon={byPrefixAndName.far["comment"]} className="h-4 w-4" />,
+    },
+  ];
 
 const subtleActionButton =
   "flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition hover:-translate-y-[1px] hover:border-indigo-200 hover:text-indigo-800 hover:shadow-sm disabled:cursor-not-allowed disabled:opacity-60";
@@ -442,9 +443,9 @@ export default function ManagerMyPage() {
   const managerIndicatorStyle: CSSProperties =
     managerActiveIndex >= 0
       ? {
-          width: "33.3333%",
-          transform: `translateX(${managerActiveIndex * 100}%)`,
-        }
+        width: "33.3333%",
+        transform: `translateX(${managerActiveIndex * 100}%)`,
+      }
       : {};
   const [selectedDrugDetailSeq, setSelectedDrugDetailSeq] = useState<
     string | null
@@ -761,10 +762,10 @@ export default function ManagerMyPage() {
                 typeof detail.age === "number" && detail.age > 0
                   ? detail.age
                   : typeof client.age === "number" && client.age > 0
-                  ? client.age
-                  : typeof computedAge === "number"
-                  ? computedAge
-                  : null,
+                    ? client.age
+                    : typeof computedAge === "number"
+                      ? computedAge
+                      : null,
             };
           } catch {
             return client;
@@ -1561,11 +1562,11 @@ export default function ManagerMyPage() {
     return `${month}.${day}`;
   }, []);
 
-const WeeklyDayCard = ({
-  day,
-  className = "",
-}: {
-  day: MedicationWeeklyDayStatus;
+  const WeeklyDayCard = ({
+    day,
+    className = "",
+  }: {
+    day: MedicationWeeklyDayStatus;
     className?: string;
   }) => {
     const config = weeklyStatusConfig[day.status];
@@ -1604,8 +1605,8 @@ const WeeklyDayCard = ({
           {day.scheduledCount > 0
             ? `${effectiveTaken}/${day.scheduledCount}`
             : day.manualLogCount > 0
-            ? `기록 ${day.manualLogCount}`
-            : "일정 없음"}
+              ? `기록 ${day.manualLogCount}`
+              : "일정 없음"}
         </p>
         {day.manualLogCount > 0 && day.scheduledCount > 0 && (
           <p className="mt-0.5 text-xs text-amber-600">
@@ -1746,10 +1747,10 @@ const WeeklyDayCard = ({
                 typeof detail.age === "number" && detail.age > 0
                   ? detail.age
                   : typeof item.age === "number" && item.age > 0
-                  ? item.age
-                  : typeof computedAge === "number"
-                  ? computedAge
-                  : null,
+                    ? item.age
+                    : typeof computedAge === "number"
+                      ? computedAge
+                      : null,
             };
           } catch {
             return item;
@@ -1854,9 +1855,8 @@ const WeeklyDayCard = ({
       const chatResult = await openChatRoomForClient(clientId);
       const successText = chatResult.success
         ? "배정하고 채팅방을 자동으로 개설했습니다."
-        : `채팅방 개설 중 문제가 발생했습니다.${
-            chatResult.message ? ` ${chatResult.message}` : ""
-          }`;
+        : `채팅방 개설 중 문제가 발생했습니다.${chatResult.message ? ` ${chatResult.message}` : ""
+        }`;
       setAssignmentMessages((prev) => ({
         ...prev,
         [clientId]: {
@@ -2642,9 +2642,8 @@ const WeeklyDayCard = ({
             >
               <FontAwesomeIcon
                 icon={byPrefixAndName.fas["rotate-right"]}
-                className={`h-4 w-4 ${
-                  summaryLoadingState ? "animate-spin text-indigo-700" : "text-slate-600"
-                }`}
+                className={`h-4 w-4 ${summaryLoadingState ? "animate-spin text-indigo-700" : "text-slate-600"
+                  }`}
                 aria-hidden
               />
               <span>{summaryLoadingState ? "갱신 중..." : "주간 현황 새로고침"}</span>
@@ -2801,16 +2800,14 @@ const WeeklyDayCard = ({
                               medicineId: plan.medicineId,
                             })
                           }
-                          className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold shadow-sm transition ${
-                            plan.active
-                              ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                              : "border-slate-200 bg-white text-slate-700"
-                          } ${planUpdating ? "cursor-wait opacity-70" : "hover:-translate-y-[1px] hover:border-indigo-200 hover:shadow-sm"}`}
+                          className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold shadow-sm transition ${plan.active
+                            ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                            : "border-slate-200 bg-white text-slate-700"
+                            } ${planUpdating ? "cursor-wait opacity-70" : "hover:-translate-y-[1px] hover:border-indigo-200 hover:shadow-sm"}`}
                         >
                           <span
-                            className={`flex h-6 w-6 items-center justify-center rounded-full text-[11px] ${
-                              plan.active ? "bg-emerald-500 text-white" : "bg-slate-200 text-slate-600"
-                            }`}
+                            className={`flex h-6 w-6 items-center justify-center rounded-full text-[11px] ${plan.active ? "bg-emerald-500 text-white" : "bg-slate-200 text-slate-600"
+                              }`}
                             aria-hidden="true"
                           >
                             {planUpdating ? "…" : plan.active ? "ON" : "OFF"}
@@ -2839,8 +2836,8 @@ const WeeklyDayCard = ({
                               <path d="M5 12l5 5 9-9" />
                             </svg>
                           </span>
-                            {logProcessing[plan.id] === "loading" ? "기록 중..." : "복약 확정"}
-                          </button>
+                          {logProcessing[plan.id] === "loading" ? "기록 중..." : "복약 확정"}
+                        </button>
                       </div>
                     </div>
                     {editingPlanId === plan.id && editingForms[plan.id] && (
@@ -2892,11 +2889,10 @@ const WeeklyDayCard = ({
                             return (
                               <label
                                 key={day}
-                                className={`relative inline-flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold ${
-                                  checked
-                                    ? "border-indigo-500 bg-indigo-50 text-indigo-700"
-                                    : "border-slate-200 bg-white text-slate-600"
-                                }`}
+                                className={`relative inline-flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold ${checked
+                                  ? "border-indigo-500 bg-indigo-50 text-indigo-700"
+                                  : "border-slate-200 bg-white text-slate-600"
+                                  }`}
                               >
                                 <input
                                   type="checkbox"
@@ -2959,18 +2955,16 @@ const WeeklyDayCard = ({
                     )}
                     {logMessage && (
                       <p
-                        className={`mt-2 text-sm ${
-                          logMessage.type === "success" ? "text-indigo-600" : "text-red-600"
-                        }`}
+                        className={`mt-2 text-sm ${logMessage.type === "success" ? "text-indigo-600" : "text-red-600"
+                          }`}
                       >
                         {logMessage.text}
                       </p>
                     )}
                     {message && (
                       <p
-                        className={`mt-1 text-xs ${
-                          message.type === "success" ? "text-indigo-600" : "text-red-600"
-                        }`}
+                        className={`mt-1 text-xs ${message.type === "success" ? "text-indigo-600" : "text-red-600"
+                          }`}
                       >
                         {message.text}
                       </p>
@@ -3022,22 +3016,20 @@ const WeeklyDayCard = ({
                       <button
                         type="button"
                         onClick={() => handlePlanModeChange(client.clientId, index, "search")}
-                        className={`rounded-md border px-4 py-2 text-xs font-semibold transition ${
-                          item.mode === "search"
-                            ? "border-indigo-500 bg-indigo-50 text-indigo-700"
-                            : "border-slate-300 bg-white text-slate-600 hover:border-indigo-300"
-                        }`}
+                        className={`rounded-md border px-4 py-2 text-xs font-semibold transition ${item.mode === "search"
+                          ? "border-indigo-500 bg-indigo-50 text-indigo-700"
+                          : "border-slate-300 bg-white text-slate-600 hover:border-indigo-300"
+                          }`}
                       >
                         약 검색
                       </button>
                       <button
                         type="button"
                         onClick={() => handlePlanModeChange(client.clientId, index, "manual")}
-                        className={`rounded-md border px-4 py-2 text-xs font-semibold transition ${
-                          item.mode === "manual"
-                            ? "border-indigo-500 bg-indigo-50 text-indigo-700"
-                            : "border-slate-300 bg-white text-slate-600 hover:border-indigo-300"
-                        }`}
+                        className={`rounded-md border px-4 py-2 text-xs font-semibold transition ${item.mode === "manual"
+                          ? "border-indigo-500 bg-indigo-50 text-indigo-700"
+                          : "border-slate-300 bg-white text-slate-600 hover:border-indigo-300"
+                          }`}
                       >
                         직접 입력
                       </button>
@@ -3074,12 +3066,12 @@ const WeeklyDayCard = ({
                             {item.searching ? "검색 중..." : "검색"}
                           </button>
                         </div>
-                    {item.medicineResults.length > 0 && (
-                      <div className="mt-3 space-y-2">
-                        <p className="text-xs text-slate-500">
-                          e약은요 검색 결과입니다. 일정을 등록할 약품을 선택하세요.
-                        </p>
-                        <div className="space-y-2">
+                        {item.medicineResults.length > 0 && (
+                          <div className="mt-3 space-y-2">
+                            <p className="text-xs text-slate-500">
+                              e약은요 검색 결과입니다. 일정을 등록할 약품을 선택하세요.
+                            </p>
+                            <div className="space-y-2">
                               {item.medicineResults.map((medicine) => (
                                 <div
                                   key={medicine.itemSeq}
@@ -3365,11 +3357,10 @@ const WeeklyDayCard = ({
                           onChange={() => handleToggleDay(client.clientId, day.value)}
                         />
                         <span
-                          className={`flex h-10 items-center justify-center rounded-lg border text-xs font-semibold transition ${
-                            isSelected
-                              ? "border-indigo-500 bg-indigo-100 text-indigo-700 shadow-sm"
-                              : "border-slate-300 bg-white text-slate-600 hover:border-indigo-400 hover:text-indigo-700"
-                          } peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-indigo-500`}
+                          className={`flex h-10 items-center justify-center rounded-lg border text-xs font-semibold transition ${isSelected
+                            ? "border-indigo-500 bg-indigo-100 text-indigo-700 shadow-sm"
+                            : "border-slate-300 bg-white text-slate-600 hover:border-indigo-400 hover:text-indigo-700"
+                            } peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-indigo-500`}
                         >
                           {day.label}
                         </span>
@@ -3494,55 +3485,51 @@ const WeeklyDayCard = ({
           </div>
           {(avatarError || avatarMessage) && (
             <p
-              className={`text-sm ${
-                avatarError ? "text-red-600" : "text-emerald-600"
-              }`}
+              className={`text-sm ${avatarError ? "text-red-600" : "text-emerald-600"
+                }`}
             >
               {avatarError || avatarMessage}
             </p>
           )}
-            <div className="flex flex-col gap-3">
-              <div className="relative overflow-hidden rounded-2xl border border-blue-100 bg-white p-1 text-slate-900 shadow-[0_12px_30px_rgba(37,99,235,0.08)]">
-                <span
-                  aria-hidden
-                  className="pointer-events-none absolute inset-y-1 left-1 w-1/3 rounded-xl bg-gradient-to-r from-blue-400 via-blue-500 to-indigo-600 shadow-lg shadow-blue-400/50 transition-transform duration-500 ease-out"
-                  style={managerIndicatorStyle}
-                />
-                <div className="relative z-10 grid grid-cols-3 gap-2">
-                  {managerQuickActions.map((action) => {
-                    const isActive = activePanel === action.value;
-                    return (
-                      <button
-                        key={action.value}
-                        type="button"
-                        onClick={() => setActivePanel(action.value)}
-                        className={`group relative z-10 flex flex-col gap-1 rounded-xl border px-3 py-3 text-left transition duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-200 focus-visible:ring-offset-2 focus-visible:ring-offset-white ${
-                          isActive
-                            ? "border-blue-500 bg-blue-50 text-blue-900 shadow-sm shadow-blue-200"
-                            : "border-transparent bg-white/80 text-slate-800 hover:border-blue-200 hover:bg-white"
+          <div className="flex flex-col gap-3">
+            <div className="relative overflow-hidden rounded-2xl border border-blue-100 bg-white p-1 text-slate-900 shadow-[0_12px_30px_rgba(37,99,235,0.08)]">
+              <span
+                aria-hidden
+                className="pointer-events-none absolute inset-y-1 left-1 w-1/3 rounded-xl bg-gradient-to-r from-blue-400 via-blue-500 to-indigo-600 shadow-lg shadow-blue-400/50 transition-transform duration-500 ease-out"
+                style={managerIndicatorStyle}
+              />
+              <div className="relative z-10 grid grid-cols-3 gap-2">
+                {managerQuickActions.map((action) => {
+                  const isActive = activePanel === action.value;
+                  return (
+                    <button
+                      key={action.value}
+                      type="button"
+                      onClick={() => setActivePanel(action.value)}
+                      className={`group relative z-10 flex flex-col gap-1 rounded-xl border px-3 py-3 text-left transition duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-200 focus-visible:ring-offset-2 focus-visible:ring-offset-white ${isActive
+                        ? "border-blue-500 bg-blue-50 text-blue-900 shadow-sm shadow-blue-200"
+                        : "border-transparent bg-white/80 text-slate-800 hover:border-blue-200 hover:bg-white"
                         }`}
-                      >
-                        <span
-                        className={`inline-flex h-9 w-9 items-center justify-center rounded-full text-[0.7rem] font-semibold text-white shadow-sm shadow-blue-500/30 transition duration-300 ${
-                            isActive ? "scale-105" : "scale-100"
+                    >
+                      <span
+                        className={`inline-flex h-9 w-9 items-center justify-center rounded-full text-[0.7rem] font-semibold text-white shadow-sm shadow-blue-500/30 transition duration-300 ${isActive ? "scale-105" : "scale-100"
                           } ${isActive ? "bg-blue-600" : action.accent}`}
-                        >
-                          {action.icon ?? action.label.slice(0, 1)}
-                        </span>
-                        <span className="text-sm font-semibold">{action.label}</span>
-                        <span
-                          className={`text-xs ${
-                            isActive ? "text-amber-700" : "text-slate-500"
+                      >
+                        {action.icon ?? action.label.slice(0, 1)}
+                      </span>
+                      <span className="text-sm font-semibold">{action.label}</span>
+                      <span
+                        className={`text-xs ${isActive ? "text-amber-700" : "text-slate-500"
                           }`}
-                        >
-                          {action.description}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
+                      >
+                        {action.description}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
+          </div>
         </header>
 
         {activePanel === "client" && (
@@ -3555,7 +3542,7 @@ const WeeklyDayCard = ({
                     복약 일정, 미처리 알림, 담당 인원을 한눈에 확인하세요.
                   </p>
                 </div>
-            </div>
+              </div>
               <div className="mt-4 grid gap-3 sm:grid-cols-3">
                 {managerStats.map((stat) => (
                   <button
@@ -3572,36 +3559,36 @@ const WeeklyDayCard = ({
                           ? `${pendingAlerts}건`
                           : "없음"
                         : stat.value;
-                          const hint = isAlert
-                            ? pendingAlerts > 0
-                              ? "즉시 확인이 필요합니다."
-                              : "미처리 알림이 없습니다."
-                            : stat.hint;
-                          const accent = isAlert
-                            ? pendingAlerts > 0
-                              ? "bg-rose-100 text-rose-700"
-                              : "bg-emerald-100 text-emerald-700"
-                            : stat.accent;
-                          const showEmergencyBadge = stat.key === "alert" && effectiveEmergencyCount > 0;
-                          return (
-                            <>
-                              <div className="flex items-center justify-between">
-                                <p className="text-sm font-semibold text-slate-700">{stat.label}</p>
-                                <span className="flex items-center gap-1">
-                                  {showEmergencyBadge && (
-                                    <span className="flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[10px] font-bold text-white">
-                                      !
-                                    </span>
-                                  )}
-                                  <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${accent}`}>
-                                    {stat.badge}
-                                  </span>
+                      const hint = isAlert
+                        ? pendingAlerts > 0
+                          ? "즉시 확인이 필요합니다."
+                          : "미처리 알림이 없습니다."
+                        : stat.hint;
+                      const accent = isAlert
+                        ? pendingAlerts > 0
+                          ? "bg-rose-100 text-rose-700"
+                          : "bg-emerald-100 text-emerald-700"
+                        : stat.accent;
+                      const showEmergencyBadge = stat.key === "alert" && effectiveEmergencyCount > 0;
+                      return (
+                        <>
+                          <div className="flex items-center justify-between">
+                            <p className="text-sm font-semibold text-slate-700">{stat.label}</p>
+                            <span className="flex items-center gap-1">
+                              {showEmergencyBadge && (
+                                <span className="flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[10px] font-bold text-white">
+                                  !
                                 </span>
-                              </div>
-                              <p className="text-2xl font-bold text-slate-900">{value}</p>
-                              <p className="text-xs text-slate-500 leading-relaxed">{hint}</p>
-                            </>
-                          );
+                              )}
+                              <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${accent}`}>
+                                {stat.badge}
+                              </span>
+                            </span>
+                          </div>
+                          <p className="text-2xl font-bold text-slate-900">{value}</p>
+                          <p className="text-xs text-slate-500 leading-relaxed">{hint}</p>
+                        </>
+                      );
                     })()}
                   </button>
                 ))}
@@ -3651,11 +3638,10 @@ const WeeklyDayCard = ({
                                     key={tab.key}
                                     type="button"
                                     onClick={() => setManagerAlertTab(tab.key as AlertTab)}
-                                    className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
-                                      active
-                                        ? "border-indigo-500 bg-indigo-50 text-indigo-700"
-                                        : "border-slate-200 bg-white text-slate-600 hover:border-indigo-300"
-                                    }`}
+                                    className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${active
+                                      ? "border-indigo-500 bg-indigo-50 text-indigo-700"
+                                      : "border-slate-200 bg-white text-slate-600 hover:border-indigo-300"
+                                      }`}
                                   >
                                     <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-indigo-700">
                                       {tab.count}
@@ -3670,7 +3656,7 @@ const WeeklyDayCard = ({
                                 );
                               })}
                             </div>
-                          <button
+                            <button
                               type="button"
                               className="ml-auto inline-flex h-10 items-center justify-center rounded-md border border-slate-200 px-3 text-xs font-semibold text-slate-700 transition hover:border-indigo-300 hover:text-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
                               disabled={ackLoading || (pendingAlertsByTab[managerAlertTab] ?? 0) === 0}
@@ -3777,12 +3763,12 @@ const WeeklyDayCard = ({
                                   >
                                     다음
                                   </button>
-                                  </div>
                                 </div>
-                              )}
-                            </div>
-                          </>
-                        ) : (
+                              </div>
+                            )}
+                          </div>
+                        </>
+                      ) : (
                         activeStat.key === "pending" ? (
                           <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3">
                             <div className="flex items-center justify-between">
@@ -3901,204 +3887,422 @@ const WeeklyDayCard = ({
                 </button>
               </form>
 
-          {searchError && (
-            <p className="mt-3 text-sm text-red-600">{searchError}</p>
-          )}
+              {searchError && (
+                <p className="mt-3 text-sm text-red-600">{searchError}</p>
+              )}
 
-          {searchLoading ? (
-            <div className="mt-4 rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-600">
-              검색 중입니다...
-            </div>
-          ) : searchResults.length > 0 ? (
-            <div className="mt-4 space-y-3">
-              {searchResults.map((result) => {
-                const assignedToCurrent =
-                  result.currentlyAssigned &&
-                  result.assignedManagerId === manager.userId;
-                const assignedToOther =
-                  result.currentlyAssigned &&
-                  result.assignedManagerId !== manager.userId;
-                const assignState = assignmentStates[result.clientId] ?? "idle";
-                const isAssigning = assignState === "assigning";
-                const isUnassigning = assignState === "unassigning";
-                const buttonDisabled =
-                  isAssigning || isUnassigning || assignedToCurrent || !result.assignable;
-                let buttonLabel = "배정하기";
-                if (isAssigning) {
-                  buttonLabel = "배정 중...";
-                } else if (assignedToCurrent) {
-                  buttonLabel = "이미 배정됨";
-                } else if (!result.assignable) {
-                  buttonLabel = "배정 불가";
-                }
-                const showUnassign = assignedToCurrent;
-                const unassignDisabled = isAssigning || isUnassigning;
-                const canSendEmergency = assignedToCurrent;
+              {searchLoading ? (
+                <div className="mt-4 rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                  검색 중입니다...
+                </div>
+              ) : searchResults.length > 0 ? (
+                <div className="mt-4 space-y-3">
+                  {searchResults.map((result) => {
+                    const assignedToCurrent =
+                      result.currentlyAssigned &&
+                      result.assignedManagerId === manager.userId;
+                    const assignedToOther =
+                      result.currentlyAssigned &&
+                      result.assignedManagerId !== manager.userId;
+                    const assignState = assignmentStates[result.clientId] ?? "idle";
+                    const isAssigning = assignState === "assigning";
+                    const isUnassigning = assignState === "unassigning";
+                    const buttonDisabled =
+                      isAssigning || isUnassigning || assignedToCurrent || !result.assignable;
+                    let buttonLabel = "배정하기";
+                    if (isAssigning) {
+                      buttonLabel = "배정 중...";
+                    } else if (assignedToCurrent) {
+                      buttonLabel = "이미 배정됨";
+                    } else if (!result.assignable) {
+                      buttonLabel = "배정 불가";
+                    }
+                    const showUnassign = assignedToCurrent;
+                    const unassignDisabled = isAssigning || isUnassigning;
+                    const canSendEmergency = assignedToCurrent;
 
-                const addressDisplay = formatAddress(result.address, result.detailAddress);
-                const computedAge =
-                  typeof result.age === "number" && result.age > 0
-                    ? result.age
-                    : computeInternationalAge(result.birthDate);
-                const ageDisplay =
-                  typeof computedAge === "number" && computedAge >= 0
-                    ? `${computedAge}세`
-                    : "미등록";
-                const cycleDisplay =
-                  result.medicationCycle && result.medicationCycle.trim().length > 0
-                    ? result.medicationCycle
-                    : "미등록";
-                const statusLabel = mapStatusToLabel(result.status);
-                const assignMessage = assignmentMessages[result.clientId];
-                const favorite = isFavorite(result.clientId);
-                const avatarUrl = getProfileImage(result.profileImageUrl);
-                const nameInitial =
-                  result.name && result.name.trim().length > 0
-                    ? result.name.trim().charAt(0).toUpperCase()
-                    : "C";
+                    const addressDisplay = formatAddress(result.address, result.detailAddress);
+                    const computedAge =
+                      typeof result.age === "number" && result.age > 0
+                        ? result.age
+                        : computeInternationalAge(result.birthDate);
+                    const ageDisplay =
+                      typeof computedAge === "number" && computedAge >= 0
+                        ? `${computedAge}세`
+                        : "미등록";
+                    const cycleDisplay =
+                      result.medicationCycle && result.medicationCycle.trim().length > 0
+                        ? result.medicationCycle
+                        : "미등록";
+                    const statusLabel = mapStatusToLabel(result.status);
+                    const assignMessage = assignmentMessages[result.clientId];
+                    const favorite = isFavorite(result.clientId);
+                    const avatarUrl = getProfileImage(result.profileImageUrl);
+                    const nameInitial =
+                      result.name && result.name.trim().length > 0
+                        ? result.name.trim().charAt(0).toUpperCase()
+                        : "C";
 
-                return (
-                  <article
-                    key={result.clientId}
-                    className="relative rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md sm:p-5"
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => {
-                      if (assignedToCurrent) {
-                        openClientModalById(result.clientId);
-                      }
-                    }}
-                    onKeyDown={(event) => {
-                      if ((event.key === "Enter" || event.key === " ") && assignedToCurrent) {
-                        event.preventDefault();
-                        openClientModalById(result.clientId);
-                      }
-                    }}
-                    aria-label={`${result.name} 정보 보기`}
-                  >
-                    <button
-                      className={`favorite-heart absolute right-3 top-3 ${favorite ? "on" : ""}`}
-                      aria-label={favorite ? "즐겨찾기 해제" : "즐겨찾기 추가"}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        toggleFavorite(result.clientId);
-                      }}
-                      type="button"
-                    />
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                      <div className="flex items-start gap-3">
-                        <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-slate-50 text-sm font-semibold text-slate-700">
-                          {avatarUrl ? (
-                            <img src={avatarUrl} alt={`${result.name} 프로필`} className="h-full w-full object-cover" />
-                          ) : (
-                            <span>{nameInitial}</span>
-                          )}
-                        </div>
-                        <div className="flex flex-col gap-1.5">
-                          <h3 className="text-base font-semibold text-slate-900 sm:text-lg">
-                            {result.name} 님
-                          </h3>
-                          <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                            <span className="rounded-full bg-slate-100 px-2 py-1 font-medium text-indigo-700">
-                              {statusLabel}
-                            </span>
-                            <span>{result.email}</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="mt-3 grid grid-cols-1 gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-800 sm:grid-cols-2">
-                      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 sm:col-span-2">
-                        <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-indigo-700">
-                          현재 배정
-                        </span>
-                        <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-indigo-800">
-                          {assignedToOther
-                            ? `${result.assignedManagerName ?? "다른 매니저"} (${result.assignedManagerEmail ?? "정보 없음"})`
-                            : assignedToCurrent
-                            ? "현재 담당 중"
-                            : "없음"}
-                        </span>
-                      </div>
-                      <div className="flex items-start gap-2 rounded-lg bg-white px-3 py-2 shadow-[0_1px_2px_rgba(0,0,0,0.05)]">
-                        <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
-                          주소
-                        </span>
-                        <span className="flex-1 text-slate-800">{addressDisplay}</span>
-                      </div>
-                      <div className="flex items-center justify-between rounded-lg bg-white px-3 py-2 shadow-[0_1px_2px_rgba(0,0,0,0.05)]">
-                        <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
-                          나이
-                        </span>
-                        <span className="font-semibold text-slate-900">{ageDisplay}</span>
-                      </div>
-                      <div className="flex items-center justify-between rounded-lg bg-white px-3 py-2 shadow-[0_1px_2px_rgba(0,0,0,0.05)]">
-                        <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
-                          성별
-                        </span>
-                        <span className="font-semibold text-slate-900">{result.gender ?? "미등록"}</span>
-                      </div>
-                      <div className="flex items-center justify-between rounded-lg bg-white px-3 py-2 shadow-[0_1px_2px_rgba(0,0,0,0.05)]">
-                        <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
-                          복약 주기
-                        </span>
-                        <span className="font-semibold text-slate-900">{cycleDisplay}</span>
-                      </div>
-                    </div>
-                    <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-2">
+                    return (
+                      <article
+                        key={result.clientId}
+                        className="relative rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md sm:p-5"
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => {
+                          if (assignedToCurrent) {
+                            openClientModalById(result.clientId);
+                          }
+                        }}
+                        onKeyDown={(event) => {
+                          if ((event.key === "Enter" || event.key === " ") && assignedToCurrent) {
+                            event.preventDefault();
+                            openClientModalById(result.clientId);
+                          }
+                        }}
+                        aria-label={`${result.name} 정보 보기`}
+                      >
                         <button
-                          className="w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-indigo-300 sm:w-auto"
-                          disabled={buttonDisabled}
+                          className={`favorite-heart absolute right-3 top-3 ${favorite ? "on" : ""}`}
+                          aria-label={favorite ? "즐겨찾기 해제" : "즐겨찾기 추가"}
                           onClick={(event) => {
                             event.stopPropagation();
-                            handleAssignClient(result.clientId);
+                            toggleFavorite(result.clientId);
                           }}
                           type="button"
-                        >
-                          {buttonLabel}
-                        </button>
-                        {showUnassign && (
-                          <button
-                            className="w-full rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-rose-300 hover:text-rose-700 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
-                            disabled={unassignDisabled}
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              handleUnassignClient(result.clientId);
-                            }}
-                            type="button"
-                          >
-                            {isUnassigning ? "배정 취소 중..." : "배정 취소"}
-                          </button>
-                        )}
-                      </div>
-                      <div className="flex flex-col gap-2 sm:items-end">
-                        {assignMessage && (
-                          <p
-                            className={`text-sm ${
-                              assignMessage.type === "success"
-                                ? "text-indigo-700"
-                                : "text-red-600"
-                            }`}
-                          >
-                            {assignMessage.text}
-                          </p>
-                        )}
-                        {!result.assignable && !assignedToCurrent && (
-                          <p className="text-sm text-red-600">
-                            다른 매니저에게 배정된 이용자입니다.
-                          </p>
-                        )}
-                        <div className="flex flex-col items-end gap-1">
-                          <button
-                            type="button"
-                            className="inline-flex items-center gap-2 rounded-full border border-rose-300 bg-rose-50 px-3 py-1.5 text-[13px] font-semibold text-rose-700 transition hover:-translate-y-0.5 hover:border-rose-400 hover:bg-rose-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleSendClientEmergency(result.clientId);
-                            }}
-                            disabled={clientEmergencySending[result.clientId] || !canSendEmergency}
-                          >
+                        />
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                          <div className="flex items-start gap-3">
+                            <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-slate-50 text-sm font-semibold text-slate-700">
+                              {avatarUrl ? (
+                                <img src={avatarUrl} alt={`${result.name} 프로필`} className="h-full w-full object-cover" />
+                              ) : (
+                                <span>{nameInitial}</span>
+                              )}
+                            </div>
+                            <div className="flex flex-col gap-1.5">
+                              <h3 className="text-base font-semibold text-slate-900 sm:text-lg">
+                                {result.name} 님
+                              </h3>
+                              <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                                <span className="rounded-full bg-slate-100 px-2 py-1 font-medium text-indigo-700">
+                                  {statusLabel}
+                                </span>
+                                <span>{result.email}</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="mt-3 grid grid-cols-1 gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-800 sm:grid-cols-2">
+                          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 sm:col-span-2">
+                            <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-indigo-700">
+                              현재 배정
+                            </span>
+                            <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-indigo-800">
+                              {assignedToOther
+                                ? `${result.assignedManagerName ?? "다른 매니저"} (${result.assignedManagerEmail ?? "정보 없음"})`
+                                : assignedToCurrent
+                                  ? "현재 담당 중"
+                                  : "없음"}
+                            </span>
+                          </div>
+                          <div className="flex items-start gap-2 rounded-lg bg-white px-3 py-2 shadow-[0_1px_2px_rgba(0,0,0,0.05)]">
+                            <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+                              주소
+                            </span>
+                            <span className="flex-1 text-slate-800">{addressDisplay}</span>
+                          </div>
+                          <div className="flex items-center justify-between rounded-lg bg-white px-3 py-2 shadow-[0_1px_2px_rgba(0,0,0,0.05)]">
+                            <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+                              나이
+                            </span>
+                            <span className="font-semibold text-slate-900">{ageDisplay}</span>
+                          </div>
+                          <div className="flex items-center justify-between rounded-lg bg-white px-3 py-2 shadow-[0_1px_2px_rgba(0,0,0,0.05)]">
+                            <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+                              성별
+                            </span>
+                            <span className="font-semibold text-slate-900">{result.gender ?? "미등록"}</span>
+                          </div>
+                          <div className="flex items-center justify-between rounded-lg bg-white px-3 py-2 shadow-[0_1px_2px_rgba(0,0,0,0.05)]">
+                            <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+                              복약 주기
+                            </span>
+                            <span className="font-semibold text-slate-900">{cycleDisplay}</span>
+                          </div>
+                        </div>
+                        <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-2">
+                            <button
+                              className="w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-indigo-300 sm:w-auto"
+                              disabled={buttonDisabled}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                handleAssignClient(result.clientId);
+                              }}
+                              type="button"
+                            >
+                              {buttonLabel}
+                            </button>
+                            {showUnassign && (
+                              <button
+                                className="w-full rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-rose-300 hover:text-rose-700 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+                                disabled={unassignDisabled}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  handleUnassignClient(result.clientId);
+                                }}
+                                type="button"
+                              >
+                                {isUnassigning ? "배정 취소 중..." : "배정 취소"}
+                              </button>
+                            )}
+                          </div>
+                          <div className="flex flex-col gap-2 sm:items-end">
+                            {assignMessage && (
+                              <p
+                                className={`text-sm ${assignMessage.type === "success"
+                                  ? "text-indigo-700"
+                                  : "text-red-600"
+                                  }`}
+                              >
+                                {assignMessage.text}
+                              </p>
+                            )}
+                            {!result.assignable && !assignedToCurrent && (
+                              <p className="text-sm text-red-600">
+                                다른 매니저에게 배정된 이용자입니다.
+                              </p>
+                            )}
+                            <div className="flex flex-col items-end gap-1">
+                              <button
+                                type="button"
+                                className="inline-flex items-center gap-2 rounded-full border border-rose-300 bg-rose-50 px-3 py-1.5 text-[13px] font-semibold text-rose-700 transition hover:-translate-y-0.5 hover:border-rose-400 hover:bg-rose-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleSendClientEmergency(result.clientId);
+                                }}
+                                disabled={clientEmergencySending[result.clientId] || !canSendEmergency}
+                              >
+                                <svg
+                                  aria-hidden="true"
+                                  className="h-4 w-4"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth={2}
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path d="M6.5 12h11l-.9-5.4a1 1 0 0 0-.99-.83H8.39a1 1 0 0 0-.99.83L6.5 12Z" strokeLinecap="round" strokeLinejoin="round" />
+                                  <path d="M5 14h14v2H5z" strokeLinecap="round" strokeLinejoin="round" />
+                                  <path d="M8 18a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-2H8v2Z" strokeLinecap="round" strokeLinejoin="round" />
+                                  <path d="M12 4V2" strokeLinecap="round" strokeLinejoin="round" />
+                                  <path d="M5.5 6.5 4 5" strokeLinecap="round" strokeLinejoin="round" />
+                                  <path d="M18.5 6.5 20 5" strokeLinecap="round" strokeLinejoin="round" />
+                                </svg>
+                                {clientEmergencySending[result.clientId]
+                                  ? "전송 중..."
+                                  : canSendEmergency
+                                    ? "긴급 호출"
+                                    : "배정 후 호출 가능"}
+                              </button>
+                              {clientEmergencyMessage[result.clientId] && (
+                                <p
+                                  className={`text-xs ${clientEmergencyMessage[result.clientId]?.type === "success"
+                                    ? "text-emerald-700"
+                                    : "text-red-600"
+                                    }`}
+                                >
+                                  {clientEmergencyMessage[result.clientId]?.text}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              ) : searchKeyword.trim().length > 0 && searchMessage ? (
+                <div className="mt-4 rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                  {searchMessage}
+                </div>
+              ) : null}
+            </section>
+
+            <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:p-6">
+              <div className="flex flex-col gap-2 border-b border-slate-200 pb-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h2 className="text-lg font-semibold text-slate-900">복약 즐겨찾기</h2>
+                  <p className="text-sm text-slate-600">
+                    복약 스케줄을 등록하거나 복약 여부를 대신 기록할 수 있습니다.
+                  </p>
+                </div>
+                <button
+                  className="flex items-center gap-2 self-start rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-700 transition hover:border-indigo-400 hover:text-indigo-900 disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={dashboardLoading}
+                  onClick={loadDashboard}
+                  type="button"
+                >
+                  <FontAwesomeIcon
+                    icon={byPrefixAndName.fas["rotate-right"]}
+                    className={`h-4 w-4 rounded-full ${dashboardLoading ? "animate-spin text-indigo-700" : "text-slate-600"
+                      }`}
+                    aria-hidden
+                  />
+                  {dashboardLoading ? "새로고침 중..." : "새로고침"}
+                </button>
+              </div>
+
+              <div className="mt-3">
+                <label className="flex flex-col gap-1 text-sm text-slate-600">
+                  <span>이름 검색</span>
+                  <input
+                    className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+                    placeholder="이름을 입력하세요"
+                    value={clientFilter}
+                    onChange={(event) => setClientFilter(event.target.value)}
+                  />
+                </label>
+              </div>
+
+              {dashboardLoading && !dashboard ? (
+                <div className="mt-4 rounded-xl bg-white px-3 py-2 text-sm text-slate-600">
+                  복약 정보를 불러오는 중입니다...
+                </div>
+              ) : dashboardError ? (
+                <div className="mt-4 rounded-xl bg-red-50 px-3 py-2 text-sm text-red-600">
+                  {dashboardError}
+                </div>
+              ) : !dashboard || dashboard.clients.length === 0 ? (
+                <div className="mt-4 rounded-xl bg-white px-3 py-2 text-sm text-slate-600">
+                  현재 배정된 이용자가 없습니다. 관리자에게 문의해주세요.
+                </div>
+              ) : favoriteClientCount === 0 ? (
+                <div className="mt-4 rounded-xl bg-white px-3 py-2 text-sm text-slate-600">
+                  즐겨찾기한 클라이언트가 없습니다. 상단 검색/배정 목록에서 별표를 눌러 즐겨찾기를 추가하세요.
+                </div>
+              ) : filteredClients.length === 0 ? (
+                <div className="mt-4 rounded-xl bg-white px-3 py-2 text-sm text-slate-600">
+                  검색 조건에 맞는 이용자가 없습니다.
+                </div>
+              ) : (
+                <div className="mt-4 space-y-6">
+                  {filteredClients.map((client) => {
+                    const latestLog = client.latestMedicationLogs[0] ?? null;
+                    const recentLogLabel = latestLog
+                      ? formatDateTime(latestLog.logTimestamp)
+                      : "기록 없음";
+                    const favorite = isFavorite(client.clientId);
+                    const avatarUrl = getProfileImage(client.profileImageUrl);
+                    const nameInitial =
+                      client.clientName && client.clientName.trim().length > 0
+                        ? client.clientName.trim().charAt(0).toUpperCase()
+                        : "C";
+                    return (
+                      <article
+                        key={client.clientId}
+                        className="relative cursor-pointer rounded-2xl border border-white bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500 sm:p-5"
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => setClientModalClientId(client.clientId)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            setClientModalClientId(client.clientId);
+                          }
+                        }}
+                        aria-label={`${client.clientName}님의 복약 즐겨찾기 열기`}
+                      >
+                        <button
+                          className={`favorite-heart absolute right-3 top-3 ${favorite ? "on" : ""}`}
+                          aria-label={favorite ? "즐겨찾기 해제" : "즐겨찾기 추가"}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            toggleFavorite(client.clientId);
+                          }}
+                          type="button"
+                        />
+                        <div className="relative flex flex-col gap-2 border-b border-slate-200 pb-4 sm:flex-row sm:items-center sm:justify-between pr-12">
+                          <div className="flex items-center gap-3 flex-wrap">
+                            <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-slate-50 text-sm font-semibold text-slate-700">
+                              {avatarUrl ? (
+                                <img
+                                  src={avatarUrl}
+                                  alt={`${client.clientName} 프로필`}
+                                  className="h-full w-full object-cover"
+                                />
+                              ) : (
+                                <span>{nameInitial}</span>
+                              )}
+                            </div>
+                            <div className="flex flex-col gap-1">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <h3 className="text-base font-semibold text-slate-900 sm:text-lg">
+                                  {client.clientName} 님
+                                </h3>
+                                <button
+                                  type="button"
+                                  className="inline-flex items-center gap-2 rounded-full border border-rose-300 bg-rose-50 px-3 py-1.5 text-[13px] font-semibold text-rose-700 transition hover:-translate-y-0.5 hover:border-rose-400 hover:bg-rose-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleSendClientEmergency(client.clientId);
+                                  }}
+                                  disabled={clientEmergencySending[client.clientId]}
+                                >
+                                  <svg
+                                    aria-hidden="true"
+                                    className="h-4 w-4"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth={2}
+                                    viewBox="0 0 24 24"
+                                  >
+                                    <path d="M6.5 12h11l-.9-5.4a1 1 0 0 0-.99-.83H8.39a1 1 0 0 0-.99.83L6.5 12Z" strokeLinecap="round" strokeLinejoin="round" />
+                                    <path d="M5 14h14v2H5z" strokeLinecap="round" strokeLinejoin="round" />
+                                    <path d="M8 18a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-2H8v2Z" strokeLinecap="round" strokeLinejoin="round" />
+                                    <path d="M12 4V2" strokeLinecap="round" strokeLinejoin="round" />
+                                    <path d="M5.5 6.5 4 5" strokeLinecap="round" strokeLinejoin="round" />
+                                    <path d="M18.5 6.5 20 5" strokeLinecap="round" strokeLinejoin="round" />
+                                  </svg>
+                                  {clientEmergencySending[client.clientId] ? "전송 중..." : "긴급 호출"}
+                                </button>
+                              </div>
+                              {clientEmergencyMessage[client.clientId] && (
+                                <p
+                                  className={`text-xs ${clientEmergencyMessage[client.clientId]?.type === "success"
+                                    ? "text-emerald-700"
+                                    : "text-red-600"
+                                    }`}
+                                >
+                                  {clientEmergencyMessage[client.clientId]?.text}
+                                </p>
+                              )}
+                              <p className="text-xs text-slate-500 sm:text-sm">
+                                복약 일정 {client.medicationPlans.length}건 · 최근 확인{" "}
+                                {client.latestMedicationLogs.length}건
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex flex-col gap-3 pt-4 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="flex flex-col gap-2">
+                            <div className="flex flex-wrap gap-2 text-xs text-slate-600">
+                              <span className="rounded-full bg-slate-100 px-3 py-1">
+                                복약 일정 {client.medicationPlans.length}건
+                              </span>
+                              <span className="rounded-full bg-slate-100 px-3 py-1">
+                                최근 확인 {client.latestMedicationLogs.length}건
+                              </span>
+                              <span className="rounded-full bg-slate-100 px-3 py-1">
+                                비상 알림 {client.emergencyAlerts.length}건
+                              </span>
+                            </div>
+                            <p className="text-xs text-slate-500">
+                              최근 복약 확인: {recentLogLabel}
+                            </p>
+                          </div>
+                          <span className="inline-flex items-center gap-2 self-start text-sm font-semibold text-indigo-600 sm:self-auto">
+                            상세 관리 열기
                             <svg
                               aria-hidden="true"
                               className="h-4 w-4"
@@ -4107,298 +4311,74 @@ const WeeklyDayCard = ({
                               strokeWidth={2}
                               viewBox="0 0 24 24"
                             >
-                              <path d="M6.5 12h11l-.9-5.4a1 1 0 0 0-.99-.83H8.39a1 1 0 0 0-.99.83L6.5 12Z" strokeLinecap="round" strokeLinejoin="round" />
-                              <path d="M5 14h14v2H5z" strokeLinecap="round" strokeLinejoin="round" />
-                              <path d="M8 18a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-2H8v2Z" strokeLinecap="round" strokeLinejoin="round" />
-                              <path d="M12 4V2" strokeLinecap="round" strokeLinejoin="round" />
-                              <path d="M5.5 6.5 4 5" strokeLinecap="round" strokeLinejoin="round" />
-                              <path d="M18.5 6.5 20 5" strokeLinecap="round" strokeLinejoin="round" />
+                              <path d="M5 12h14M13 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round" />
                             </svg>
-                            {clientEmergencySending[result.clientId]
-                              ? "전송 중..."
-                              : canSendEmergency
-                                ? "긴급 호출"
-                                : "배정 후 호출 가능"}
-                          </button>
-                          {clientEmergencyMessage[result.clientId] && (
-                            <p
-                              className={`text-xs ${
-                                clientEmergencyMessage[result.clientId]?.type === "success"
-                                  ? "text-emerald-700"
-                                  : "text-red-600"
-                              }`}
-                            >
-                              {clientEmergencyMessage[result.clientId]?.text}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-          ) : searchKeyword.trim().length > 0 && searchMessage ? (
-            <div className="mt-4 rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-600">
-              {searchMessage}
-            </div>
-          ) : null}
-        </section>
-
-        <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:p-6">
-          <div className="flex flex-col gap-2 border-b border-slate-200 pb-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h2 className="text-lg font-semibold text-slate-900">복약 즐겨찾기</h2>
-              <p className="text-sm text-slate-600">
-                복약 스케줄을 등록하거나 복약 여부를 대신 기록할 수 있습니다.
-              </p>
-            </div>
-            <button
-              className="flex items-center gap-2 self-start rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-700 transition hover:border-indigo-400 hover:text-indigo-900 disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={dashboardLoading}
-              onClick={loadDashboard}
-              type="button"
-            >
-              <FontAwesomeIcon
-                icon={byPrefixAndName.fas["rotate-right"]}
-                className={`h-4 w-4 rounded-full ${
-                  dashboardLoading ? "animate-spin text-indigo-700" : "text-slate-600"
-                }`}
-                aria-hidden
-              />
-              {dashboardLoading ? "새로고침 중..." : "새로고침"}
-            </button>
-          </div>
-
-          <div className="mt-3">
-            <label className="flex flex-col gap-1 text-sm text-slate-600">
-              <span>이름 검색</span>
-              <input
-                className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-                placeholder="이름을 입력하세요"
-                value={clientFilter}
-                onChange={(event) => setClientFilter(event.target.value)}
-              />
-            </label>
-          </div>
-
-          {dashboardLoading && !dashboard ? (
-            <div className="mt-4 rounded-xl bg-white px-3 py-2 text-sm text-slate-600">
-              복약 정보를 불러오는 중입니다...
-            </div>
-          ) : dashboardError ? (
-            <div className="mt-4 rounded-xl bg-red-50 px-3 py-2 text-sm text-red-600">
-              {dashboardError}
-            </div>
-          ) : !dashboard || dashboard.clients.length === 0 ? (
-            <div className="mt-4 rounded-xl bg-white px-3 py-2 text-sm text-slate-600">
-              현재 배정된 이용자가 없습니다. 관리자에게 문의해주세요.
-            </div>
-          ) : favoriteClientCount === 0 ? (
-            <div className="mt-4 rounded-xl bg-white px-3 py-2 text-sm text-slate-600">
-              즐겨찾기한 클라이언트가 없습니다. 상단 검색/배정 목록에서 별표를 눌러 즐겨찾기를 추가하세요.
-            </div>
-          ) : filteredClients.length === 0 ? (
-            <div className="mt-4 rounded-xl bg-white px-3 py-2 text-sm text-slate-600">
-              검색 조건에 맞는 이용자가 없습니다.
-            </div>
-          ) : (
-            <div className="mt-4 space-y-6">
-              {filteredClients.map((client) => {
-                const latestLog = client.latestMedicationLogs[0] ?? null;
-                const recentLogLabel = latestLog
-                  ? formatDateTime(latestLog.logTimestamp)
-                  : "기록 없음";
-                const favorite = isFavorite(client.clientId);
-                const avatarUrl = getProfileImage(client.profileImageUrl);
-                const nameInitial =
-                  client.clientName && client.clientName.trim().length > 0
-                    ? client.clientName.trim().charAt(0).toUpperCase()
-                    : "C";
-                return (
-                  <article
-                    key={client.clientId}
-                    className="relative cursor-pointer rounded-2xl border border-white bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500 sm:p-5"
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => setClientModalClientId(client.clientId)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" || event.key === " ") {
-                        event.preventDefault();
-                        setClientModalClientId(client.clientId);
-                      }
-                    }}
-                    aria-label={`${client.clientName}님의 복약 즐겨찾기 열기`}
-                  >
-                    <button
-                      className={`favorite-heart absolute right-3 top-3 ${favorite ? "on" : ""}`}
-                      aria-label={favorite ? "즐겨찾기 해제" : "즐겨찾기 추가"}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        toggleFavorite(client.clientId);
-                      }}
-                      type="button"
-                    />
-                    <div className="relative flex flex-col gap-2 border-b border-slate-200 pb-4 sm:flex-row sm:items-center sm:justify-between pr-12">
-                      <div className="flex items-center gap-3 flex-wrap">
-                        <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-slate-50 text-sm font-semibold text-slate-700">
-                          {avatarUrl ? (
-                            <img
-                              src={avatarUrl}
-                              alt={`${client.clientName} 프로필`}
-                              className="h-full w-full object-cover"
-                            />
-                          ) : (
-                            <span>{nameInitial}</span>
-                          )}
-                        </div>
-                        <div className="flex flex-col gap-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <h3 className="text-base font-semibold text-slate-900 sm:text-lg">
-                              {client.clientName} 님
-                            </h3>
-                            <button
-                              type="button"
-                              className="inline-flex items-center gap-2 rounded-full border border-rose-300 bg-rose-50 px-3 py-1.5 text-[13px] font-semibold text-rose-700 transition hover:-translate-y-0.5 hover:border-rose-400 hover:bg-rose-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleSendClientEmergency(client.clientId);
-                              }}
-                              disabled={clientEmergencySending[client.clientId]}
-                            >
-                              <svg
-                                aria-hidden="true"
-                                className="h-4 w-4"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth={2}
-                                viewBox="0 0 24 24"
-                              >
-                                <path d="M6.5 12h11l-.9-5.4a1 1 0 0 0-.99-.83H8.39a1 1 0 0 0-.99.83L6.5 12Z" strokeLinecap="round" strokeLinejoin="round" />
-                                <path d="M5 14h14v2H5z" strokeLinecap="round" strokeLinejoin="round" />
-                                <path d="M8 18a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-2H8v2Z" strokeLinecap="round" strokeLinejoin="round" />
-                                <path d="M12 4V2" strokeLinecap="round" strokeLinejoin="round" />
-                                <path d="M5.5 6.5 4 5" strokeLinecap="round" strokeLinejoin="round" />
-                                <path d="M18.5 6.5 20 5" strokeLinecap="round" strokeLinejoin="round" />
-                              </svg>
-                              {clientEmergencySending[client.clientId] ? "전송 중..." : "긴급 호출"}
-                            </button>
-                          </div>
-                          {clientEmergencyMessage[client.clientId] && (
-                            <p
-                              className={`text-xs ${
-                                clientEmergencyMessage[client.clientId]?.type === "success"
-                                  ? "text-emerald-700"
-                                  : "text-red-600"
-                              }`}
-                            >
-                              {clientEmergencyMessage[client.clientId]?.text}
-                            </p>
-                          )}
-                          <p className="text-xs text-slate-500 sm:text-sm">
-                            복약 일정 {client.medicationPlans.length}건 · 최근 확인{" "}
-                            {client.latestMedicationLogs.length}건
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex flex-col gap-3 pt-4 sm:flex-row sm:items-center sm:justify-between">
-                      <div className="flex flex-col gap-2">
-                        <div className="flex flex-wrap gap-2 text-xs text-slate-600">
-                          <span className="rounded-full bg-slate-100 px-3 py-1">
-                            복약 일정 {client.medicationPlans.length}건
-                          </span>
-                          <span className="rounded-full bg-slate-100 px-3 py-1">
-                            최근 확인 {client.latestMedicationLogs.length}건
-                          </span>
-                          <span className="rounded-full bg-slate-100 px-3 py-1">
-                            비상 알림 {client.emergencyAlerts.length}건
                           </span>
                         </div>
-                        <p className="text-xs text-slate-500">
-                          최근 복약 확인: {recentLogLabel}
-                        </p>
-                      </div>
-                      <span className="inline-flex items-center gap-2 self-start text-sm font-semibold text-indigo-600 sm:self-auto">
-                        상세 관리 열기
-                        <svg
-                          aria-hidden="true"
-                          className="h-4 w-4"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth={2}
-                          viewBox="0 0 24 24"
-                        >
-                          <path d="M5 12h14M13 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                      </span>
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-          )}
-        </section>
-        </>
-      )}
+                      </article>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+          </>
+        )}
 
-      {activePanel === "drug" && (
-        <section>
-          <InlineDrugSearch />
-        </section>
-      )}
+        {activePanel === "drug" && (
+          <section>
+            <InlineDrugSearch />
+          </section>
+        )}
 
-      {activePanel === "chat" && (
-        <section className="space-y-4">
-          <div className="flex gap-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
-            <button
-              type="button"
-              onClick={() => setChatView("rooms")}
-              className={`flex-1 rounded-lg px-3 py-2 text-sm font-semibold transition ${
-                chatView === "rooms"
+        {activePanel === "chat" && (
+          <section className="space-y-4">
+            <div className="flex gap-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+              <button
+                type="button"
+                onClick={() => setChatView("rooms")}
+                className={`flex-1 rounded-lg px-3 py-2 text-sm font-semibold transition ${chatView === "rooms"
                   ? "bg-indigo-600 text-white shadow"
                   : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-              }`}
-            >
-              채팅방 보기
-            </button>
-            <button
-              type="button"
-              onClick={() => setChatView("search")}
-              className={`flex-1 rounded-lg px-3 py-2 text-sm font-semibold transition ${
-                chatView === "search"
+                  }`}
+              >
+                채팅방 보기
+              </button>
+              <button
+                type="button"
+                onClick={() => setChatView("search")}
+                className={`flex-1 rounded-lg px-3 py-2 text-sm font-semibold transition ${chatView === "search"
                   ? "bg-indigo-600 text-white shadow"
                   : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-              }`}
-            >
-              클라이언트 찾기
-            </button>
-          </div>
+                  }`}
+              >
+                클라이언트 찾기
+              </button>
+            </div>
 
-          {chatView === "search" ? (
-            <ChatClientPicker
-              managerId={managerProfileId ?? manager.userId}
-              assignedClients={(dashboard?.clients ?? []).map((c) => ({
-                clientId: c.clientId,
-                name: c.clientName,
-                email: c.email,
-                profileImageUrl: c.profileImageUrl,
-              }))}
-              onChatCreated={() => {
-                setChatRefreshToken((prev) => prev + 1);
-                setChatView("rooms");
-              }}
-            />
-          ) : (
-            <MyChatRooms
-              role="MANAGER"
-              userId={manager.userId}
-              managerProfileId={managerProfileId}
-              refreshToken={chatRefreshToken}
-            />
-          )}
-        </section>
-      )}
+            {chatView === "search" ? (
+              <ChatClientPicker
+                managerId={managerProfileId ?? manager.userId}
+                assignedClients={(dashboard?.clients ?? []).map((c) => ({
+                  clientId: c.clientId,
+                  name: c.clientName,
+                  email: c.email,
+                  profileImageUrl: c.profileImageUrl,
+                }))}
+                onChatCreated={() => {
+                  setChatRefreshToken((prev) => prev + 1);
+                  setChatView("rooms");
+                }}
+              />
+            ) : (
+              <MyChatRooms
+                role="MANAGER"
+                userId={manager.userId}
+                managerProfileId={managerProfileId}
+                refreshToken={chatRefreshToken}
+              />
+            )}
+          </section>
+        )}
       </main>
       <style jsx global>{`
         .favorite-heart {
@@ -4437,106 +4417,98 @@ const WeeklyDayCard = ({
         }
       `}</style>
       {selectedClient && selectedClientForm && (
-        <>
-          <div
-            className="fixed inset-0 z-40 bg-slate-900/70"
-            onClick={closeClientModal}
-          />
-          <div className="fixed inset-0 z-50 px-3 py-6 sm:flex sm:items-start sm:justify-center">
-            <div
-              aria-label={`${selectedClient.clientName}님의 복약 즐겨찾기`}
-              aria-modal="true"
-              className="relative mx-auto w-full max-w-[calc(72rem+2px)] overflow-hidden rounded-3xl bg-white shadow-2xl"
-              role="dialog"
-            >
-              <button
-                type="button"
-                onClick={closeClientModal}
-                className="absolute right-4 top-4 z-10 text-sm font-semibold text-slate-500 transition hover:text-slate-700"
-              >
-                닫기 ✕
-              </button>
-              <div className="modal-scroll max-h-[90vh] overflow-y-auto touch-pan-y overscroll-contain p-4 sm:p-6">
-                <div className="space-y-4 pr-2 sm:pr-4">
-                  <div className="grid gap-4 rounded-2xl border border-slate-100 bg-slate-50/80 p-4 sm:grid-cols-[240px,1fr] sm:items-center sm:gap-6">
-                    <div className="flex items-center gap-4 sm:gap-5">
-                      <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl border-2 border-indigo-100 bg-white text-xl font-semibold text-indigo-700 shadow-sm sm:h-20 sm:w-20">
-                        <img
-                          src={getProfileImage(
-                            selectedClientDetail?.profileImageUrl ?? selectedClient.profileImageUrl
-                          )}
-                          alt={`${selectedClient.clientName} 프로필`}
-                          className="h-full w-full object-cover"
-                        />
-                      </div>
-                      <div className="flex flex-col gap-1">
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-indigo-600">
-                          복약 즐겨찾기
-                        </p>
-                        <h3 className="text-xl font-bold text-slate-900">
-                          {selectedClient.clientName} 님
-                        </h3>
-                        <p className="text-sm text-slate-500">
-                          복약 일정 {selectedClient.medicationPlans.length}건 · 최근 확인{" "}
-                          {selectedClient.latestMedicationLogs.length}건
-                        </p>
-                      </div>
-                    </div>
-                    <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2">
-                      <InfoChip label="나이" value={(() => {
-                        const age =
-                          typeof selectedClientDetail?.age === "number" && selectedClientDetail.age > 0
-                            ? selectedClientDetail.age
-                            : typeof selectedClient.age === "number" && selectedClient.age > 0
-                            ? selectedClient.age
-                            : computeInternationalAge(
-                                selectedClientDetail?.birthDate ?? selectedClient.birthDate
-                              );
-                        return typeof age === "number" ? `${age}세` : "미등록";
-                      })()} />
-                      <InfoChip
-                        label="성별"
-                        value={
-                          selectedClientDetail?.gender &&
-                          selectedClientDetail.gender.trim().length > 0
-                            ? selectedClientDetail.gender
-                            : selectedClient.gender ?? "미등록"
-                        }
-                      />
-                      <InfoChip
-                        label="이메일"
-                        value={
-                          selectedClientDetail?.email && selectedClientDetail.email.trim().length > 0
-                            ? selectedClientDetail.email
-                            : selectedClient.email ?? "미등록"
-                        }
-                        truncate
-                      />
-                      <InfoChip
-                        label="주소"
-                        value={
-                          selectedClientDetail
-                            ? formatAddress(
-                                selectedClientDetail.address ?? selectedClient.address,
-                                selectedClientDetail.detailAddress ?? selectedClient.detailAddress
-                              )
-                            : "불러오는 중..."
-                        }
-                        truncate
-                      />
-                    </div>
-                  </div>
-                  {renderClientDetailSections(selectedClient, {
-                    form: selectedClientForm,
-                    summary: selectedSummary,
-                    summaryLoadingState: selectedSummaryLoading,
-                    summaryError: selectedSummaryError,
-                  })}
+        <Modal
+          opened={true}
+          onClose={closeClientModal}
+          centered
+          size="72rem"
+          radius="xl"
+          title={
+            <span className="text-lg font-bold text-slate-800">
+              {selectedClient.clientName}님 상세 정보
+            </span>
+          }
+          overlayProps={{ backgroundOpacity: 0.55, blur: 3 }}
+          transitionProps={{ transition: 'fade', duration: 200 }}
+        >
+          {/* Note: Removed custom 'modal-scroll' class as overflow="inside" handles it */}
+          <div className="space-y-4 pr-2 sm:pr-4">
+            <div className="grid gap-4 rounded-2xl border border-slate-100 bg-slate-50/80 p-4 sm:grid-cols-[240px,1fr] sm:items-center sm:gap-6">
+              <div className="flex items-center gap-4 sm:gap-5">
+                <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl border-2 border-indigo-100 bg-white text-xl font-semibold text-indigo-700 shadow-sm sm:h-20 sm:w-20">
+                  <img
+                    src={getProfileImage(
+                      selectedClientDetail?.profileImageUrl ?? selectedClient.profileImageUrl
+                    )}
+                    alt={`${selectedClient.clientName} 프로필`}
+                    className="h-full w-full object-cover"
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-indigo-600">
+                    복약 즐겨찾기
+                  </p>
+                  <h3 className="text-xl font-bold text-slate-900">
+                    {selectedClient.clientName} 님
+                  </h3>
+                  <p className="text-sm text-slate-500">
+                    복약 일정 {selectedClient.medicationPlans.length}건 · 최근 확인{" "}
+                    {selectedClient.latestMedicationLogs.length}건
+                  </p>
                 </div>
               </div>
+              <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2">
+                <InfoChip label="나이" value={(() => {
+                  const age =
+                    typeof selectedClientDetail?.age === "number" && selectedClientDetail.age > 0
+                      ? selectedClientDetail.age
+                      : typeof selectedClient.age === "number" && selectedClient.age > 0
+                        ? selectedClient.age
+                        : computeInternationalAge(
+                          selectedClientDetail?.birthDate ?? selectedClient.birthDate
+                        );
+                  return typeof age === "number" ? `${age}세` : "미등록";
+                })()} />
+                <InfoChip
+                  label="성별"
+                  value={
+                    selectedClientDetail?.gender &&
+                      selectedClientDetail.gender.trim().length > 0
+                      ? selectedClientDetail.gender
+                      : selectedClient.gender ?? "미등록"
+                  }
+                />
+                <InfoChip
+                  label="이메일"
+                  value={
+                    selectedClientDetail?.email && selectedClientDetail.email.trim().length > 0
+                      ? selectedClientDetail.email
+                      : selectedClient.email ?? "미등록"
+                  }
+                  truncate
+                />
+                <InfoChip
+                  label="주소"
+                  value={
+                    selectedClientDetail
+                      ? formatAddress(
+                        selectedClientDetail.address ?? selectedClient.address,
+                        selectedClientDetail.detailAddress ?? selectedClient.detailAddress
+                      )
+                      : "불러오는 중..."
+                  }
+                  truncate
+                />
+              </div>
             </div>
+            {renderClientDetailSections(selectedClient, {
+              form: selectedClientForm,
+              summary: selectedSummary,
+              summaryLoadingState: selectedSummaryLoading,
+              summaryError: selectedSummaryError,
+            })}
           </div>
-        </>
+        </Modal>
       )}
       {selectedDrugDetailSeq && (
         <DrugDetailModal

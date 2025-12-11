@@ -623,8 +623,8 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
                 size={10}
                 processing={connected}
                 withBorder
-                position="left"
-                styles={{ indicator: { transform: "translate(-50%, calc(-50% + 8px))" } }}
+                position="middle-start"
+                styles={{ indicator: { transform: "translate(-50%, calc(-50% + 0px))" } }}
               >
                 <Text size="xs" c={connected ? "teal" : "dimmed"} ml={10}>
                   {connected ? "상담원 연결됨" : "연결 대기중"}
@@ -739,6 +739,16 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
   const layoutCols = isMobile ? "1fr" : "2fr 1fr";
   const layoutRows = isMobile ? "60vh 1fr" : "1fr";
 
+  const handleExit = () => {
+    if (typeof window !== "undefined") {
+      window.close();
+      // Fallback in case window.close() is blocked
+      setTimeout(() => router.back(), 150);
+    } else {
+      router.back();
+    }
+  };
+
   return (
     <Box
       style={{
@@ -764,7 +774,7 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
           color="gray"
           radius="md"
           size="sm"
-          onClick={() => router.back()}
+          onClick={handleExit}
           style={{ paddingInline: 14, borderWidth: 1.2 }}
         >
           나가기

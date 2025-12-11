@@ -563,7 +563,7 @@ export default function Home() {
       <Stack gap="md" w="100%">
         {/* Basic Info */}
         <Text fw={700} size="sm" c="gray.7">기본 정보</Text>
-        <Group grow preventGrowOverflow={false} wrap="wrap">
+        <div>
           <TextInput
             label="이름"
             placeholder="홍길동"
@@ -572,6 +572,8 @@ export default function Home() {
             onChange={(e) => setRegisterName(e.currentTarget.value)}
             variant="filled"
           />
+        </div>
+        <div>
           <TextInput
             label="생년월일"
             type="date"
@@ -582,9 +584,9 @@ export default function Home() {
             error={registerBirthDateError}
             variant="filled"
           />
-        </Group>
+        </div>
 
-        <Group grow>
+        <div>
           <Select
             label="성별"
             placeholder="선택"
@@ -597,6 +599,8 @@ export default function Home() {
             required
             variant="filled"
           />
+        </div>
+        <div>
           <Box>
             <Text size="sm" fw={500} mb={3}>연락처 <Text span c="red">*</Text></Text>
             <PhoneNumberInput
@@ -609,7 +613,7 @@ export default function Home() {
               required
             />
           </Box>
-        </Group>
+        </div>
 
         {/* Account Info */}
         <Text fw={700} size="sm" c="gray.7" mt="sm">계정 정보</Text>
@@ -646,7 +650,7 @@ export default function Home() {
           )}
         </Stack>
 
-        <Group grow>
+        <div>
           <PasswordInput
             label="비밀번호"
             placeholder="8자 이상 영문/숫자"
@@ -667,6 +671,8 @@ export default function Home() {
             error={passwordStatus === "invalid" && passwordMessage}
             variant="filled"
           />
+        </div>
+        <div>
           <PasswordInput
             label="확인"
             placeholder="재입력"
@@ -682,14 +688,14 @@ export default function Home() {
             error={confirmStatus === "invalid" && confirmMessage}
             variant="filled"
           />
-        </Group>
+        </div>
 
         <Select
           label="가입 유형"
           placeholder="선택하세요"
           data={[
-            { value: 'CLIENT', label: '일반 (본인/보호자)' },
-            { value: 'MANAGER', label: '매니저 (간병 전문인)' },
+            { value: 'CLIENT', label: '일반' },
+            { value: 'MANAGER', label: '매니저' },
           ]}
           value={registerRole}
           onChange={setRegisterRole}

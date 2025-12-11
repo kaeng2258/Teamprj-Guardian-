@@ -127,6 +127,55 @@ input::placeholder {
   animation: content-fade-in-out 0.36s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+/* Dark mode polish for chat rooms & modals */
+.dark .chat-rooms-card {
+  background: #0b1220;
+  border-color: #111827;
+  color: #cbd5e1;
+  box-shadow: none;
+}
+.dark .chat-rooms-card .mantine-Title-root,
+.dark .chat-rooms-card .mantine-Text-root {
+  color: #cbd5e1;
+}
+.dark .chat-rooms-card .mantine-Badge-root {
+  background: #111827;
+  color: #e2e8f0;
+  border: 1px solid #1f2937;
+}
+.dark .chat-rooms-card .mantine-TextInput-input {
+  background: #0f172a;
+  border-color: #1f2937;
+  color: #e5e7eb;
+}
+.dark .chat-rooms-card .mantine-TextInput-input::placeholder {
+  color: #94a3b8;
+}
+.dark .chat-rooms-alert {
+  background: #1f2937;
+  border-color: #334155;
+  color: #fca5a5;
+}
+.dark .chat-room-item {
+  background: #0f172a;
+  border-color: #1f2937;
+  color: #d1d9e6;
+  box-shadow: none;
+}
+.dark .chat-room-item:hover {
+  border-color: #24324d;
+  background: #111f2c;
+}
+.dark .chat-room-item .mantine-Text-root {
+  color: #d1d9e6;
+}
+.dark .chat-room-item .mantine-Text-root.mantine-Text-size-xs {
+  color: #9fb1cd;
+}
+.dark .chat-room-item .mantine-Button-root {
+  color: #fca5a5;
+}
+
 @keyframes panel-from-left {
   0% {
     opacity: 0;

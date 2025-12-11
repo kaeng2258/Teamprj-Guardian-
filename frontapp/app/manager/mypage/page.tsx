@@ -289,7 +289,7 @@ const managerQuickActions: Array<{
     },
     {
       value: "chat",
-      label: "채팅방",
+      label: "채팅",
       description: "실시간 상담 및 공지",
       accent: "bg-sky-500",
       icon: <FontAwesomeIcon icon={byPrefixAndName.far["comment"]} className="h-4 w-4" />,
@@ -4341,7 +4341,7 @@ export default function ManagerMyPage() {
                   : "bg-slate-100 text-slate-700 hover:bg-slate-200"
                   }`}
               >
-                채팅방 보기
+                채팅 보기
               </button>
               <button
                 type="button"

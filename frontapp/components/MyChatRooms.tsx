@@ -262,7 +262,7 @@ export default function MyChatRooms({
   }, [role, searchKeyword, threads]);
 
   return (
-    <Card withBorder radius="md" p="md" bg="var(--mantine-color-body)">
+    <Card withBorder radius="md" p="md" className="chat-rooms-card bg-white dark:bg-slate-800 dark:border-slate-700">
       <Group justify="space-between" mb="md">
         <Box>
           <Title order={4}>내 채팅방</Title>
@@ -274,7 +274,7 @@ export default function MyChatRooms({
       </Group>
 
       {loading && <Text size="sm" ta="center">목록을 불러오는 중...</Text>}
-      {err && <Alert color="red">{err}</Alert>}
+      {err && <Alert color="red" className="chat-rooms-alert">{err}</Alert>}
 
       {!loading && !err && threads.length === 0 && (
         <Text size="sm" c="dimmed" ta="center" py="xl">채팅방이 없습니다.</Text>
@@ -305,6 +305,7 @@ export default function MyChatRooms({
               withBorder
               p="sm"
               radius="md"
+              className="chat-room-item bg-white dark:bg-slate-900 dark:border-slate-700 hover:dark:bg-slate-800 transition-colors duration-200"
               onClick={() => void handleMarkThreadAsRead(roomId)}
               style={{ textDecoration: 'none', color: 'inherit', transition: 'box-shadow 0.2s' }}
               onMouseEnter={(e: any) => e.currentTarget.style.boxShadow = 'var(--mantine-shadow-sm)'}

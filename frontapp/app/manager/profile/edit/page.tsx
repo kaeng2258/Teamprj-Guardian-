@@ -155,6 +155,19 @@ export default function ManagerProfileEditPage() {
   const [imageMenuOpen, setImageMenuOpen] = useState(false);
   const [theme, setTheme] = useState<ThemeMode>("light");
   const [textSize, setTextSize] = useState<TextSizeMode>("normal");
+  const modalStyles =
+    theme === "dark"
+      ? {
+        content: {
+          backgroundColor: "#0f172a",
+          color: "#e2e8f0",
+          border: "1px solid #1f2937",
+        },
+        header: { backgroundColor: "#0f172a", color: "#e2e8f0" },
+        title: { color: "#e2e8f0" },
+        body: { color: "#e2e8f0" },
+      }
+      : {};
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const today = useMemo(
     () =>
@@ -1003,12 +1016,13 @@ export default function ManagerProfileEditPage() {
         }}
         centered
         radius="lg"
-        title="비밀번호 확인"
-        overlayProps={{ backgroundOpacity: 0.55, blur: 3 }}
-        closeOnClickOutside={!unlocking}
-        closeOnEscape={!unlocking}
-        withCloseButton={false}
-      >
+      title="비밀번호 확인"
+      overlayProps={{ backgroundOpacity: 0.55, blur: 3 }}
+      closeOnClickOutside={!unlocking}
+      closeOnEscape={!unlocking}
+      withCloseButton={false}
+      styles={modalStyles}
+    >
         <Stack>
           <Text size="sm" c="dimmed">
             개인정보 수정을 위해 현재 비밀번호를 입력해주세요.
@@ -1026,11 +1040,11 @@ export default function ManagerProfileEditPage() {
           />
 
           <Group justify="flex-end" mt="md">
-            <Button variant="default" onClick={() => setUnlockModalOpen(false)} disabled={unlocking}>
-              취소
-            </Button>
             <Button color="indigo" onClick={() => void handleUnlockProfile()} loading={unlocking}>
               확인
+            </Button>
+            <Button variant="default" onClick={() => setUnlockModalOpen(false)} disabled={unlocking}>
+              취소
             </Button>
           </Group>
         </Stack>

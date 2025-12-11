@@ -12,4 +12,8 @@ public interface MedicationLogRepository extends JpaRepository<MedicationLog, Lo
     boolean existsByAlarm_IdAndLogTimestampBetween(Long alarmId, LocalDateTime start, LocalDateTime end);
 
     void deleteByAlarm_Id(Long alarmId);
+
+    long countByLogTimestampBetween(LocalDateTime start, LocalDateTime end);
+
+    long countByClient_IdAndLogTimestampBetween(Long clientId, LocalDateTime start, LocalDateTime end);
 }

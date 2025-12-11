@@ -32,6 +32,8 @@ type AdminUserDetail = {
   status: string;
   phone?: string | null;
   address?: string | null;
+  detailAddress?: string | null;
+  zipCode?: string | null;
   createdAt: string;
   updatedAt?: string | null;
 };
@@ -83,6 +85,9 @@ export default function AdminDashboardPage() {
   const [selectedUser, setSelectedUser] = useState<AdminUserDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [userMedication, setUserMedication] = useState<UserMedicationSummary | null>(null);
+  const [userMedicationError, setUserMedicationError] = useState<string | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
 const getAuth = (): GuardianAuthPayload | null => {
   if (typeof window === "undefined") return null;
@@ -190,108 +195,140 @@ const searchUsers = async () => {
     setUsers([]);
     setSelectedUser(null);
     setUserMedication(null);
+    setUserMedicationError(null);
+    setDeleteError(null);
 
     const auth = getAuth();
-    console.log("[AdminDashboard] searchUsers auth =", auth); 
-      if (!auth) {
-        setUserError("로그인 정보가 없습니다. 다시 로그인 해주세요.");
-        return;
-      }
-
-      const params = new URLSearchParams();
-      params.set("keyword", userKeyword.trim());
-      if (userRole !== "ALL") params.set("role", userRole);
-
-      const res = await fetch(
-        `${API_BASE_URL}/api/admin/users?${params.toString()}`,
-        {
-          cache: "no-store",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${auth.accessToken}`,
-          },
-        }
-      );
-
-      if (res.status === 401) {
-        throw new Error("세션이 만료되었습니다. 다시 로그인해주세요.");
-      }
-      if (res.status === 403) {
-        throw new Error("관리자 권한이 없습니다.");
-      }
-      if (!res.ok) {
-        throw new Error("유저 목록을 불러오지 못했습니다.");
-      }
-
-      const data: AdminUserSummary[] = await res.json();
-      setUsers(data);
-    } catch (err: unknown) {
-      setUserError(
-        err instanceof Error ? err.message : "유저 검색 중 오류가 발생했습니다.",
-      );
-    } finally {
-      setUserLoading(false);
+    if (!auth) {
+      setUserError('??? ??? ????. ?? ???????.');
+      return;
     }
-  };
 
-  // ✅ 유저 상세 (토큰 포함)
-  const loadUserDetail = async (userId: number) => {
-    try {
-      setDetailLoading(true);
-      setUserMedication(null);
+    const params = new URLSearchParams();
+    params.set('keyword', userKeyword.trim());
+    if (userRole !== 'ALL') params.set('role', userRole);
 
-      const auth = getAuth();
-      if (!auth) {
-        console.warn("[AdminDashboard] auth not found while loading detail");
-        setDetailLoading(false);
-        return;
-      }
+    const res = await fetch(`${API_BASE_URL}/api/admin/users?${params.toString()}`,
+      {
+        cache: 'no-store',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${auth.accessToken}`,
+        },
+      });
 
-      const res = await fetch(
-        `${API_BASE_URL}/api/admin/users/${userId}`,
-        {
-          cache: "no-store",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${auth.accessToken}`,
-          },
-        }
-      );
+    if (res.status === 401) throw new Error('??? ???????. ?? ???????');
+    if (res.status === 403) throw new Error('??? ??? ????.');
+    if (!res.ok) throw new Error('??? ??? ???? ?????.');
 
-      if (!res.ok) {
-        throw new Error("사용자 정보를 불러오지 못했습니다.");
-      }
+    const data: AdminUserSummary[] = await res.json();
+    setUsers(data);
+  } catch (err: unknown) {
+    setUserError(err instanceof Error ? err.message : '??? ?? ? ??? ??????.');
+  } finally {
+    setUserLoading(false);
+  }
+};
 
-      const data: AdminUserDetail = await res.json();
-      setSelectedUser(data);
-      // 복약 정보/순응도 요약도 함께 로드
+const loadUserDetail = async (userId: number) => {
+  try {
+    setDetailLoading(true);
+    setUserMedication(null);
+    setUserMedicationError(null);
+    setDeleteError(null);
+
+    const auth = getAuth();
+    if (!auth) {
+      console.warn('[AdminDashboard] auth not found while loading detail');
+      setDetailLoading(false);
+      return;
+    }
+
+    const res = await fetch(`${API_BASE_URL}/api/admin/users/${userId}`,
+      {
+        cache: 'no-store',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${auth.accessToken}`,
+        },
+      });
+
+    if (!res.ok) {
+      throw new Error('??? ??? ???? ?????.');
+    }
+
+    const data: AdminUserDetail = await res.json();
+    setSelectedUser(data);
+
+    const roleUpper = data.role?.toUpperCase() ?? '';
+    if (roleUpper.includes('CLIENT')) {
       try {
-        const medRes = await fetch(
-          `${API_BASE_URL}/api/admin/users/${userId}/medication-summary`,
+        const medRes = await fetch(`${API_BASE_URL}/api/admin/users/${userId}/medication-summary`,
           {
-            cache: "no-store",
+            cache: 'no-store',
             headers: {
-              "Content-Type": "application/json",
+              'Content-Type': 'application/json',
               Authorization: `Bearer ${auth.accessToken}`,
             },
-          },
-        );
+          });
         if (medRes.ok) {
           const medData: UserMedicationSummary = await medRes.json();
           setUserMedication(medData);
         } else {
           setUserMedication(null);
+          setUserMedicationError('??/??? ???? ???? ?????.');
         }
       } catch (err) {
         setUserMedication(null);
+        setUserMedicationError('??/??? ???? ???? ?????.');
       }
-    } catch (e) {
-      console.error("[AdminDashboard] user detail error:", e);
-    } finally {
-      setDetailLoading(false);
+    } else {
+      setUserMedication(null);
+      setUserMedicationError(null);
     }
-  };
+  } catch (e) {
+    console.error('[AdminDashboard] user detail error:', e);
+  } finally {
+    setDetailLoading(false);
+  }
+};
 
+const handleDeleteUser = async () => {
+  if (!selectedUser) return;
+  if (!confirm('?? ??? ????????? ?? ? ??? ? ????.')) return;
+
+  try {
+    setDeleteLoading(true);
+    setDeleteError(null);
+    const auth = getAuth();
+    if (!auth) {
+      setDeleteError('?? ??? ?? ? ????.');
+      return;
+    }
+    const res = await fetch(`${API_BASE_URL}/api/admin/users/${selectedUser.id}`, {
+      method: 'DELETE',
+      cache: 'no-store',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${auth.accessToken}`,
+      },
+    });
+    if (!res.ok) {
+      const msg = await res.text();
+      throw new Error(msg || '?? ??? ??????.');
+    }
+    setUsers((prev) => prev.filter((u) => u.id !== selectedUser.id));
+    setSelectedUser(null);
+    setUserMedication(null);
+  } catch (err) {
+    setDeleteError(err instanceof Error ? err.message : '?? ??? ??????.');
+  } finally {
+    setDeleteLoading(false);
+  }
+};
+
+  // ✅ 유저 상세 (토큰 포함)
+  
   // ⛔ 아직 ADMIN 확인 중이면 로딩 화면만
   if (!ready) {
     return (
@@ -530,106 +567,90 @@ const searchUsers = async () => {
 
             {selectedUser && (
               <div className="mt-5 space-y-4">
-                {/* 기본 정보 카드 */}
                 <section className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4">
-                  <h3 className="text-sm font-semibold text-slate-900">
-                    기본 정보
-                  </h3>
+                  <h3 className="text-sm font-semibold text-slate-900">?? ??</h3>
                   <div className="mt-3 grid gap-y-2 text-sm text-slate-700">
-                    <InfoRow label="이름" value={selectedUser.name} />
-                    <InfoRow label="이메일" value={selectedUser.email} />
-                    <InfoRow label="역할" value={selectedUser.role} />
-                    <InfoRow label="상태" value={selectedUser.status} />
+                    <InfoRow label="??" value={selectedUser.name} />
+                    <InfoRow label="???" value={selectedUser.email} />
+                    <InfoRow label="??" value={selectedUser.role} />
+                    <InfoRow label="??" value={selectedUser.status} />
                   </div>
                 </section>
 
-                {/* 연락처/주소 */}
                 <section className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4">
-                  <h3 className="text-sm font-semibold text-slate-900">
-                    연락처 / 주소
-                  </h3>
+                  <h3 className="text-sm font-semibold text-slate-900">???? / ??</h3>
+                  <div className="mt-3 grid gap-y-2 text-sm text-slate-700">
+                    <InfoRow label="??" value={selectedUser.phone || "-"} />
+                    <InfoRow label="??" value={selectedUser.address || "-"} />
+                    <InfoRow label="?? ??" value={selectedUser.detailAddress || "-"} />
+                    <InfoRow label="????" value={selectedUser.zipCode || "-"} />
+                  </div>
+                </section>
+
+                <section className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4">
+                  <h3 className="text-sm font-semibold text-slate-900">??/?? ??</h3>
                   <div className="mt-3 grid gap-y-2 text-sm text-slate-700">
                     <InfoRow
-                      label="연락처"
-                      value={selectedUser.phone || "-"}
+                      label="???"
+                      value={new Date(selectedUser.createdAt).toLocaleString('ko-KR')}
                     />
                     <InfoRow
-                      label="주소"
-                      value={selectedUser.address || "-"}
+                      label="??? ??"
+                      value={selectedUser.updatedAt ? new Date(selectedUser.updatedAt).toLocaleString('ko-KR') : '-'}
                     />
                   </div>
                 </section>
 
-                {/* 가입/수정 정보 */}
-                <section className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4">
-                  <h3 className="text-sm font-semibold text-slate-900">
-                    가입 정보
-                  </h3>
-                  <div className="mt-3 grid gap-y-2 text-sm text-slate-700">
-                    <InfoRow
-                      label="가입일"
-                      value={new Date(
-                        selectedUser.createdAt
-                      ).toLocaleString("ko-KR")}
-                    />
-                    <InfoRow
-                      label="마지막 수정"
-                      value={
-                        selectedUser.updatedAt
-                          ? new Date(
-                              selectedUser.updatedAt
-                            ).toLocaleString("ko-KR")
-                          : "-"
-                      }
-                    />
-                  </div>
-    </section>
+                {userMedicationError && (
+                  <p className="text-xs text-rose-500">{userMedicationError}</p>
+                )}
 
-    {userMedication && (
-      <section className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4">
-        <h3 className="text-sm font-semibold text-slate-900">
-          ?? / ???
-        </h3>
-        <div className="mt-2 flex items-center gap-2 text-sm text-slate-700">
-          <span className="text-xs text-slate-500">?? ???</span>
-          <span className="rounded-full bg-indigo-100 px-2 py-1 text-[11px] font-semibold text-indigo-700">
-            {userMedication.adherenceRate != null
-              ? `${Math.round(userMedication.adherenceRate)}%`
-              : "?? ??"}
-          </span>
-        </div>
-        <div className="mt-3 space-y-2">
-          {userMedication.plans.length === 0 && (
-            <p className="text-xs text-slate-500">
-              ??? ?? ??? ????.
-            </p>
-          )}
-          {userMedication.plans.map((plan, idx) => (
-            <div
-              key={`${plan.medicineName}-${idx}`}
-              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
-            >
-              <p className="font-semibold text-slate-900">
-                {plan.medicineName}
-              </p>
-              <p className="text-xs text-slate-500">
-                {plan.alarmTime
-                  ? `?? ${plan.alarmTime.slice(0, 5)}`
-                  : "?? ?? ??"}
-              </p>
-              <p className="text-xs text-slate-500">
-                {plan.daysOfWeek && plan.daysOfWeek.length > 0
-                  ? `??: ${plan.daysOfWeek.join(", ")}`
-                  : "?? ?? ??"}
-              </p>
-            </div>
-          ))}
-        </div>
-      </section>
-    )}
+                {userMedication && (
+                  <section className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4">
+                    <h3 className="text-sm font-semibold text-slate-900">?? / ???</h3>
+                    <div className="mt-2 flex items-center gap-2 text-sm text-slate-700">
+                      <span className="text-xs text-slate-500">?? ???</span>
+                      <span className="rounded-full bg-indigo-100 px-2 py-1 text-[11px] font-semibold text-indigo-700">
+                        {userMedication.adherenceRate != null ? `${Math.round(userMedication.adherenceRate)}%` : '?? ??'}
+                      </span>
+                    </div>
+                    <div className="mt-3 space-y-2">
+                      {userMedication.plans.length === 0 && (
+                        <p className="text-xs text-slate-500">??? ?? ??? ????.</p>
+                      )}
+                      {userMedication.plans.map((plan, idx) => (
+                        <div
+                          key={`${plan.medicineName}-${idx}`}
+                          className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+                        >
+                          <p className="font-semibold text-slate-900">{plan.medicineName}</p>
+                          <p className="text-xs text-slate-500">
+                            {plan.alarmTime ? `?? ${plan.alarmTime.slice(0, 5)}` : '?? ?? ??'}
+                          </p>
+                          <p className="text-xs text-slate-500">
+                            {plan.daysOfWeek && plan.daysOfWeek.length > 0
+                              ? `??: ${plan.daysOfWeek.join(', ')}`
+                              : '?? ?? ??'}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                )}
 
-  </div>
-)}
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={handleDeleteUser}
+                    disabled={deleteLoading}
+                    className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 shadow-sm hover:bg-rose-100 disabled:opacity-60"
+                  >
+                    {deleteLoading ? '?? ?...' : '?? ??'}
+                  </button>
+                  {deleteError && <p className="text-xs text-rose-500">{deleteError}</p>}
+                </div>
+              </div>
+            )}
           </div>
         </section>
       </div>

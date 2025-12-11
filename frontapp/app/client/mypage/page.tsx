@@ -1000,9 +1000,9 @@ export default function ClientMyPage() {
             totalPendingAlerts > 0
               ? "미처리 알림이 있습니다. 확인 후 '전부 확인'으로 정리해 주세요."
               : "알림이 없습니다. 문제가 있으면 담당 매니저에게 문의하세요.",
-          actionLabel: pushButtonDisabled ? "푸시 활성화 중" : "푸시 알림 설정",
-          actionDisabled: pushButtonDisabled,
-          onAction: handleEnablePush,
+          actionLabel: undefined,
+          actionDisabled: true,
+          onAction: undefined,
         },
       ] as ServiceStat[],
     [
@@ -2068,8 +2068,8 @@ export default function ClientMyPage() {
             <section className="rounded-2xl border border-amber-100 bg-amber-50 p-4 sm:p-6 dark:border-slate-700 dark:bg-slate-900">
               <div className="flex flex-col gap-2 border-b border-amber-200 pb-4 sm:flex-row sm:items-center sm:justify-between dark:border-slate-700">
                 <div>
-                  <h2 className="text-lg font-semibold text-amber-900 sm:text-xl dark:text-slate-100">주간 복약 현황</h2>
-                  <p className="text-sm text-amber-700 dark:text-slate-300">
+                  <h2 className="text-lg font-semibold text-slate-900 sm:text-xl dark:text-slate-100">주간 복약 현황</h2>
+                  <p className="text-sm text-slate-600 dark:text-slate-300">
                     최근 7일 동안의 복약 기록을 요일별 아이콘으로 확인할 수 있습니다.
                   </p>
                 </div>
@@ -2085,11 +2085,11 @@ export default function ClientMyPage() {
                 </div>
               </div>
               {!planLoading && plansInitialized && planError.trim().length === 0 && plans.length === 0 ? (
-                <div className="mt-4 rounded-xl bg-white px-3 py-2 text-sm text-amber-800 dark:bg-slate-800 dark:text-slate-200">
+                <div className="mt-4 rounded-xl bg-white px-3 py-2 text-sm text-slate-800 dark:bg-slate-800 dark:text-slate-200">
                   아직 복약 일정이 없습니다. 담당자에게 일정을 등록해 달라고 요청해주세요.
                 </div>
               ) : weeklySummaryLoading && !weeklySummary ? (
-                <div className="mt-4 rounded-xl bg-white/70 px-3 py-2 text-sm text-amber-800 dark:bg-slate-800 dark:text-slate-200">
+                <div className="mt-4 rounded-xl bg-white/70 px-3 py-2 text-sm text-slate-700 dark:bg-slate-800 dark:text-slate-200">
                   주간 복약 현황을 불러오는 중입니다...
                 </div>
               ) : weeklySummaryError ? (
@@ -2110,7 +2110,7 @@ export default function ClientMyPage() {
                   </div>
                 </div>
               ) : (
-                <div className="mt-4 rounded-xl bg-white px-3 py-2 text-sm text-amber-800 dark:bg-slate-800 dark:text-slate-200">
+                <div className="mt-4 rounded-xl bg-white px-3 py-2 text-sm text-slate-800 dark:bg-slate-800 dark:text-slate-200">
                   아직 복약 기록이 없습니다. 복약 확인을 기록해 주세요.
                 </div>
               )}

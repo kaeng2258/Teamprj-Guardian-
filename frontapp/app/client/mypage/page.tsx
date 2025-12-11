@@ -1485,8 +1485,8 @@ export default function ClientMyPage() {
                       onClick={() => setActivePanel(action.value)}
                       className={`group relative z-10 flex flex-col gap-1 rounded-xl border px-3 py-3 text-left transition duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-indigo-400 dark:focus-visible:ring-offset-slate-900 ${
                         isActive
-                          ? "border-indigo-500 bg-indigo-50 text-indigo-900 shadow-sm shadow-indigo-200 dark:border-indigo-500 dark:bg-indigo-800/80 dark:text-indigo-50 dark:shadow-[0_10px_22px_rgba(0,0,0,0.4)]"
-                          : "border-transparent bg-white/80 text-slate-800 hover:border-indigo-200 hover:bg-white dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-indigo-400 dark:hover:bg-slate-800"
+                          ? "border-indigo-500 bg-indigo-50 text-indigo-900 shadow-sm shadow-indigo-200 active:bg-indigo-100 dark:border-indigo-500 dark:bg-indigo-800/80 dark:text-indigo-50 dark:shadow-[0_10px_22px_rgba(0,0,0,0.4)] dark:active:bg-indigo-700"
+                          : "border-transparent bg-white/80 text-slate-800 hover:border-indigo-200 hover:bg-white active:bg-indigo-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-indigo-400 dark:hover:bg-slate-800 dark:active:bg-slate-700"
                       }`}
                     >
                       <span

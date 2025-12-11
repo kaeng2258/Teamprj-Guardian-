@@ -1535,16 +1535,15 @@ export default function ManagerMyPage() {
         return "-";
       }
 
-      const kstOffset = 9 * 60 * 60 * 1000;
-      const kstDate = new Date(date.getTime() + kstOffset);
-
-      const year = kstDate.getUTCFullYear();
-      const month = String(kstDate.getUTCMonth() + 1).padStart(2, "0");
-      const day = String(kstDate.getUTCDate()).padStart(2, "0");
-      const hours = String(kstDate.getUTCHours()).padStart(2, "0");
-      const minutes = String(kstDate.getUTCMinutes()).padStart(2, "0");
-
-      return `${year}-${month}-${day} ${hours}:${minutes}`;
+      return new Intl.DateTimeFormat("sv-SE", {
+        timeZone: "Asia/Seoul",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      }).format(date);
     } catch (e) {
       return "-";
     }

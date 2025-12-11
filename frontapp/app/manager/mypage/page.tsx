@@ -1529,18 +1529,32 @@ export default function ManagerMyPage() {
     if (!value) {
       return "-";
     }
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) {
+    try {
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) {
+        return "-";
+      }
+
+      const kstFormatter = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Asia/Seoul",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      });
+
+      const kstTimeFormatter = new Intl.DateTimeFormat("en-GB", {
+        timeZone: "Asia/Seoul",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+
+      const datePart = kstFormatter.format(date);
+      const timePart = kstTimeFormatter.format(date);
+
+      return `${datePart} ${timePart}`;
+    } catch (e) {
       return "-";
     }
-    const datePart = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(
-      2,
-      "0"
-    )}-${String(date.getDate()).padStart(2, "0")}`;
-    const timePart = `${String(date.getHours()).padStart(2, "0")}:${String(
-      date.getMinutes()
-    ).padStart(2, "0")}`;
-    return `${datePart} ${timePart}`;
   };
 
   const formatWeekdayLabel = useCallback((value: string) => {

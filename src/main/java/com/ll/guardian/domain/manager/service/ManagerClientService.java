@@ -51,7 +51,12 @@ public class ManagerClientService {
         Map<Long, CareMatch> currentMatches = careMatchRepository
                 .findByClientIdInAndCurrentTrue(clients.stream().map(User::getId).toList())
                 .stream()
-                .collect(Collectors.toMap(match -> match.getClient().getId(), match -> match));
+                .collect(Collectors.toMap(
+                        match -> match.getClient().getId(),
+                        match -> match,
+                        // 동일 클라이언트에 중복 current 매칭이 있을 때 가장 최근(id 큰) 매칭을 사용
+                        (a, b) -> a.getId() >= b.getId() ? a : b
+                ));
 
         return clients.stream()
                 .map(client -> toResponse(manager, client, currentMatches.get(client.getId())))

@@ -194,6 +194,12 @@ export default function Home() {
         window.localStorage.setItem("userEmail", loginEmail);
       }
 
+      const normalizedRole = payload.role?.toUpperCase();
+      if (normalizedRole?.includes("ADMIN")) {
+        router.push("/admin");
+        return;
+      }
+
       if (payload.redirectPath) {
         router.push(payload.redirectPath);
         return;

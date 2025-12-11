@@ -1402,7 +1402,7 @@ export default function ClientMyPage() {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-4 sm:gap-5">
               <div className="relative">
-                <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full border-2 border-indigo-200 bg-indigo-50 text-lg font-semibold text-indigo-700">
+                <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full border-2 border-amber-200 bg-indigo-50 text-lg font-semibold text-indigo-700">
                   {client.profileImageUrl ? (
                     <Image
                       src={client.profileImageUrl}
@@ -1418,7 +1418,7 @@ export default function ClientMyPage() {
                   )}
                 </div>
                 <button
-                  className="absolute -left-1 -bottom-1 inline-flex h-8 w-8 items-center justify-center rounded-full bg-indigo-500 text-xs font-semibold text-white shadow-sm ring-4 ring-white transition hover:bg-indigo-600"
+                  className="absolute -left-1 -bottom-1 inline-flex h-8 w-8 items-center justify-center rounded-full bg-amber-500 text-xs font-semibold text-white shadow-sm ring-4 ring-white transition hover:bg-amber-600"
                   type="button"
                   onClick={() => router.push("/client/profile/edit")}
                   disabled={avatarUploading}
@@ -1443,7 +1443,7 @@ export default function ClientMyPage() {
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <p className="text-2xl font-semibold uppercase tracking-wide text-indigo-600 sm:text-3xl">
+                  <p className="text-2xl font-semibold uppercase tracking-wide text-amber-600 sm:text-3xl">
                     Client
                   </p>
                   <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">
@@ -1469,10 +1469,10 @@ export default function ClientMyPage() {
             </p>
           )}
           <div className="flex flex-col gap-3">
-            <div className="relative overflow-hidden rounded-2xl border border-indigo-100 bg-white p-1 text-slate-900 shadow-[0_12px_30px_rgba(128,128,255,0.08)] dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 dark:shadow-[0_12px_30px_rgba(0,0,0,0.35)]">
+            <div className="relative overflow-hidden rounded-2xl border border-amber-100 bg-white p-1 text-slate-900 shadow-[0_12px_30px_rgba(255,153,51,0.08)] dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 dark:shadow-[0_12px_30px_rgba(0,0,0,0.35)]">
               <span
                 aria-hidden
-                className="pointer-events-none absolute inset-y-1 left-1 w-1/3 rounded-xl bg-gradient-to-r from-sky-300 via-indigo-400 to-indigo-500 shadow-lg shadow-indigo-300/50 transition-transform duration-500 ease-out dark:from-slate-700 dark:via-indigo-600 dark:to-slate-800 dark:shadow-none"
+                className="pointer-events-none absolute inset-y-1 left-1 w-1/3 rounded-xl bg-gradient-to-r from-amber-300 via-amber-400 to-amber-500 shadow-lg shadow-amber-300/50 transition-transform duration-500 ease-out dark:from-slate-700 dark:via-indigo-600 dark:to-slate-800 dark:shadow-none"
                 style={clientIndicatorStyle}
               />
               <div className="relative z-10 grid grid-cols-3 gap-2">
@@ -1483,16 +1483,16 @@ export default function ClientMyPage() {
                       key={action.value}
                       type="button"
                       onClick={() => setActivePanel(action.value)}
-                      className={`group relative z-10 flex flex-col gap-1 rounded-xl border px-3 py-3 text-left transition duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-indigo-400 dark:focus-visible:ring-offset-slate-900 ${
+                      className={`group relative z-10 flex flex-col gap-1 rounded-xl border px-3 py-3 text-left transition duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-200 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-indigo-400 dark:focus-visible:ring-offset-slate-900 ${
                         isActive
-                          ? "border-indigo-500 bg-indigo-50 text-indigo-900 shadow-sm shadow-indigo-200 active:bg-indigo-100 dark:border-indigo-500 dark:bg-indigo-800/80 dark:text-indigo-50 dark:shadow-[0_10px_22px_rgba(0,0,0,0.4)] dark:active:bg-indigo-700"
-                          : "border-transparent bg-white/80 text-slate-800 hover:border-indigo-200 hover:bg-white active:bg-indigo-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-indigo-400 dark:hover:bg-slate-800 dark:active:bg-slate-700"
+                          ? "border-amber-500 bg-amber-50 text-amber-900 shadow-sm shadow-amber-200 active:bg-amber-100 dark:border-indigo-500 dark:bg-indigo-800/80 dark:text-indigo-50 dark:shadow-[0_10px_22px_rgba(0,0,0,0.4)] dark:active:bg-indigo-700"
+                          : "border-transparent bg-white/80 text-slate-800 hover:border-amber-200 hover:bg-white active:bg-amber-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-indigo-400 dark:hover:bg-slate-800 dark:active:bg-slate-700"
                       }`}
                     >
                       <span
-                        className={`inline-flex h-9 w-9 items-center justify-center rounded-full text-[0.7rem] font-semibold text-white shadow-sm shadow-indigo-400/40 transition duration-300 ${
+                        className={`inline-flex h-9 w-9 items-center justify-center rounded-full text-[0.7rem] font-semibold text-white shadow-sm shadow-amber-400/40 transition duration-300 ${
                           isActive ? "scale-105" : "scale-100"
-                        } ${isActive ? "bg-indigo-500" : action.accent}`}
+                        } ${isActive ? "bg-amber-500 dark:bg-indigo-500" : action.accent}`}
                       >
                         {action.icon ?? action.label.slice(0, 1)}
                       </span>
@@ -1502,7 +1502,7 @@ export default function ClientMyPage() {
                       <span
                         className={`text-xs ${
                           isActive
-                            ? "text-indigo-700 dark:text-indigo-200"
+                            ? "text-amber-700 dark:text-indigo-200"
                             : "text-slate-500 group-hover:text-slate-600 dark:text-slate-400 dark:group-hover:text-slate-300"
                         }`}
                       >

@@ -1,7 +1,7 @@
 "use client";
-import MyChatRooms from "@/components/MyChatRooms";
-import { InlineDrugSearch } from "@/components/InlineDrugSearch";
-import { resolveProfileImageUrl } from "@/lib/image";
+import MyChatRooms from "../../../components/MyChatRooms";
+import { InlineDrugSearch } from "../../../components/InlineDrugSearch";
+import { resolveProfileImageUrl } from "../../../lib/image";
 import { useRouter } from "next/navigation";
 import Image, { type ImageLoader } from "next/image";
 import {

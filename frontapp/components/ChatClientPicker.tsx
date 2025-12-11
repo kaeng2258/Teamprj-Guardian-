@@ -1,7 +1,8 @@
 "use client";
 import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { resolveProfileImageUrl } from "@/lib/image";
+import { resolveProfileImageUrl } from "../lib/image";
+
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "";

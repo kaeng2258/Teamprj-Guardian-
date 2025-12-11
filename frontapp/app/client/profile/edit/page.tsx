@@ -1,7 +1,7 @@
 "use client";
 
-import { resolveProfileImageUrl } from "@/lib/image";
-import PhoneNumberInput from "@/components/PhoneNumberInput";
+import { resolveProfileImageUrl } from "../../../../lib/image";
+import PhoneNumberInput from "../../../../components/PhoneNumberInput";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Modal, Button, PasswordInput, Text, Group, Stack } from "@mantine/core";

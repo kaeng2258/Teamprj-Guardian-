@@ -16,16 +16,20 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
         registry.addEndpoint("/ws")
-                .setAllowedOriginPatterns(
-                        "http://localhost:*",
-                        "http://127.0.0.1:*",
-                        "http://192.168.*.*:*",
-                        "https://localhost:*",
-                        "https://127.0.0.1:*",
-                        "https://192.168.*.*:*",
-                        "*"
-                )
-                .withSockJS();
+            .setAllowedOriginPatterns(
+                "http://localhost:*",
+                "http://127.0.0.1:*",
+                "http://192.168.*.*:*",
+                "https://localhost:*",
+                "https://127.0.0.1:*",
+                "https://192.168.*.*:*",
+                "https://prjguardian.com",
+                "https://*.prjguardian.com",
+                "https://guardianprj.shop",
+                "https://*.guardianprj.shop"
+            )
+            .withSockJS();
+
     }
 
     /**

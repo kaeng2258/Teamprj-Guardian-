@@ -2,11 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";     
-import { useAdminGuard } from "@/hooks/useAdminGuard";
+import { useAdminGuard } from "../../hooks/useAdminGuard";
 
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ??
-  "https://localhost:8081";
+  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "";
 
 type UserRoleFilter = "ALL" | "CLIENT" | "MANAGER" | "ADMIN";
 
@@ -37,6 +36,26 @@ type AdminUserDetail = {
   updatedAt?: string | null;
 };
 
+type MedicationAdherencePoint = {
+  month: string;
+  rate: number;
+};
+
+type MedicationPlanSummary = {
+  medicineName: string;
+  alarmTime?: string | null;
+  daysOfWeek?: string[] | null;
+};
+
+type UserMedicationSummary = {
+  adherenceRate?: number | null;
+  plans: MedicationPlanSummary[];
+};
+
+type MonthlyAdherenceResponse = {
+  points: MedicationAdherencePoint[];
+};
+
 // ✅ 로그인 시 localStorage에 저장해둔 구조
 type GuardianAuthPayload = {
   userId: number;
@@ -52,7 +71,9 @@ export default function AdminDashboardPage() {
   const ready = useAdminGuard();
 
   const [overview, setOverview] = useState<AdminOverview | null>(null);
- const [adminEmail, setAdminEmail] = useState<string | null>(null);
+  const [adherencePoints, setAdherencePoints] = useState<MedicationAdherencePoint[]>([]);
+  const [adherenceError, setAdherenceError] = useState<string | null>(null);
+  const [adminEmail, setAdminEmail] = useState<string | null>(null);
   const [userKeyword, setUserKeyword] = useState("");
   const [userRole, setUserRole] = useState<UserRoleFilter>("ALL");
   const [users, setUsers] = useState<AdminUserSummary[]>([]);
@@ -61,6 +82,7 @@ export default function AdminDashboardPage() {
 
   const [selectedUser, setSelectedUser] = useState<AdminUserDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [userMedication, setUserMedication] = useState<UserMedicationSummary | null>(null);
 
 const getAuth = (): GuardianAuthPayload | null => {
   if (typeof window === "undefined") return null;
@@ -116,6 +138,32 @@ const getAuth = (): GuardianAuthPayload | null => {
         console.error("[AdminDashboard] overview error:", e);
       }
     })();
+
+    (async () => {
+      try {
+        const auth = getAuth();
+        if (!auth) return;
+        setAdherenceError(null);
+        const res = await fetch(
+          `${API_BASE_URL}/api/admin/medication/adherence?months=6`,
+          {
+            cache: "no-store",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${auth.accessToken}`,
+            },
+          },
+        );
+        if (!res.ok) {
+          setAdherenceError("투약 순응도 데이터를 불러오지 못했습니다.");
+          return;
+        }
+        const data: MonthlyAdherenceResponse = await res.json();
+        setAdherencePoints(data.points ?? []);
+      } catch (e) {
+        setAdherenceError("투약 순응도 데이터를 불러오지 못했습니다.");
+      }
+    })();
   }, [ready]);
 
   const totalUsers = useMemo(() => {
@@ -141,6 +189,7 @@ const searchUsers = async () => {
     setUserError(null);
     setUsers([]);
     setSelectedUser(null);
+    setUserMedication(null);
 
     const auth = getAuth();
     console.log("[AdminDashboard] searchUsers auth =", auth); 
@@ -189,10 +238,12 @@ const searchUsers = async () => {
   const loadUserDetail = async (userId: number) => {
     try {
       setDetailLoading(true);
+      setUserMedication(null);
 
       const auth = getAuth();
       if (!auth) {
         console.warn("[AdminDashboard] auth not found while loading detail");
+        setDetailLoading(false);
         return;
       }
 
@@ -213,6 +264,27 @@ const searchUsers = async () => {
 
       const data: AdminUserDetail = await res.json();
       setSelectedUser(data);
+      // 복약 정보/순응도 요약도 함께 로드
+      try {
+        const medRes = await fetch(
+          `${API_BASE_URL}/api/admin/users/${userId}/medication-summary`,
+          {
+            cache: "no-store",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${auth.accessToken}`,
+            },
+          },
+        );
+        if (medRes.ok) {
+          const medData: UserMedicationSummary = await medRes.json();
+          setUserMedication(medData);
+        } else {
+          setUserMedication(null);
+        }
+      } catch (err) {
+        setUserMedication(null);
+      }
     } catch (e) {
       console.error("[AdminDashboard] user detail error:", e);
     } finally {
@@ -289,6 +361,41 @@ const searchUsers = async () => {
             }
           />
         </section>
+
+        {/* 투약 순응도 (최근 6개월) */}
+        {(adherencePoints.length > 0 || adherenceError) && (
+          <section className="rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm sm:px-5">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-base font-semibold text-slate-900">
+                  최근 6개월 투약 순응도
+                </h2>
+                <p className="text-xs text-slate-500">
+                  월별 순응도(%)를 막대 그래프로 확인하세요.
+                </p>
+              </div>
+            </div>
+            {adherenceError && (
+              <p className="mt-3 text-xs text-rose-500">{adherenceError}</p>
+            )}
+            {!adherenceError && (
+              <div className="mt-4 grid gap-3 sm:grid-cols-6">
+                {adherencePoints.map((point) => (
+                  <AdherenceBar
+                    key={point.month}
+                    label={point.month}
+                    value={point.rate}
+                  />
+                ))}
+                {adherencePoints.length === 0 && (
+                  <p className="text-xs text-slate-500">
+                    표시할 순응도 데이터가 없습니다.
+                  </p>
+                )}
+              </div>
+            )}
+          </section>
+        )}
 
         {/* 메인 2컬럼 레이아웃 */}
         <section className="grid gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
@@ -476,9 +583,53 @@ const searchUsers = async () => {
                       }
                     />
                   </div>
-                </section>
-              </div>
-            )}
+    </section>
+
+    {userMedication && (
+      <section className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4">
+        <h3 className="text-sm font-semibold text-slate-900">
+          ?? / ???
+        </h3>
+        <div className="mt-2 flex items-center gap-2 text-sm text-slate-700">
+          <span className="text-xs text-slate-500">?? ???</span>
+          <span className="rounded-full bg-indigo-100 px-2 py-1 text-[11px] font-semibold text-indigo-700">
+            {userMedication.adherenceRate != null
+              ? `${Math.round(userMedication.adherenceRate)}%`
+              : "?? ??"}
+          </span>
+        </div>
+        <div className="mt-3 space-y-2">
+          {userMedication.plans.length === 0 && (
+            <p className="text-xs text-slate-500">
+              ??? ?? ??? ????.
+            </p>
+          )}
+          {userMedication.plans.map((plan, idx) => (
+            <div
+              key={`${plan.medicineName}-${idx}`}
+              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+            >
+              <p className="font-semibold text-slate-900">
+                {plan.medicineName}
+              </p>
+              <p className="text-xs text-slate-500">
+                {plan.alarmTime
+                  ? `?? ${plan.alarmTime.slice(0, 5)}`
+                  : "?? ?? ??"}
+              </p>
+              <p className="text-xs text-slate-500">
+                {plan.daysOfWeek && plan.daysOfWeek.length > 0
+                  ? `??: ${plan.daysOfWeek.join(", ")}`
+                  : "?? ?? ??"}
+              </p>
+            </div>
+          ))}
+        </div>
+      </section>
+    )}
+
+  </div>
+)}
           </div>
         </section>
       </div>
@@ -513,6 +664,29 @@ function InfoRow({ label, value }: { label: string; value: string }) {
         {label}
       </span>
       <span className="flex-1 text-sm text-slate-800">{value}</span>
+    </div>
+  );
+}
+
+function AdherenceBar({ label, value }: { label: string; value: number }) {
+  const clamped = Math.max(0, Math.min(100, Number.isFinite(value) ? value : 0));
+  return (
+    <div className="flex flex-col items-center gap-2">
+      <div className="flex h-32 w-full items-end rounded-lg border border-slate-200 bg-slate-50 px-2 py-2">
+        <div
+          className="w-full rounded-md bg-indigo-500 shadow-sm transition-all"
+          style={{
+            height: `${clamped}%`,
+            minHeight: "4px",
+          }}
+        />
+      </div>
+      <div className="text-center">
+        <p className="text-[11px] font-semibold text-slate-900">
+          {Math.round(clamped)}%
+        </p>
+        <p className="text-[11px] text-slate-500">{label}</p>
+      </div>
     </div>
   );
 }

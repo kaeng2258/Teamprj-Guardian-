@@ -1,8 +1,7 @@
 # 8443 쓰고 싶으면 바꾸세요
 spring:
   profiles:
-    active: dev
-    include: secret
+    active: prod
   servlet:
     multipart:
       max-file-size: 20MB

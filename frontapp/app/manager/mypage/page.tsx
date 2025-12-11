@@ -1688,7 +1688,14 @@ export default function ManagerMyPage() {
       const response = await fetch(
         `${API_BASE_URL}/api/managers/${manager.userId}/clients/search?keyword=${encodeURIComponent(
           keyword
-        )}&size=20`
+        )}&size=20`,
+        {
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+            ...authHeaders(),
+          },
+        }
       );
 
       if (!response.ok) {

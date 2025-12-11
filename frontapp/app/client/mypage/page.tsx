@@ -1107,13 +1107,21 @@ export default function ClientMyPage() {
     if (!value) {
       return "미확인";
     }
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) {
+    try {
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) {
+        return "미확인";
+      }
+
+      return new Intl.DateTimeFormat("en-GB", {
+        timeZone: "Asia/Seoul",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      }).format(date);
+    } catch (e) {
       return "미확인";
     }
-    const hour = String(date.getHours()).padStart(2, "0");
-    const minute = String(date.getMinutes()).padStart(2, "0");
-    return `${hour}:${minute}`;
   };
 
   const canConfirmNow = useCallback(

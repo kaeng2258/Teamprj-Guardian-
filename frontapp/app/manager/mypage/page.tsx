@@ -1886,6 +1886,9 @@ export default function ManagerMyPage() {
         ...prev,
         [clientId]: { type: "error", text: message },
       }));
+      if (searchKeyword.trim()) {
+        void handleClientSearch();
+      }
     } finally {
       setAssignmentStates((prev) => ({ ...prev, [clientId]: "idle" }));
     }

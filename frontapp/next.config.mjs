@@ -1,45 +1,34 @@
-/** @type {import('next').NextConfig} */
+/** @type {import("next").NextConfig} */
+const apiBase = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8081").replace(/\/$/, "");
+const wsBase = (process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8081/ws").replace(/\/$/, "");
+const apiUrl = new URL(apiBase);
+const protocol = apiUrl.protocol.replace(":", "");
+const hostname = apiUrl.hostname;
+const port = apiUrl.port;
+
+const toPattern = (pathname) => ({
+  protocol,
+  hostname,
+  pathname,
+  ...(port ? { port } : {}),
+});
+
 const nextConfig = {
-    output: "standalone",
+  output: "standalone",
   reactStrictMode: true,
   images: {
-    domains: ["localhost"],
-    remotePatterns: [
-      {
-        protocol: "http",
-        hostname: "localhost",
-        port: "8081",
-        pathname: "/image/**",
-      },
-      {
-        protocol: "https",
-        hostname: "localhost",
-        port: "8081",
-        pathname: "/image/**",
-      },
-      {
-        protocol: "http",
-        hostname: "localhost",
-        port: "8081",
-        pathname: "/files/**",
-      },
-      {
-        protocol: "https",
-        hostname: "localhost",
-        port: "8081",
-        pathname: "/files/**",
-      },
-    ],
+    domains: [hostname],
+    remotePatterns: [toPattern("/image/**"), toPattern("/files/**")],
   },
   /* config options here */
   async rewrites() {
-  return [
-    { source: "/api/:path*", destination: "http://localhost:8081/api/:path*" },
-    { source: "/ws", destination: "http://localhost:8081/ws" },
-    { source: "/image/:path*", destination: "http://localhost:8081/image/:path*" },
-    { source: "/files/:path*", destination: "http://localhost:8081/files/:path*" },
-  ];
-}
+    return [
+      { source: "/api/:path*", destination: `${apiBase}/api/:path*` },
+      { source: "/ws", destination: wsBase },
+      { source: "/image/:path*", destination: `${apiBase}/image/:path*` },
+      { source: "/files/:path*", destination: `${apiBase}/files/:path*` },
+    ];
+  },
 };
 
 export default nextConfig;

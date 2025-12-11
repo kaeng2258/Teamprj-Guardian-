@@ -1535,23 +1535,16 @@ export default function ManagerMyPage() {
         return "-";
       }
 
-      const kstFormatter = new Intl.DateTimeFormat("en-CA", {
-        timeZone: "Asia/Seoul",
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-      });
+      const kstOffset = 9 * 60 * 60 * 1000;
+      const kstDate = new Date(date.getTime() + kstOffset);
 
-      const kstTimeFormatter = new Intl.DateTimeFormat("en-GB", {
-        timeZone: "Asia/Seoul",
-        hour: "2-digit",
-        minute: "2-digit",
-      });
+      const year = kstDate.getUTCFullYear();
+      const month = String(kstDate.getUTCMonth() + 1).padStart(2, "0");
+      const day = String(kstDate.getUTCDate()).padStart(2, "0");
+      const hours = String(kstDate.getUTCHours()).padStart(2, "0");
+      const minutes = String(kstDate.getUTCMinutes()).padStart(2, "0");
 
-      const datePart = kstFormatter.format(date);
-      const timePart = kstTimeFormatter.format(date);
-
-      return `${datePart} ${timePart}`;
+      return `${year}-${month}-${day} ${hours}:${minutes}`;
     } catch (e) {
       return "-";
     }

@@ -1,11 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";     
+import { useEffect, useMemo, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { useAdminGuard } from "../../hooks/useAdminGuard";
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "";
 
 type UserRoleFilter = "ALL" | "CLIENT" | "MANAGER" | "ADMIN";
 
@@ -67,15 +66,45 @@ type GuardianAuthPayload = {
   email: string;
 };
 
+function formatDateTime(value?: string | null) {
+  if (!value) return "-";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "-";
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mi = String(d.getMinutes()).padStart(2, "0");
+  return `${yyyy}.${mm}.${dd} ${hh}:${mi}`;
+}
+
+function roleLabel(roleRaw?: string | null) {
+  const r = (roleRaw ?? "").toUpperCase();
+  if (r.includes("ADMIN")) return "관리자";
+  if (r.includes("MANAGER")) return "관리인";
+  if (r.includes("CLIENT")) return "환자";
+  return roleRaw ?? "-";
+}
+
+function statusLabel(statusRaw?: string | null) {
+  const s = (statusRaw ?? "").toUpperCase();
+  // 프로젝트에서 쓰는 ENUM에 맞춰 필요 시 추가하세요.
+  if (s === "ACTIVE") return "활성";
+  if (s === "INACTIVE") return "비활성";
+  if (s === "SUSPENDED") return "정지";
+  if (s === "WAITING_MATCH") return "매칭 대기";
+  return statusRaw ?? "-";
+}
+
 export default function AdminDashboardPage() {
-    const router = useRouter();   
-  // ✅ 관리자 가드
+  const router = useRouter();
   const ready = useAdminGuard();
 
   const [overview, setOverview] = useState<AdminOverview | null>(null);
   const [adherencePoints, setAdherencePoints] = useState<MedicationAdherencePoint[]>([]);
   const [adherenceError, setAdherenceError] = useState<string | null>(null);
   const [adminEmail, setAdminEmail] = useState<string | null>(null);
+
   const [userKeyword, setUserKeyword] = useState("");
   const [userRole, setUserRole] = useState<UserRoleFilter>("ALL");
   const [users, setUsers] = useState<AdminUserSummary[]>([]);
@@ -86,97 +115,22 @@ export default function AdminDashboardPage() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [userMedication, setUserMedication] = useState<UserMedicationSummary | null>(null);
   const [userMedicationError, setUserMedicationError] = useState<string | null>(null);
+
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
-const getAuth = (): GuardianAuthPayload | null => {
-  if (typeof window === "undefined") return null;
-  const raw = window.localStorage.getItem("guardian_auth");
-  console.log("[AdminDashboard] guardian_auth raw =", raw);  // ⬅ 추가
-  if (!raw) return null;
-  try {
-    const parsed = JSON.parse(raw) as GuardianAuthPayload;
-    console.log("[AdminDashboard] guardian_auth parsed =", parsed); // ⬅ 추가
-    return parsed;
-  } catch (e) {
-    console.error("[AdminDashboard] auth parse error:", e);
-    return null;
-  }
-};
-
-  // ✅ 요약 정보 로드 (ADMIN 가드 통과 후 + 토큰 붙여서 호출)
-  useEffect(() => {
-    if (!ready) return;
-    const auth = getAuth();
-    if (auth?.email) {
-      setAdminEmail(auth.email);
+  const getAuth = (): GuardianAuthPayload | null => {
+    if (typeof window === "undefined") return null;
+    const raw = window.localStorage.getItem("guardian_auth");
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw) as GuardianAuthPayload;
+    } catch {
+      return null;
     }
+  };
 
-    (async () => {
-      try {
-        const auth = getAuth();
-        if (!auth) {
-          console.warn("[AdminDashboard] auth not found");
-          return;
-        }
-
-        const res = await fetch(`${API_BASE_URL}/api/admin/overview`, {
-          cache: "no-store",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${auth.accessToken}`,
-          },
-        });
-
-        if (!res.ok) {
-          console.error("[AdminDashboard] overview load failed", res.status);
-          return;
-        }
-
-        const data = await res.json();
-        setOverview({
-          clientCount: data.clientCount ?? 0,
-          managerCount: data.managerCount ?? 0,
-          activeMatches: data.activeMatches ?? 0,
-        });
-      } catch (e) {
-        console.error("[AdminDashboard] overview error:", e);
-      }
-    })();
-
-    (async () => {
-      try {
-        const auth = getAuth();
-        if (!auth) return;
-        setAdherenceError(null);
-        const res = await fetch(
-          `${API_BASE_URL}/api/admin/medication/adherence?months=6`,
-          {
-            cache: "no-store",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${auth.accessToken}`,
-            },
-          },
-        );
-        if (!res.ok) {
-          setAdherenceError("투약 순응도 데이터를 불러오지 못했습니다.");
-          return;
-        }
-        const data: MonthlyAdherenceResponse = await res.json();
-        setAdherencePoints(data.points ?? []);
-      } catch (e) {
-        setAdherenceError("투약 순응도 데이터를 불러오지 못했습니다.");
-      }
-    })();
-  }, [ready]);
-
-  const totalUsers = useMemo(() => {
-    if (!overview) return 0;
-    return overview.clientCount + overview.managerCount;
-  }, [overview]);
-// ✅ 로그아웃
-  const handleLogout = () => {
+  const logoutAndRedirect = useCallback(() => {
     if (typeof window !== "undefined") {
       window.localStorage.removeItem("guardian_auth");
       window.localStorage.removeItem("accessToken");
@@ -185,166 +139,197 @@ const getAuth = (): GuardianAuthPayload | null => {
       window.localStorage.removeItem("userId");
       window.localStorage.removeItem("userEmail");
     }
-    router.replace("/");     // 로그인 페이지로 이동
-  };
-  // ✅ 유저 검색 (토큰 포함)
-const searchUsers = async () => {
-  try {
-    setUserLoading(true);
-    setUserError(null);
-    setUsers([]);
-    setSelectedUser(null);
-    setUserMedication(null);
-    setUserMedicationError(null);
-    setDeleteError(null);
+    router.replace("/"); // 로그인 페이지(또는 홈)로 이동
+  }, [router]);
 
-    const auth = getAuth();
-    if (!auth) {
-      setUserError('??? ??? ????. ?? ???????.');
-      return;
-    }
-
-    const params = new URLSearchParams();
-    params.set('keyword', userKeyword.trim());
-    if (userRole !== 'ALL') params.set('role', userRole);
-
-    const res = await fetch(`${API_BASE_URL}/api/admin/users?${params.toString()}`,
-      {
-        cache: 'no-store',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${auth.accessToken}`,
-        },
-      });
-
-    if (res.status === 401) throw new Error('??? ???????. ?? ???????');
-    if (res.status === 403) throw new Error('??? ??? ????.');
-    if (!res.ok) throw new Error('??? ??? ???? ?????.');
-
-    const data: AdminUserSummary[] = await res.json();
-    setUsers(data);
-  } catch (err: unknown) {
-    setUserError(err instanceof Error ? err.message : '??? ?? ? ??? ??????.');
-  } finally {
-    setUserLoading(false);
-  }
-};
-
-const loadUserDetail = async (userId: number) => {
-  try {
-    setDetailLoading(true);
-    setUserMedication(null);
-    setUserMedicationError(null);
-    setDeleteError(null);
-
-    const auth = getAuth();
-    if (!auth) {
-      console.warn('[AdminDashboard] auth not found while loading detail');
-      setDetailLoading(false);
-      return;
-    }
-
-    const res = await fetch(`${API_BASE_URL}/api/admin/users/${userId}`,
-      {
-        cache: 'no-store',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${auth.accessToken}`,
-        },
-      });
-
-    if (!res.ok) {
-      throw new Error('??? ??? ???? ?????.');
-    }
-
-    const data: AdminUserDetail = await res.json();
-    setSelectedUser(data);
-
-    const roleUpper = data.role?.toUpperCase() ?? '';
-    if (roleUpper.includes('CLIENT')) {
-      try {
-        const medRes = await fetch(`${API_BASE_URL}/api/admin/users/${userId}/medication-summary`,
-          {
-            cache: 'no-store',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${auth.accessToken}`,
-            },
-          });
-        if (medRes.ok) {
-          const medData: UserMedicationSummary = await medRes.json();
-          setUserMedication(medData);
-        } else {
-          setUserMedication(null);
-          setUserMedicationError('??/??? ???? ???? ?????.');
-        }
-      } catch (err) {
-        setUserMedication(null);
-        setUserMedicationError('??/??? ???? ???? ?????.');
+  const fetchWithAuth = useCallback(
+    async (url: string, init: RequestInit = {}) => {
+      const auth = getAuth();
+      if (!auth?.accessToken) {
+        logoutAndRedirect();
+        throw new Error("로그인 정보가 없습니다. 다시 로그인해주세요.");
       }
-    } else {
+
+      const res = await fetch(url, {
+        ...init,
+        cache: "no-store",
+        headers: {
+          "Content-Type": "application/json",
+          ...(init.headers ?? {}),
+          Authorization: `Bearer ${auth.accessToken}`,
+        },
+      });
+
+      // ✅ 핵심: 401이면 자동 로그아웃 + 이동
+      if (res.status === 401) {
+        logoutAndRedirect();
+        throw new Error("세션이 만료되었습니다. 다시 로그인해주세요.");
+      }
+
+      return res;
+    },
+    [logoutAndRedirect]
+  );
+
+  useEffect(() => {
+    if (!ready) return;
+
+    const auth = getAuth();
+    if (auth?.email) setAdminEmail(auth.email);
+
+    (async () => {
+      try {
+        const res = await fetchWithAuth(`${API_BASE_URL}/api/admin/overview`);
+        if (!res.ok) throw new Error("요약 정보를 불러오지 못했습니다.");
+        const data = await res.json();
+        setOverview({
+          clientCount: data.clientCount ?? 0,
+          managerCount: data.managerCount ?? 0,
+          activeMatches: data.activeMatches ?? 0,
+        });
+      } catch (e) {
+        // 401은 fetchWithAuth에서 처리됨
+        console.error("[AdminDashboard] overview error:", e);
+      }
+    })();
+
+    (async () => {
+      try {
+        setAdherenceError(null);
+        const res = await fetchWithAuth(
+          `${API_BASE_URL}/api/admin/medication/adherence?months=6`
+        );
+        if (!res.ok) {
+          setAdherenceError("투약 순응도 데이터를 불러오지 못했습니다.");
+          return;
+        }
+        const data: MonthlyAdherenceResponse = await res.json();
+        setAdherencePoints(data.points ?? []);
+      } catch (e) {
+        console.error("[AdminDashboard] adherence error:", e);
+        setAdherenceError("투약 순응도 데이터를 불러오지 못했습니다.");
+      }
+    })();
+  }, [ready, fetchWithAuth]);
+
+  const totalUsers = useMemo(() => {
+    if (!overview) return 0;
+    return overview.clientCount + overview.managerCount;
+  }, [overview]);
+
+  const handleLogout = () => logoutAndRedirect();
+
+  const searchUsers = async () => {
+    try {
+      setUserLoading(true);
+      setUserError(null);
+      setUsers([]);
+      setSelectedUser(null);
       setUserMedication(null);
       setUserMedicationError(null);
-    }
-  } catch (e) {
-    console.error('[AdminDashboard] user detail error:', e);
-  } finally {
-    setDetailLoading(false);
-  }
-};
+      setDeleteError(null);
 
-const handleDeleteUser = async () => {
-  if (!selectedUser) return;
-  if (!confirm('?? ??? ????????? ?? ? ??? ? ????.')) return;
+      const params = new URLSearchParams();
+      params.set("keyword", userKeyword.trim());
+      if (userRole !== "ALL") params.set("role", userRole);
 
-  try {
-    setDeleteLoading(true);
-    setDeleteError(null);
-    const auth = getAuth();
-    if (!auth) {
-      setDeleteError('?? ??? ?? ? ????.');
-      return;
-    }
-    const res = await fetch(`${API_BASE_URL}/api/admin/users/${selectedUser.id}`, {
-      method: 'DELETE',
-      cache: 'no-store',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${auth.accessToken}`,
-      },
-    });
-    if (!res.ok) {
-      const msg = await res.text();
-      throw new Error(msg || '?? ??? ??????.');
-    }
-    setUsers((prev) => prev.filter((u) => u.id !== selectedUser.id));
-    setSelectedUser(null);
-    setUserMedication(null);
-  } catch (err) {
-    setDeleteError(err instanceof Error ? err.message : '?? ??? ??????.');
-  } finally {
-    setDeleteLoading(false);
-  }
-};
+      const res = await fetchWithAuth(
+        `${API_BASE_URL}/api/admin/users?${params.toString()}`
+      );
 
-  // ✅ 유저 상세 (토큰 포함)
-  
-  // ⛔ 아직 ADMIN 확인 중이면 로딩 화면만
+      if (res.status === 403) throw new Error("권한이 없습니다.");
+      if (!res.ok) throw new Error("유저 목록을 불러오지 못했습니다.");
+
+      const data: AdminUserSummary[] = await res.json();
+      setUsers(data);
+    } catch (err: unknown) {
+      setUserError(
+        err instanceof Error ? err.message : "유저 검색 중 오류가 발생했습니다."
+      );
+    } finally {
+      setUserLoading(false);
+    }
+  };
+
+  const loadUserDetail = async (userId: number) => {
+    try {
+      setDetailLoading(true);
+      setUserMedication(null);
+      setUserMedicationError(null);
+      setDeleteError(null);
+
+      const res = await fetchWithAuth(`${API_BASE_URL}/api/admin/users/${userId}`);
+      if (!res.ok) throw new Error("유저 상세 정보를 불러오지 못했습니다.");
+
+      const data: AdminUserDetail = await res.json();
+      setSelectedUser(data);
+
+      const roleUpper = (data.role ?? "").toUpperCase();
+      if (roleUpper.includes("CLIENT")) {
+        try {
+          const medRes = await fetchWithAuth(
+            `${API_BASE_URL}/api/admin/users/${userId}/medication-summary`
+          );
+          if (medRes.ok) {
+            const medData: UserMedicationSummary = await medRes.json();
+            setUserMedication(medData);
+          } else {
+            setUserMedication(null);
+            setUserMedicationError("복약 정보를 불러오지 못했습니다.");
+          }
+        } catch {
+          setUserMedication(null);
+          setUserMedicationError("복약 정보를 불러오지 못했습니다.");
+        }
+      } else {
+        setUserMedication(null);
+        setUserMedicationError(null);
+      }
+    } catch (e) {
+      console.error("[AdminDashboard] user detail error:", e);
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
+  const handleDeleteUser = async () => {
+    if (!selectedUser) return;
+    if (!confirm("정말 이 유저를 삭제하시겠습니까?")) return;
+
+    try {
+      setDeleteLoading(true);
+      setDeleteError(null);
+
+      const res = await fetchWithAuth(`${API_BASE_URL}/api/admin/users/${selectedUser.id}`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) {
+        const msg = await res.text();
+        throw new Error(msg || "유저 삭제에 실패했습니다.");
+      }
+
+      setUsers((prev) => prev.filter((u) => u.id !== selectedUser.id));
+      setSelectedUser(null);
+      setUserMedication(null);
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : "유저 삭제에 실패했습니다.");
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
   if (!ready) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-slate-50">
-        <p className="text-sm text-slate-500">
-          관리자 권한을 확인하는 중입니다...
-        </p>
+        <p className="text-sm text-slate-500">관리자 권한을 확인하는 중입니다...</p>
       </main>
     );
   }
 
-  // ✅ 여기부터는 실제 관리자 페이지
   return (
     <main className="min-h-screen bg-slate-50 px-4 py-6 sm:px-8">
       <div className="mx-auto flex max-w-6xl flex-col gap-6">
-        {/* 상단 헤더 */}
         <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-slate-900">
@@ -354,14 +339,11 @@ const handleDeleteUser = async () => {
               전체 이용자와 매칭 현황을 관리하고, 각 유저의 상세 정보를 확인할 수 있습니다.
             </p>
           </div>
-          {/* 우측: 로그인한 관리자 정보 + 로그아웃 */}
           <div className="flex items-center gap-3">
             {adminEmail && (
               <div className="text-right">
                 <p className="text-xs text-slate-500">로그인 중인 계정</p>
-                <p className="text-sm font-medium text-slate-800">
-                  {adminEmail}
-                </p>
+                <p className="text-sm font-medium text-slate-800">{adminEmail}</p>
               </div>
             )}
             <button
@@ -374,7 +356,6 @@ const handleDeleteUser = async () => {
           </div>
         </header>
 
-        {/* 요약 카드 */}
         <section className="grid gap-3 sm:grid-cols-3">
           <SummaryCard
             label="전체 이용자"
@@ -387,19 +368,14 @@ const handleDeleteUser = async () => {
           />
           <SummaryCard
             label="환자 수"
-            value={
-              overview ? `${overview.clientCount.toLocaleString()}명` : "-"
-            }
+            value={overview ? `${overview.clientCount.toLocaleString()}명` : "-"}
           />
           <SummaryCard
             label="관리인 수"
-            value={
-              overview ? `${overview.managerCount.toLocaleString()}명` : "-"
-            }
+            value={overview ? `${overview.managerCount.toLocaleString()}명` : "-"}
           />
         </section>
 
-        {/* 투약 순응도 (최근 6개월) */}
         {(adherencePoints.length > 0 || adherenceError) && (
           <section className="rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm sm:px-5">
             <div className="flex items-center justify-between gap-3">
@@ -418,33 +394,22 @@ const handleDeleteUser = async () => {
             {!adherenceError && (
               <div className="mt-4 grid gap-3 sm:grid-cols-6">
                 {adherencePoints.map((point) => (
-                  <AdherenceBar
-                    key={point.month}
-                    label={point.month}
-                    value={point.rate}
-                  />
+                  <AdherenceBar key={point.month} label={point.month} value={point.rate} />
                 ))}
                 {adherencePoints.length === 0 && (
-                  <p className="text-xs text-slate-500">
-                    표시할 순응도 데이터가 없습니다.
-                  </p>
+                  <p className="text-xs text-slate-500">표시할 순응도 데이터가 없습니다.</p>
                 )}
               </div>
             )}
           </section>
         )}
 
-        {/* 메인 2컬럼 레이아웃 */}
         <section className="grid gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
-          {/* 좌측: 검색 + 리스트 */}
           <div className="space-y-4">
-            {/* 검색 박스 */}
             <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm sm:px-5">
               <div className="flex items-center justify-between gap-2">
                 <div>
-                  <h2 className="text-base font-semibold text-slate-900">
-                    유저 검색
-                  </h2>
+                  <h2 className="text-base font-semibold text-slate-900">유저 검색</h2>
                   <p className="text-xs text-slate-500">
                     이름 / 이메일 + 역할로 환자 또는 관리인을 검색합니다.
                   </p>
@@ -455,7 +420,7 @@ const handleDeleteUser = async () => {
                 className="mt-3 space-y-3"
                 onSubmit={(e) => {
                   e.preventDefault();
-                  searchUsers();
+                  void searchUsers();
                 }}
               >
                 <div className="flex flex-col gap-2 sm:flex-row">
@@ -469,9 +434,7 @@ const handleDeleteUser = async () => {
                   <select
                     className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-800 shadow-sm focus:border-indigo-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                     value={userRole}
-                    onChange={(e) =>
-                      setUserRole(e.target.value as UserRoleFilter)
-                    }
+                    onChange={(e) => setUserRole(e.target.value as UserRoleFilter)}
                   >
                     <option value="ALL">전체</option>
                     <option value="CLIENT">환자</option>
@@ -479,6 +442,7 @@ const handleDeleteUser = async () => {
                     <option value="ADMIN">관리자</option>
                   </select>
                 </div>
+
                 <button
                   type="submit"
                   className="inline-flex w-full items-center justify-center rounded-md bg-indigo-500 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/70"
@@ -486,17 +450,13 @@ const handleDeleteUser = async () => {
                 >
                   {userLoading ? "검색 중..." : "검색"}
                 </button>
-                {userError && (
-                  <p className="text-xs text-red-500">{userError}</p>
-                )}
+
+                {userError && <p className="text-xs text-red-500">{userError}</p>}
               </form>
             </div>
 
-            {/* 검색 결과 리스트 */}
             <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm sm:px-5">
-              <h3 className="text-sm font-semibold text-slate-900">
-                검색 결과
-              </h3>
+              <h3 className="text-sm font-semibold text-slate-900">검색 결과</h3>
               <p className="text-xs text-slate-400">
                 유저를 클릭하면 오른쪽에서 상세 정보를 확인할 수 있습니다.
               </p>
@@ -511,7 +471,7 @@ const handleDeleteUser = async () => {
                 {users.map((u) => (
                   <article
                     key={u.id}
-                    onClick={() => loadUserDetail(u.id)}
+                    onClick={() => void loadUserDetail(u.id)}
                     className={`cursor-pointer rounded-xl border px-3 py-2 text-xs transition ${
                       selectedUser?.id === u.id
                         ? "border-indigo-300 bg-indigo-50"
@@ -520,25 +480,17 @@ const handleDeleteUser = async () => {
                   >
                     <div className="flex items-center justify-between gap-2">
                       <div>
-                        <p className="text-sm font-semibold text-slate-900">
-                          {u.name}
-                        </p>
-                        <p className="text-[11px] text-slate-500">
-                          {u.email}
-                        </p>
+                        <p className="text-sm font-semibold text-slate-900">{u.name}</p>
+                        <p className="text-[11px] text-slate-500">{u.email}</p>
                       </div>
                       <div className="text-right text-[10px] text-slate-500">
-                        <p>{u.role}</p>
-                        <p className="mt-0.5">{u.status}</p>
+                        <p>{roleLabel(u.role)}</p>
+                        <p className="mt-0.5">{statusLabel(u.status)}</p>
                       </div>
                     </div>
+
                     <p className="mt-1 text-[10px] text-slate-400">
-                      가입일{" "}
-                      {new Date(u.createdAt).toLocaleDateString("ko-KR", {
-                        year: "numeric",
-                        month: "2-digit",
-                        day: "2-digit",
-                      })}
+                      가입일 {formatDateTime(u.createdAt)}
                     </p>
                   </article>
                 ))}
@@ -546,11 +498,8 @@ const handleDeleteUser = async () => {
             </div>
           </div>
 
-          {/* 우측: 선택된 유저 상세 */}
           <div className="rounded-2xl border border-slate-200 bg-white px-4 py-5 shadow-sm sm:px-6">
-            <h2 className="text-base font-semibold text-slate-900">
-              선택된 유저 정보
-            </h2>
+            <h2 className="text-base font-semibold text-slate-900">선택된 유저 정보</h2>
             <p className="mt-1 text-xs text-slate-500">
               좌측에서 유저를 선택하면 자세한 정보를 확인할 수 있습니다.
             </p>
@@ -568,36 +517,30 @@ const handleDeleteUser = async () => {
             {selectedUser && (
               <div className="mt-5 space-y-4">
                 <section className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4">
-                  <h3 className="text-sm font-semibold text-slate-900">?? ??</h3>
+                  <h3 className="text-sm font-semibold text-slate-900">기본 정보</h3>
                   <div className="mt-3 grid gap-y-2 text-sm text-slate-700">
-                    <InfoRow label="??" value={selectedUser.name} />
-                    <InfoRow label="???" value={selectedUser.email} />
-                    <InfoRow label="??" value={selectedUser.role} />
-                    <InfoRow label="??" value={selectedUser.status} />
+                    <InfoRow label="이름" value={selectedUser.name} />
+                    <InfoRow label="이메일" value={selectedUser.email} />
+                    <InfoRow label="회원 유형" value={roleLabel(selectedUser.role)} />
+                    <InfoRow label="상태" value={statusLabel(selectedUser.status)} />
                   </div>
                 </section>
 
                 <section className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4">
-                  <h3 className="text-sm font-semibold text-slate-900">???? / ??</h3>
+                  <h3 className="text-sm font-semibold text-slate-900">상세 정보</h3>
                   <div className="mt-3 grid gap-y-2 text-sm text-slate-700">
-                    <InfoRow label="??" value={selectedUser.phone || "-"} />
-                    <InfoRow label="??" value={selectedUser.address || "-"} />
-                    <InfoRow label="?? ??" value={selectedUser.detailAddress || "-"} />
-                    <InfoRow label="????" value={selectedUser.zipCode || "-"} />
+                    <InfoRow label="전화번호" value={selectedUser.phone || "-"} />
+                    <InfoRow label="도로명 주소" value={selectedUser.address || "-"} />
+                    <InfoRow label="상세 주소" value={selectedUser.detailAddress || "-"} />
+                    <InfoRow label="우편번호" value={selectedUser.zipCode || "-"} />
                   </div>
                 </section>
 
                 <section className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4">
-                  <h3 className="text-sm font-semibold text-slate-900">??/?? ??</h3>
+                  <h3 className="text-sm font-semibold text-slate-900">가입/수정일</h3>
                   <div className="mt-3 grid gap-y-2 text-sm text-slate-700">
-                    <InfoRow
-                      label="???"
-                      value={new Date(selectedUser.createdAt).toLocaleString('ko-KR')}
-                    />
-                    <InfoRow
-                      label="??? ??"
-                      value={selectedUser.updatedAt ? new Date(selectedUser.updatedAt).toLocaleString('ko-KR') : '-'}
-                    />
+                    <InfoRow label="가입일" value={formatDateTime(selectedUser.createdAt)} />
+                    <InfoRow label="수정일" value={formatDateTime(selectedUser.updatedAt)} />
                   </div>
                 </section>
 
@@ -607,16 +550,20 @@ const handleDeleteUser = async () => {
 
                 {userMedication && (
                   <section className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4">
-                    <h3 className="text-sm font-semibold text-slate-900">?? / ???</h3>
+                    <h3 className="text-sm font-semibold text-slate-900">복약 정보</h3>
+
                     <div className="mt-2 flex items-center gap-2 text-sm text-slate-700">
-                      <span className="text-xs text-slate-500">?? ???</span>
+                      <span className="text-xs text-slate-500">복약 순응도</span>
                       <span className="rounded-full bg-indigo-100 px-2 py-1 text-[11px] font-semibold text-indigo-700">
-                        {userMedication.adherenceRate != null ? `${Math.round(userMedication.adherenceRate)}%` : '?? ??'}
+                        {userMedication.adherenceRate != null
+                          ? `${Math.round(userMedication.adherenceRate)}%`
+                          : "데이터 없음"}
                       </span>
                     </div>
+
                     <div className="mt-3 space-y-2">
                       {userMedication.plans.length === 0 && (
-                        <p className="text-xs text-slate-500">??? ?? ??? ????.</p>
+                        <p className="text-xs text-slate-500">등록된 복약 계획이 없습니다.</p>
                       )}
                       {userMedication.plans.map((plan, idx) => (
                         <div
@@ -625,12 +572,12 @@ const handleDeleteUser = async () => {
                         >
                           <p className="font-semibold text-slate-900">{plan.medicineName}</p>
                           <p className="text-xs text-slate-500">
-                            {plan.alarmTime ? `?? ${plan.alarmTime.slice(0, 5)}` : '?? ?? ??'}
+                            {plan.alarmTime ? `알람 ${plan.alarmTime.slice(0, 5)}` : "알람 시간 없음"}
                           </p>
                           <p className="text-xs text-slate-500">
                             {plan.daysOfWeek && plan.daysOfWeek.length > 0
-                              ? `??: ${plan.daysOfWeek.join(', ')}`
-                              : '?? ?? ??'}
+                              ? `요일: ${plan.daysOfWeek.join(", ")}`
+                              : "요일 설정 없음"}
                           </p>
                         </div>
                       ))}
@@ -641,11 +588,11 @@ const handleDeleteUser = async () => {
                 <div className="flex items-center gap-3">
                   <button
                     type="button"
-                    onClick={handleDeleteUser}
+                    onClick={() => void handleDeleteUser()}
                     disabled={deleteLoading}
                     className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 shadow-sm hover:bg-rose-100 disabled:opacity-60"
                   >
-                    {deleteLoading ? '?? ?...' : '?? ??'}
+                    {deleteLoading ? "삭제 중..." : "삭제"}
                   </button>
                   {deleteError && <p className="text-xs text-rose-500">{deleteError}</p>}
                 </div>
@@ -667,13 +614,9 @@ type SummaryCardProps = {
 function SummaryCard({ label, value, description }: SummaryCardProps) {
   return (
     <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
-      <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-        {label}
-      </p>
+      <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</p>
       <p className="mt-2 text-xl font-semibold text-slate-900">{value}</p>
-      {description && (
-        <p className="mt-1 text-xs text-slate-500">{description}</p>
-      )}
+      {description && <p className="mt-1 text-xs text-slate-500">{description}</p>}
     </div>
   );
 }
@@ -681,9 +624,7 @@ function SummaryCard({ label, value, description }: SummaryCardProps) {
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-start justify-between gap-3 text-sm">
-      <span className="w-20 shrink-0 text-xs font-medium text-slate-500">
-        {label}
-      </span>
+      <span className="w-20 shrink-0 text-xs font-medium text-slate-500">{label}</span>
       <span className="flex-1 text-sm text-slate-800">{value}</span>
     </div>
   );
@@ -696,16 +637,11 @@ function AdherenceBar({ label, value }: { label: string; value: number }) {
       <div className="flex h-32 w-full items-end rounded-lg border border-slate-200 bg-slate-50 px-2 py-2">
         <div
           className="w-full rounded-md bg-indigo-500 shadow-sm transition-all"
-          style={{
-            height: `${clamped}%`,
-            minHeight: "4px",
-          }}
+          style={{ height: `${clamped}%`, minHeight: "4px" }}
         />
       </div>
       <div className="text-center">
-        <p className="text-[11px] font-semibold text-slate-900">
-          {Math.round(clamped)}%
-        </p>
+        <p className="text-[11px] font-semibold text-slate-900">{Math.round(clamped)}%</p>
         <p className="text-[11px] text-slate-500">{label}</p>
       </div>
     </div>

@@ -116,7 +116,7 @@ const guardLoading = false; // 로딩 상태를 따로 관리하지 않는 구�
     if (typeof window !== "undefined") {
       window.localStorage.removeItem("guardian_auth");
     }
-    router.replace("/login");
+    router.replace("/");
   }, [router]);
 
   const loadOverview = useCallback(async () => {

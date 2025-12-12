@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";     
@@ -58,7 +58,7 @@ type MonthlyAdherenceResponse = {
   points: MedicationAdherencePoint[];
 };
 
-// ??濡쒓렇????localStorage????ν빐??援ъ“
+// ✅ 로그인 시 localStorage에 저장해둔 구조
 type GuardianAuthPayload = {
   userId: number;
   role: string;
@@ -69,7 +69,7 @@ type GuardianAuthPayload = {
 
 export default function AdminDashboardPage() {
     const router = useRouter();   
-  // ??愿由ъ옄 媛??
+  // ✅ 관리자 가드
   const ready = useAdminGuard();
 
   const [overview, setOverview] = useState<AdminOverview | null>(null);
@@ -92,11 +92,11 @@ export default function AdminDashboardPage() {
 const getAuth = (): GuardianAuthPayload | null => {
   if (typeof window === "undefined") return null;
   const raw = window.localStorage.getItem("guardian_auth");
-  console.log("[AdminDashboard] guardian_auth raw =", raw);  // 燧?異붽?
+  console.log("[AdminDashboard] guardian_auth raw =", raw);  // ⬅ 추가
   if (!raw) return null;
   try {
     const parsed = JSON.parse(raw) as GuardianAuthPayload;
-    console.log("[AdminDashboard] guardian_auth parsed =", parsed); // 燧?異붽?
+    console.log("[AdminDashboard] guardian_auth parsed =", parsed); // ⬅ 추가
     return parsed;
   } catch (e) {
     console.error("[AdminDashboard] auth parse error:", e);
@@ -104,7 +104,7 @@ const getAuth = (): GuardianAuthPayload | null => {
   }
 };
 
-  // ???붿빟 ?뺣낫 濡쒕뱶 (ADMIN 媛???듦낵 ??+ ?좏겙 遺숈뿬???몄텧)
+  // ✅ 요약 정보 로드 (ADMIN 가드 통과 후 + 토큰 붙여서 호출)
   useEffect(() => {
     if (!ready) return;
     const auth = getAuth();
@@ -160,13 +160,13 @@ const getAuth = (): GuardianAuthPayload | null => {
           },
         );
         if (!res.ok) {
-          setAdherenceError("?ъ빟 ?쒖쓳???곗씠?곕? 遺덈윭?ㅼ? 紐삵뻽?듬땲??");
+          setAdherenceError("투약 순응도 데이터를 불러오지 못했습니다.");
           return;
         }
         const data: MonthlyAdherenceResponse = await res.json();
         setAdherencePoints(data.points ?? []);
       } catch (e) {
-        setAdherenceError("?ъ빟 ?쒖쓳???곗씠?곕? 遺덈윭?ㅼ? 紐삵뻽?듬땲??");
+        setAdherenceError("투약 순응도 데이터를 불러오지 못했습니다.");
       }
     })();
   }, [ready]);
@@ -175,7 +175,7 @@ const getAuth = (): GuardianAuthPayload | null => {
     if (!overview) return 0;
     return overview.clientCount + overview.managerCount;
   }, [overview]);
-// ??濡쒓렇?꾩썐
+// ✅ 로그아웃
   const handleLogout = () => {
     if (typeof window !== "undefined") {
       window.localStorage.removeItem("guardian_auth");
@@ -185,9 +185,9 @@ const getAuth = (): GuardianAuthPayload | null => {
       window.localStorage.removeItem("userId");
       window.localStorage.removeItem("userEmail");
     }
-    router.replace("/");     // 濡쒓렇???섏씠吏濡??대룞
+    router.replace("/");     // 로그인 페이지로 이동
   };
-  // ???좎? 寃??(?좏겙 ?ы븿)
+  // ✅ 유저 검색 (토큰 포함)
 const searchUsers = async () => {
   try {
     setUserLoading(true);
@@ -327,38 +327,38 @@ const handleDeleteUser = async () => {
   }
 };
 
-  // ???좎? ?곸꽭 (?좏겙 ?ы븿)
+  // ✅ 유저 상세 (토큰 포함)
   
-  // ???꾩쭅 ADMIN ?뺤씤 以묒씠硫?濡쒕뵫 ?붾㈃留?
+  // ⛔ 아직 ADMIN 확인 중이면 로딩 화면만
   if (!ready) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-slate-50">
         <p className="text-sm text-slate-500">
-          愿由ъ옄 沅뚰븳???뺤씤?섎뒗 以묒엯?덈떎...
+          관리자 권한을 확인하는 중입니다...
         </p>
       </main>
     );
   }
 
-  // ???ш린遺?곕뒗 ?ㅼ젣 愿由ъ옄 ?섏씠吏
+  // ✅ 여기부터는 실제 관리자 페이지
   return (
     <main className="min-h-screen bg-slate-50 px-4 py-6 sm:px-8">
       <div className="mx-auto flex max-w-6xl flex-col gap-6">
-        {/* ?곷떒 ?ㅻ뜑 */}
+        {/* 상단 헤더 */}
         <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-              愿由ъ옄 ??쒕낫??
+              관리자 대시보드
             </h1>
             <p className="mt-1 text-sm text-slate-500">
-              ?꾩껜 ?댁슜?먯? 留ㅼ묶 ?꾪솴??愿由ы븯怨? 媛??좎????곸꽭 ?뺣낫瑜??뺤씤?????덉뒿?덈떎.
+              전체 이용자와 매칭 현황을 관리하고, 각 유저의 상세 정보를 확인할 수 있습니다.
             </p>
           </div>
-          {/* ?곗륫: 濡쒓렇?명븳 愿由ъ옄 ?뺣낫 + 濡쒓렇?꾩썐 */}
+          {/* 우측: 로그인한 관리자 정보 + 로그아웃 */}
           <div className="flex items-center gap-3">
             {adminEmail && (
               <div className="text-right">
-                <p className="text-xs text-slate-500">濡쒓렇??以묒씤 怨꾩젙</p>
+                <p className="text-xs text-slate-500">로그인 중인 계정</p>
                 <p className="text-sm font-medium text-slate-800">
                   {adminEmail}
                 </p>
@@ -369,46 +369,46 @@ const handleDeleteUser = async () => {
               onClick={handleLogout}
               className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
             >
-              濡쒓렇?꾩썐
+              로그아웃
             </button>
           </div>
         </header>
 
-        {/* ?붿빟 移대뱶 */}
+        {/* 요약 카드 */}
         <section className="grid gap-3 sm:grid-cols-3">
           <SummaryCard
-            label="?꾩껜 ?댁슜??
-            value={totalUsers ? `${totalUsers.toLocaleString()}紐? : "-"}
+            label="전체 이용자"
+            value={totalUsers ? `${totalUsers.toLocaleString()}명` : "-"}
             description={
               overview
-                ? `?섏옄 ${overview.clientCount} 쨌 愿由ъ씤 ${overview.managerCount}`
+                ? `환자 ${overview.clientCount} · 관리인 ${overview.managerCount}`
                 : ""
             }
           />
           <SummaryCard
-            label="?섏옄 ??
+            label="환자 수"
             value={
-              overview ? `${overview.clientCount.toLocaleString()}紐? : "-"
+              overview ? `${overview.clientCount.toLocaleString()}명` : "-"
             }
           />
           <SummaryCard
-            label="愿由ъ씤 ??
+            label="관리인 수"
             value={
-              overview ? `${overview.managerCount.toLocaleString()}紐? : "-"
+              overview ? `${overview.managerCount.toLocaleString()}명` : "-"
             }
           />
         </section>
 
-        {/* ?ъ빟 ?쒖쓳??(理쒓렐 6媛쒖썡) */}
+        {/* 투약 순응도 (최근 6개월) */}
         {(adherencePoints.length > 0 || adherenceError) && (
           <section className="rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm sm:px-5">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <h2 className="text-base font-semibold text-slate-900">
-                  理쒓렐 6媛쒖썡 ?ъ빟 ?쒖쓳??
+                  최근 6개월 투약 순응도
                 </h2>
                 <p className="text-xs text-slate-500">
-                  ?붾퀎 ?쒖쓳??%)瑜?留됰? 洹몃옒?꾨줈 ?뺤씤?섏꽭??
+                  월별 순응도(%)를 막대 그래프로 확인하세요.
                 </p>
               </div>
             </div>
@@ -426,7 +426,7 @@ const handleDeleteUser = async () => {
                 ))}
                 {adherencePoints.length === 0 && (
                   <p className="text-xs text-slate-500">
-                    ?쒖떆???쒖쓳???곗씠?곌? ?놁뒿?덈떎.
+                    표시할 순응도 데이터가 없습니다.
                   </p>
                 )}
               </div>
@@ -434,19 +434,19 @@ const handleDeleteUser = async () => {
           </section>
         )}
 
-        {/* 硫붿씤 2而щ읆 ?덉씠?꾩썐 */}
+        {/* 메인 2컬럼 레이아웃 */}
         <section className="grid gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
-          {/* 醫뚯륫: 寃??+ 由ъ뒪??*/}
+          {/* 좌측: 검색 + 리스트 */}
           <div className="space-y-4">
-            {/* 寃??諛뺤뒪 */}
+            {/* 검색 박스 */}
             <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm sm:px-5">
               <div className="flex items-center justify-between gap-2">
                 <div>
                   <h2 className="text-base font-semibold text-slate-900">
-                    ?좎? 寃??
+                    유저 검색
                   </h2>
                   <p className="text-xs text-slate-500">
-                    ?대쫫 / ?대찓??+ ??븷濡??섏옄 ?먮뒗 愿由ъ씤??寃?됲빀?덈떎.
+                    이름 / 이메일 + 역할로 환자 또는 관리인을 검색합니다.
                   </p>
                 </div>
               </div>
@@ -462,7 +462,7 @@ const handleDeleteUser = async () => {
                   <input
                     type="text"
                     className="flex-1 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-indigo-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-                    placeholder="?대쫫 ?먮뒗 ?대찓?쇱쓣 ?낅젰?섏꽭??
+                    placeholder="이름 또는 이메일을 입력하세요"
                     value={userKeyword}
                     onChange={(e) => setUserKeyword(e.target.value)}
                   />
@@ -473,10 +473,10 @@ const handleDeleteUser = async () => {
                       setUserRole(e.target.value as UserRoleFilter)
                     }
                   >
-                    <option value="ALL">?꾩껜</option>
-                    <option value="CLIENT">?섏옄</option>
-                    <option value="MANAGER">愿由ъ씤</option>
-                    <option value="ADMIN">愿由ъ옄</option>
+                    <option value="ALL">전체</option>
+                    <option value="CLIENT">환자</option>
+                    <option value="MANAGER">관리인</option>
+                    <option value="ADMIN">관리자</option>
                   </select>
                 </div>
                 <button
@@ -484,7 +484,7 @@ const handleDeleteUser = async () => {
                   className="inline-flex w-full items-center justify-center rounded-md bg-indigo-500 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/70"
                   disabled={userLoading}
                 >
-                  {userLoading ? "寃??以?.." : "寃??}
+                  {userLoading ? "검색 중..." : "검색"}
                 </button>
                 {userError && (
                   <p className="text-xs text-red-500">{userError}</p>
@@ -492,19 +492,19 @@ const handleDeleteUser = async () => {
               </form>
             </div>
 
-            {/* 寃??寃곌낵 由ъ뒪??*/}
+            {/* 검색 결과 리스트 */}
             <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm sm:px-5">
               <h3 className="text-sm font-semibold text-slate-900">
-                寃??寃곌낵
+                검색 결과
               </h3>
               <p className="text-xs text-slate-400">
-                ?좎?瑜??대┃?섎㈃ ?ㅻⅨ履쎌뿉???곸꽭 ?뺣낫瑜??뺤씤?????덉뒿?덈떎.
+                유저를 클릭하면 오른쪽에서 상세 정보를 확인할 수 있습니다.
               </p>
 
               <div className="mt-3 max-h-80 space-y-2 overflow-y-auto">
                 {users.length === 0 && !userLoading && !userError && (
                   <p className="py-3 text-xs text-slate-500">
-                    ?꾩쭅 寃?됰맂 ?좎?媛 ?놁뒿?덈떎. 議곌굔???낅젰?섍퀬 寃?됱쓣 ?뚮윭二쇱꽭??
+                    아직 검색된 유저가 없습니다. 조건을 입력하고 검색을 눌러주세요.
                   </p>
                 )}
 
@@ -533,7 +533,7 @@ const handleDeleteUser = async () => {
                       </div>
                     </div>
                     <p className="mt-1 text-[10px] text-slate-400">
-                      媛?낆씪{" "}
+                      가입일{" "}
                       {new Date(u.createdAt).toLocaleDateString("ko-KR", {
                         year: "numeric",
                         month: "2-digit",
@@ -546,22 +546,22 @@ const handleDeleteUser = async () => {
             </div>
           </div>
 
-          {/* ?곗륫: ?좏깮???좎? ?곸꽭 */}
+          {/* 우측: 선택된 유저 상세 */}
           <div className="rounded-2xl border border-slate-200 bg-white px-4 py-5 shadow-sm sm:px-6">
             <h2 className="text-base font-semibold text-slate-900">
-              ?좏깮???좎? ?뺣낫
+              선택된 유저 정보
             </h2>
             <p className="mt-1 text-xs text-slate-500">
-              醫뚯륫?먯꽌 ?좎?瑜??좏깮?섎㈃ ?먯꽭???뺣낫瑜??뺤씤?????덉뒿?덈떎.
+              좌측에서 유저를 선택하면 자세한 정보를 확인할 수 있습니다.
             </p>
 
             {detailLoading && (
-              <p className="mt-4 text-sm text-slate-500">遺덈윭?ㅻ뒗 以?..</p>
+              <p className="mt-4 text-sm text-slate-500">불러오는 중...</p>
             )}
 
             {!detailLoading && !selectedUser && (
               <div className="mt-6 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm text-slate-400">
-                ?꾩쭅 ?좏깮???좎?媛 ?놁뒿?덈떎.
+                아직 선택된 유저가 없습니다.
               </div>
             )}
 
@@ -711,4 +711,3 @@ function AdherenceBar({ label, value }: { label: string; value: number }) {
     </div>
   );
 }
-

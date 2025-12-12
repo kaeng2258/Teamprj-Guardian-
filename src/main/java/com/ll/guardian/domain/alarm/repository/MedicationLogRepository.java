@@ -16,4 +16,6 @@ public interface MedicationLogRepository extends JpaRepository<MedicationLog, Lo
     long countByLogTimestampBetween(LocalDateTime start, LocalDateTime end);
 
     long countByClient_IdAndLogTimestampBetween(Long clientId, LocalDateTime start, LocalDateTime end);
+
+    void deleteByClient_Id(Long clientId);
 }

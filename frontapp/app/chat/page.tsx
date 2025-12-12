@@ -375,7 +375,7 @@ function GuardianChatPage() {
         await pc.setLocalDescription(offer);
         sendRtc("offer", { sdp: offer.sdp });
       } catch {
-        setRtcError("WebRTC 협상 중 오류가 발생했습니다.");
+        setRtcError("WebRTC ?�상 �??�류가 발생?�습?�다.");
       } finally {
         negotiatingRef.current = false;
       }
@@ -406,7 +406,7 @@ function GuardianChatPage() {
           }
         }
       } catch {
-        setRtcError("WebRTC 시그널 처리 중 오류가 발생했습니다.");
+        setRtcError("WebRTC ?�그??처리 �??�류가 발생?�습?�다.");
       }
     },
     [ensurePeer, sendRtc]
@@ -480,6 +480,7 @@ function GuardianChatPage() {
       localStreamRef.current = stream;
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = stream;
+        try { localVideoRef.current.play(); } catch { /* ignore */ }
       }
       setCamOn(true);
       setMicOn(true);
@@ -499,7 +500,7 @@ function GuardianChatPage() {
       });
       sendRtc("video-on", {});
     } catch {
-      setRtcError("카메라를 켤 수 없습니다. 브라우저 권한을 확인해주세요.");
+      setRtcError("카메?��? �????�습?�다. 브라?��? 권한???�인?�주?�요.");
     }
   }, [camOn, ensurePeer, sendRtc]);
 
@@ -522,7 +523,7 @@ function GuardianChatPage() {
 
   const toggleMic = useCallback(() => {
     if (!localStreamRef.current) {
-      setRtcError("먼저 카메라를 켜서 마이크 권한을 활성화해주세요.");
+      setRtcError("먼�? 카메?��? 켜서 마이??권한???�성?�해주세??");
       return;
     }
     const next = !micOn;
@@ -543,7 +544,7 @@ function GuardianChatPage() {
       const getDisplay =
         navigator.mediaDevices?.getDisplayMedia ?? legacyGetDisplay;
       if (!getDisplay) {
-        setRtcError("이 브라우저는 화면 공유를 지원하지 않습니다.");
+        setRtcError("??브라?��????�면 공유�?지?�하지 ?�습?�다.");
         return;
       }
       const stream = await getDisplay({
@@ -553,6 +554,7 @@ function GuardianChatPage() {
       screenStreamRef.current = stream;
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = stream;
+        try { localVideoRef.current.play(); } catch { /* ignore */ }
       }
       setShareOn(true);
       const track = stream.getVideoTracks()[0];
@@ -568,7 +570,7 @@ function GuardianChatPage() {
         void stopShareStream();
       });
     } catch {
-      setRtcError("화면 공유를 시작하지 못했습니다.");
+      setRtcError("?�면 공유�??�작?��? 못했?�니??");
     }
   }, [ensurePeer, shareOn, stopShareStream]);
 
@@ -596,7 +598,7 @@ function GuardianChatPage() {
         const response = await fetch(endpoints.messages(roomId));
         if (!response.ok) {
           throw new Error(
-            await extractApiError(response, "메시지를 불러오지 못했습니다.")
+            await extractApiError(response, "메시지�?불러?��? 못했?�니??")
           );
         }
         const data = await response.json();
@@ -618,7 +620,7 @@ function GuardianChatPage() {
         setMessagesError(
           error instanceof Error
             ? error.message
-            : "메시지를 불러오지 못했습니다."
+            : "메시지�?불러?��? 못했?�니??"
         );
       } finally {
         setMessagesLoading(false);
@@ -703,7 +705,7 @@ function GuardianChatPage() {
       const response = await fetch(endpoints.threads(meIdRef.current));
       if (!response.ok) {
         throw new Error(
-          await extractApiError(response, "채팅 목록을 불러오지 못했습니다.")
+          await extractApiError(response, "채팅 목록??불러?��? 못했?�니??")
         );
       }
       const data: ChatThread[] = await response.json();
@@ -725,7 +727,7 @@ function GuardianChatPage() {
       setThreadsError(
         error instanceof Error
           ? error.message
-          : "채팅 목록을 불러오지 못했습니다."
+          : "채팅 목록??불러?��? 못했?�니??"
       );
     } finally {
       setThreadsLoading(false);
@@ -780,11 +782,11 @@ function GuardianChatPage() {
 
   const sendChat = useCallback(async () => {
     if (!meIdRef.current) {
-      setRoomActionMessage("먼저 내 사용자 ID를 입력해주세요.");
+      setRoomActionMessage("먼�? ???�용??ID�??�력?�주?�요.");
       return;
     }
     if (!currentRoomRef.current) {
-      setRoomActionMessage("채팅방을 선택해주세요.");
+      setRoomActionMessage("채팅방을 ?�택?�주?�요.");
       return;
     }
     const text = inputValue.trim();
@@ -817,21 +819,21 @@ function GuardianChatPage() {
       });
       if (!response.ok) {
         throw new Error(
-          await extractApiError(response, "메시지를 전송하지 못했습니다.")
+          await extractApiError(response, "메시지�??�송?��? 못했?�니??")
         );
       }
     } catch (e: unknown) {
       setRoomActionMessage(
         e instanceof Error
           ? e.message
-          : "메시지를 전송하지 못했습니다."
+          : "메시지�??�송?��? 못했?�니??"
       );
     }
   }, [endpoints, inputValue, currentRoomRef, meIdRef]);
 
   const openRoom = useCallback(async () => {
     if (!clientIdInput || !managerIdInput) {
-      setRoomActionMessage("clientId와 managerId를 모두 입력해주세요.");
+      setRoomActionMessage("clientId?� managerId�?모두 ?�력?�주?�요.");
       return;
     }
     setRoomActionLoading(true);
@@ -849,18 +851,18 @@ function GuardianChatPage() {
       });
       if (!response.ok) {
         throw new Error(
-          await extractApiError(response, "채팅방을 생성하지 못했습니다.")
+          await extractApiError(response, "채팅방을 ?�성?��? 못했?�니??")
         );
       }
       const room: ChatThread = await response.json();
       await loadThreads();
       await selectRoom(room.roomId);
-      setRoomActionMessage("채팅방을 열었습니다.");
+      setRoomActionMessage("채팅방을 ?�었?�니??");
     } catch (e: unknown) {
       setRoomActionMessage(
         e instanceof Error
           ? e.message
-          : "채팅방을 생성하지 못했습니다."
+          : "채팅방을 ?�성?��? 못했?�니??"
       );
     } finally {
       setRoomActionLoading(false);
@@ -869,14 +871,14 @@ function GuardianChatPage() {
 
   const deleteRoom = useCallback(async () => {
     if (!currentRoomRef.current) {
-      setRoomActionMessage("삭제할 채팅방을 먼저 선택해주세요.");
+      setRoomActionMessage("??��??채팅방을 먼�? ?�택?�주?�요.");
       return;
     }
     if (!meIdRef.current) {
-      setRoomActionMessage("내 사용자 ID가 필요합니다.");
+      setRoomActionMessage("???�용??ID가 ?�요?�니??");
       return;
     }
-    if (!window.confirm(`Room #${currentRoomRef.current}을 삭제하시겠습니까?`)) {
+    if (!window.confirm(`Room #${currentRoomRef.current}????��?�시겠습?�까?`)) {
       return;
     }
     setRoomActionLoading(true);
@@ -890,7 +892,7 @@ function GuardianChatPage() {
       );
       if (!response.ok) {
         throw new Error(
-          await extractApiError(response, "채팅방을 삭제하지 못했습니다.")
+          await extractApiError(response, "채팅방을 ??��?��? 못했?�니??")
         );
       }
       setCurrentRoomId(null);
@@ -898,13 +900,13 @@ function GuardianChatPage() {
       setMessages([]);
       seenKeysRef.current.clear();
       await loadThreads();
-      setRoomActionMessage("채팅방을 삭제했습니다.");
+      setRoomActionMessage("채팅방을 ??��?�습?�다.");
       cleanupPeer();
     } catch (error) {
       setRoomActionMessage(
         error instanceof Error
           ? error.message
-          : "채팅방을 삭제하지 못했습니다."
+          : "채팅방을 ??��?��? 못했?�니??"
       );
     } finally {
       setRoomActionLoading(false);
@@ -913,15 +915,15 @@ function GuardianChatPage() {
 
   const netStatusLabel =
     wsStatus === "connected"
-      ? { label: "WS 연결됨", className: "status ok" }
+      ? { label: "WS ?�결??, className: "status ok" }
       : wsStatus === "connecting"
-      ? { label: "WS 연결 중...", className: "status warn" }
-      : { label: "WS 연결 안 됨", className: "status err" };
+      ? { label: "WS ?�결 �?..", className: "status warn" }
+      : { label: "WS ?�결 ????, className: "status err" };
 
-  const roomTitle = currentRoomId ? `Room #${currentRoomId}` : "채팅방 미선택";
+  const roomTitle = currentRoomId ? `Room #${currentRoomId}` : "채팅�?미선??;
   const roomMeta = meId
-    ? `내 ID: ${meId}${currentRoomId ? " · 실시간 수신 중" : ""}`
-    : "내 ID를 입력하고 방을 선택하세요";
+    ? `??ID: ${meId}${currentRoomId ? " · ?�시�??�신 �? : ""}`
+    : "??ID�??�력?�고 방을 ?�택?�세??;
 
   return (
     <>
@@ -1246,10 +1248,10 @@ function GuardianChatPage() {
                 }
               }}
             >
-              {camOn ? "카메라 끄기" : "카메라 켜기"}
+              {camOn ? "카메???�기" : "카메??켜기"}
             </button>
             <button className="btn secondary" onClick={toggleMic} disabled={!camOn}>
-              {micOn ? "마이크 끄기" : "마이크 켜기"}
+              {micOn ? "마이???�기" : "마이??켜기"}
             </button>
             <button
               className="btn"
@@ -1261,9 +1263,9 @@ function GuardianChatPage() {
                 }
               }}
             >
-              {shareOn ? "화면공유 중지" : "화면공유 시작"}
+              {shareOn ? "?�면공유 중�?" : "?�면공유 ?�작"}
             </button>
-            <span className="hint">카메라만 켜면 자동 연결/송출됩니다.</span>
+            <span className="hint">카메?�만 켜면 ?�동 ?�결/?�출?�니??</span>
           </div>
           <div className="videoPanel">
             <div>
@@ -1276,11 +1278,11 @@ function GuardianChatPage() {
             </div>
             <div className="videoGrid">
               <div className="tile">
-                <small>내 미리보기</small>
+                <small>??미리보기</small>
                 <video ref={localVideoRef} autoPlay playsInline muted />
               </div>
               <div className="tile">
-                <small>상대 영상</small>
+                <small>?��? ?�상</small>
                 <video ref={remoteVideoRef} autoPlay playsInline />
               </div>
             </div>
@@ -1295,7 +1297,7 @@ function GuardianChatPage() {
             <div className="toolbar">
               <input
                 type="number"
-                placeholder="내 ID"
+                placeholder="??ID"
                 value={meId ?? ""}
                 onChange={(event) => {
                   const value = Number(event.target.value);
@@ -1323,22 +1325,22 @@ function GuardianChatPage() {
                 }}
               />
               <button className="btn" disabled={roomActionLoading} onClick={() => void openRoom()}>
-                방 생성/획득
+                �??�성/?�득
               </button>
               <button
                 className="btn secondary"
                 disabled={roomActionLoading || !currentRoomId}
                 onClick={() => void deleteRoom()}
               >
-                방 삭제
+                �???��
               </button>
             </div>
           </div>
           <div className="threads">
-            {threadsLoading && <div className="status warn">목록을 불러오는 중...</div>}
+            {threadsLoading && <div className="status warn">목록??불러?�는 �?..</div>}
             {threadsError && <div className="status err">{threadsError}</div>}
             {!threadsLoading && !threadsError && threads.length === 0 && (
-              <div className="status">채팅방이 없습니다.</div>
+              <div className="status">채팅방이 ?�습?�다.</div>
             )}
             {!threadsLoading &&
               !threadsError &&
@@ -1350,7 +1352,7 @@ function GuardianChatPage() {
                 >
                   <div>
                     <div className="name">
-                      Room #{thread.roomId} ({thread.clientId}↔{thread.managerId})
+                      Room #{thread.roomId} ({thread.clientId}??thread.managerId})
                     </div>
                     <div className="snippet">{thread.lastMessageSnippet ?? ""}</div>
                   </div>
@@ -1360,22 +1362,22 @@ function GuardianChatPage() {
           </div>
           <div className="msgsWrap">
             <div className="msgs" ref={messagesRef}>
-              {messagesLoading && <div className="status warn">메시지를 불러오는 중...</div>}
+              {messagesLoading && <div className="status warn">메시지�?불러?�는 �?..</div>}
               {messagesError && <div className="status err">{messagesError}</div>}
               {!messagesLoading && !messagesError && messages.length === 0 && (
-                <div className="empty">메시지가 없습니다.</div>
+                <div className="empty">메시지가 ?�습?�다.</div>
               )}
               {messages.map((message) => {
                 const emergency =
                   (message.messageType ?? "").toUpperCase() === "NOTICE" ||
-                  /긴급\s*호출/.test(message.content ?? "");
+                  /긴급\s*?�출/.test(message.content ?? "");
                 const mine = Boolean(message.senderId && meId === message.senderId);
                 const owner =
                   message.senderName && message.senderName.trim().length > 0
                     ? message.senderName
                     : message.senderId
-                    ? `사용자#${message.senderId}`
-                    : "시스템";
+                    ? `?�용??${message.senderId}`
+                    : "?�스??;
                 const bubbleClass = [
                   "bubble",
                   mine ? "mine" : "other",
@@ -1388,7 +1390,7 @@ function GuardianChatPage() {
                     <div>
                       {emergency && (
                         <div style={{ marginBottom: 6, fontWeight: 700 }}>
-                          {owner}님의 비상 호출입니다
+                          {owner}?�의 비상 ?�출?�니??
                         </div>
                       )}
                       <div>{message.content}</div>
@@ -1415,12 +1417,12 @@ function GuardianChatPage() {
                 scrollMessagesToBottom();
               }}
             >
-              맨 아래로 ↓
+              �??�래�???
             </button>
           </div>
           <div className="composer">
             <input
-              placeholder="메시지를 입력하세요 (Enter 전송)"
+              placeholder="메시지�??�력?�세??(Enter ?�송)"
               value={inputValue}
               onChange={(event) => setInputValue(event.target.value)}
               onKeyDown={(event) => {
@@ -1443,7 +1445,7 @@ function GuardianChatPage() {
 
 export default function GuardianChatPageWrapper() {
   return (
-    <Suspense fallback={<div className="p-4 text-sm text-slate-600">채팅을 불러오는 중입니다...</div>}>
+    <Suspense fallback={<div className="p-4 text-sm text-slate-600">채팅??불러?�는 중입?�다...</div>}>
       <GuardianChatPage />
     </Suspense>
   );

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
@@ -375,7 +375,7 @@ function GuardianChatPage() {
         await pc.setLocalDescription(offer);
         sendRtc("offer", { sdp: offer.sdp });
       } catch {
-        setRtcError("WebRTC ?�상 �??�류가 발생?�습?�다.");
+        setRtcError("WebRTC ?묒긽 以??ㅻ쪟媛 諛쒖깮?덉뒿?덈떎.");
       } finally {
         negotiatingRef.current = false;
       }
@@ -406,7 +406,7 @@ function GuardianChatPage() {
           }
         }
       } catch {
-        setRtcError("WebRTC ?�그??처리 �??�류가 발생?�습?�다.");
+        setRtcError("WebRTC ?쒓렇??泥섎━ 以??ㅻ쪟媛 諛쒖깮?덉뒿?덈떎.");
       }
     },
     [ensurePeer, sendRtc]
@@ -500,7 +500,7 @@ function GuardianChatPage() {
       });
       sendRtc("video-on", {});
     } catch {
-      setRtcError("카메?��? �????�습?�다. 브라?��? 권한???�인?�주?�요.");
+      setRtcError("移대찓?쇰? 耳????놁뒿?덈떎. 釉뚮씪?곗? 沅뚰븳???뺤씤?댁＜?몄슂.");
     }
   }, [camOn, ensurePeer, sendRtc]);
 
@@ -523,7 +523,7 @@ function GuardianChatPage() {
 
   const toggleMic = useCallback(() => {
     if (!localStreamRef.current) {
-      setRtcError("먼�? 카메?��? 켜서 마이??권한???�성?�해주세??");
+      setRtcError("癒쇱? 移대찓?쇰? 耳쒖꽌 留덉씠??沅뚰븳???쒖꽦?뷀빐二쇱꽭??");
       return;
     }
     const next = !micOn;
@@ -544,7 +544,7 @@ function GuardianChatPage() {
       const getDisplay =
         navigator.mediaDevices?.getDisplayMedia ?? legacyGetDisplay;
       if (!getDisplay) {
-        setRtcError("??브라?��????�면 공유�?지?�하지 ?�습?�다.");
+        setRtcError("??釉뚮씪?곗????붾㈃ 怨듭쑀瑜?吏?먰븯吏 ?딆뒿?덈떎.");
         return;
       }
       const stream = await getDisplay({
@@ -570,7 +570,7 @@ function GuardianChatPage() {
         void stopShareStream();
       });
     } catch {
-      setRtcError("?�면 공유�??�작?��? 못했?�니??");
+      setRtcError("?붾㈃ 怨듭쑀瑜??쒖옉?섏? 紐삵뻽?듬땲??");
     }
   }, [ensurePeer, shareOn, stopShareStream]);
 
@@ -598,7 +598,7 @@ function GuardianChatPage() {
         const response = await fetch(endpoints.messages(roomId));
         if (!response.ok) {
           throw new Error(
-            await extractApiError(response, "메시지�?불러?��? 못했?�니??")
+            await extractApiError(response, "硫붿떆吏瑜?遺덈윭?ㅼ? 紐삵뻽?듬땲??")
           );
         }
         const data = await response.json();
@@ -620,7 +620,7 @@ function GuardianChatPage() {
         setMessagesError(
           error instanceof Error
             ? error.message
-            : "메시지�?불러?��? 못했?�니??"
+            : "硫붿떆吏瑜?遺덈윭?ㅼ? 紐삵뻽?듬땲??"
         );
       } finally {
         setMessagesLoading(false);
@@ -705,7 +705,7 @@ function GuardianChatPage() {
       const response = await fetch(endpoints.threads(meIdRef.current));
       if (!response.ok) {
         throw new Error(
-          await extractApiError(response, "채팅 목록??불러?��? 못했?�니??")
+          await extractApiError(response, "梨꾪똿 紐⑸줉??遺덈윭?ㅼ? 紐삵뻽?듬땲??")
         );
       }
       const data: ChatThread[] = await response.json();
@@ -727,7 +727,7 @@ function GuardianChatPage() {
       setThreadsError(
         error instanceof Error
           ? error.message
-          : "채팅 목록??불러?��? 못했?�니??"
+          : "梨꾪똿 紐⑸줉??遺덈윭?ㅼ? 紐삵뻽?듬땲??"
       );
     } finally {
       setThreadsLoading(false);
@@ -782,11 +782,11 @@ function GuardianChatPage() {
 
   const sendChat = useCallback(async () => {
     if (!meIdRef.current) {
-      setRoomActionMessage("먼�? ???�용??ID�??�력?�주?�요.");
+      setRoomActionMessage("癒쇱? ???ъ슜??ID瑜??낅젰?댁＜?몄슂.");
       return;
     }
     if (!currentRoomRef.current) {
-      setRoomActionMessage("채팅방을 ?�택?�주?�요.");
+      setRoomActionMessage("梨꾪똿諛⑹쓣 ?좏깮?댁＜?몄슂.");
       return;
     }
     const text = inputValue.trim();
@@ -819,21 +819,21 @@ function GuardianChatPage() {
       });
       if (!response.ok) {
         throw new Error(
-          await extractApiError(response, "메시지�??�송?��? 못했?�니??")
+          await extractApiError(response, "硫붿떆吏瑜??꾩넚?섏? 紐삵뻽?듬땲??")
         );
       }
     } catch (e: unknown) {
       setRoomActionMessage(
         e instanceof Error
           ? e.message
-          : "메시지�??�송?��? 못했?�니??"
+          : "硫붿떆吏瑜??꾩넚?섏? 紐삵뻽?듬땲??"
       );
     }
   }, [endpoints, inputValue, currentRoomRef, meIdRef]);
 
   const openRoom = useCallback(async () => {
     if (!clientIdInput || !managerIdInput) {
-      setRoomActionMessage("clientId?� managerId�?모두 ?�력?�주?�요.");
+      setRoomActionMessage("clientId? managerId瑜?紐⑤몢 ?낅젰?댁＜?몄슂.");
       return;
     }
     setRoomActionLoading(true);
@@ -851,18 +851,18 @@ function GuardianChatPage() {
       });
       if (!response.ok) {
         throw new Error(
-          await extractApiError(response, "채팅방을 ?�성?��? 못했?�니??")
+          await extractApiError(response, "梨꾪똿諛⑹쓣 ?앹꽦?섏? 紐삵뻽?듬땲??")
         );
       }
       const room: ChatThread = await response.json();
       await loadThreads();
       await selectRoom(room.roomId);
-      setRoomActionMessage("채팅방을 ?�었?�니??");
+      setRoomActionMessage("梨꾪똿諛⑹쓣 ?댁뿀?듬땲??");
     } catch (e: unknown) {
       setRoomActionMessage(
         e instanceof Error
           ? e.message
-          : "채팅방을 ?�성?��? 못했?�니??"
+          : "梨꾪똿諛⑹쓣 ?앹꽦?섏? 紐삵뻽?듬땲??"
       );
     } finally {
       setRoomActionLoading(false);
@@ -871,14 +871,14 @@ function GuardianChatPage() {
 
   const deleteRoom = useCallback(async () => {
     if (!currentRoomRef.current) {
-      setRoomActionMessage("??��??채팅방을 먼�? ?�택?�주?�요.");
+      setRoomActionMessage("??젣??梨꾪똿諛⑹쓣 癒쇱? ?좏깮?댁＜?몄슂.");
       return;
     }
     if (!meIdRef.current) {
-      setRoomActionMessage("???�용??ID가 ?�요?�니??");
+      setRoomActionMessage("???ъ슜??ID媛 ?꾩슂?⑸땲??");
       return;
     }
-    if (!window.confirm(`Room #${currentRoomRef.current}????��?�시겠습?�까?`)) {
+    if (!window.confirm(`Room #${currentRoomRef.current}????젣?섏떆寃좎뒿?덇퉴?`)) {
       return;
     }
     setRoomActionLoading(true);
@@ -892,7 +892,7 @@ function GuardianChatPage() {
       );
       if (!response.ok) {
         throw new Error(
-          await extractApiError(response, "채팅방을 ??��?��? 못했?�니??")
+          await extractApiError(response, "梨꾪똿諛⑹쓣 ??젣?섏? 紐삵뻽?듬땲??")
         );
       }
       setCurrentRoomId(null);
@@ -900,13 +900,13 @@ function GuardianChatPage() {
       setMessages([]);
       seenKeysRef.current.clear();
       await loadThreads();
-      setRoomActionMessage("채팅방을 ??��?�습?�다.");
+      setRoomActionMessage("梨꾪똿諛⑹쓣 ??젣?덉뒿?덈떎.");
       cleanupPeer();
     } catch (error) {
       setRoomActionMessage(
         error instanceof Error
           ? error.message
-          : "채팅방을 ??��?��? 못했?�니??"
+          : "梨꾪똿諛⑹쓣 ??젣?섏? 紐삵뻽?듬땲??"
       );
     } finally {
       setRoomActionLoading(false);
@@ -915,15 +915,15 @@ function GuardianChatPage() {
 
   const netStatusLabel =
     wsStatus === "connected"
-      ? { label: "WS ?�결??, className: "status ok" }
+      ? { label: "WS ?곌껐??, className: "status ok" }
       : wsStatus === "connecting"
-      ? { label: "WS ?�결 �?..", className: "status warn" }
-      : { label: "WS ?�결 ????, className: "status err" };
+      ? { label: "WS ?곌껐 以?..", className: "status warn" }
+      : { label: "WS ?곌껐 ????, className: "status err" };
 
-  const roomTitle = currentRoomId ? `Room #${currentRoomId}` : "채팅�?미선??;
+  const roomTitle = currentRoomId ? `Room #${currentRoomId}` : "梨꾪똿諛?誘몄꽑??;
   const roomMeta = meId
-    ? `??ID: ${meId}${currentRoomId ? " · ?�시�??�신 �? : ""}`
-    : "??ID�??�력?�고 방을 ?�택?�세??;
+    ? `??ID: ${meId}${currentRoomId ? " 쨌 ?ㅼ떆媛??섏떊 以? : ""}`
+    : "??ID瑜??낅젰?섍퀬 諛⑹쓣 ?좏깮?섏꽭??;
 
   return (
     <>
@@ -1248,10 +1248,10 @@ function GuardianChatPage() {
                 }
               }}
             >
-              {camOn ? "카메???�기" : "카메??켜기"}
+              {camOn ? "移대찓???꾧린" : "移대찓??耳쒓린"}
             </button>
             <button className="btn secondary" onClick={toggleMic} disabled={!camOn}>
-              {micOn ? "마이???�기" : "마이??켜기"}
+              {micOn ? "留덉씠???꾧린" : "留덉씠??耳쒓린"}
             </button>
             <button
               className="btn"
@@ -1263,9 +1263,9 @@ function GuardianChatPage() {
                 }
               }}
             >
-              {shareOn ? "?�면공유 중�?" : "?�면공유 ?�작"}
+              {shareOn ? "?붾㈃怨듭쑀 以묒?" : "?붾㈃怨듭쑀 ?쒖옉"}
             </button>
-            <span className="hint">카메?�만 켜면 ?�동 ?�결/?�출?�니??</span>
+            <span className="hint">移대찓?쇰쭔 耳쒕㈃ ?먮룞 ?곌껐/?≪텧?⑸땲??</span>
           </div>
           <div className="videoPanel">
             <div>
@@ -1278,11 +1278,11 @@ function GuardianChatPage() {
             </div>
             <div className="videoGrid">
               <div className="tile">
-                <small>??미리보기</small>
+                <small>??誘몃━蹂닿린</small>
                 <video ref={localVideoRef} autoPlay playsInline muted />
               </div>
               <div className="tile">
-                <small>?��? ?�상</small>
+                <small>?곷? ?곸긽</small>
                 <video ref={remoteVideoRef} autoPlay playsInline />
               </div>
             </div>
@@ -1325,22 +1325,22 @@ function GuardianChatPage() {
                 }}
               />
               <button className="btn" disabled={roomActionLoading} onClick={() => void openRoom()}>
-                �??�성/?�득
+                諛??앹꽦/?띾뱷
               </button>
               <button
                 className="btn secondary"
                 disabled={roomActionLoading || !currentRoomId}
                 onClick={() => void deleteRoom()}
               >
-                �???��
+                諛???젣
               </button>
             </div>
           </div>
           <div className="threads">
-            {threadsLoading && <div className="status warn">목록??불러?�는 �?..</div>}
+            {threadsLoading && <div className="status warn">紐⑸줉??遺덈윭?ㅻ뒗 以?..</div>}
             {threadsError && <div className="status err">{threadsError}</div>}
             {!threadsLoading && !threadsError && threads.length === 0 && (
-              <div className="status">채팅방이 ?�습?�다.</div>
+              <div className="status">梨꾪똿諛⑹씠 ?놁뒿?덈떎.</div>
             )}
             {!threadsLoading &&
               !threadsError &&
@@ -1362,22 +1362,22 @@ function GuardianChatPage() {
           </div>
           <div className="msgsWrap">
             <div className="msgs" ref={messagesRef}>
-              {messagesLoading && <div className="status warn">메시지�?불러?�는 �?..</div>}
+              {messagesLoading && <div className="status warn">硫붿떆吏瑜?遺덈윭?ㅻ뒗 以?..</div>}
               {messagesError && <div className="status err">{messagesError}</div>}
               {!messagesLoading && !messagesError && messages.length === 0 && (
-                <div className="empty">메시지가 ?�습?�다.</div>
+                <div className="empty">硫붿떆吏媛 ?놁뒿?덈떎.</div>
               )}
               {messages.map((message) => {
                 const emergency =
                   (message.messageType ?? "").toUpperCase() === "NOTICE" ||
-                  /긴급\s*?�출/.test(message.content ?? "");
+                  /湲닿툒\s*?몄텧/.test(message.content ?? "");
                 const mine = Boolean(message.senderId && meId === message.senderId);
                 const owner =
                   message.senderName && message.senderName.trim().length > 0
                     ? message.senderName
                     : message.senderId
-                    ? `?�용??${message.senderId}`
-                    : "?�스??;
+                    ? `?ъ슜??${message.senderId}`
+                    : "?쒖뒪??;
                 const bubbleClass = [
                   "bubble",
                   mine ? "mine" : "other",
@@ -1390,18 +1390,18 @@ function GuardianChatPage() {
                     <div>
                       {emergency && (
                         <div style={{ marginBottom: 6, fontWeight: 700 }}>
-                          {owner}?�의 비상 ?�출?�니??
+                          {owner}?섏쓽 鍮꾩긽 ?몄텧?낅땲??
                         </div>
                       )}
                       <div>{message.content}</div>
                     </div>
                     <div className="metaRow">
                       <span>{message.messageType ?? "TEXT"}</span>
-                      <span>·</span>
+                      <span>쨌</span>
                       <span>{formatTimestamp(message.createdAt)}</span>
                       {message.senderId && (
                         <>
-                          <span>·</span>
+                          <span>쨌</span>
                           <span>#{message.senderId}</span>
                         </>
                       )}
@@ -1417,12 +1417,12 @@ function GuardianChatPage() {
                 scrollMessagesToBottom();
               }}
             >
-              �??�래�???
+              留??꾨옒濡???
             </button>
           </div>
           <div className="composer">
             <input
-              placeholder="메시지�??�력?�세??(Enter ?�송)"
+              placeholder="硫붿떆吏瑜??낅젰?섏꽭??(Enter ?꾩넚)"
               value={inputValue}
               onChange={(event) => setInputValue(event.target.value)}
               onKeyDown={(event) => {
@@ -1445,8 +1445,9 @@ function GuardianChatPage() {
 
 export default function GuardianChatPageWrapper() {
   return (
-    <Suspense fallback={<div className="p-4 text-sm text-slate-600">채팅??불러?�는 중입?�다...</div>}>
+    <Suspense fallback={<div className="p-4 text-sm text-slate-600">梨꾪똿??遺덈윭?ㅻ뒗 以묒엯?덈떎...</div>}>
       <GuardianChatPage />
     </Suspense>
   );
 }
+

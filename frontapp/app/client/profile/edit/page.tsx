@@ -539,6 +539,14 @@ export default function ClientProfileEditPage() {
       return;
     }
 
+    if (!user) {
+      setPushMessage("로그인 정보가 없습니다. 다시 로그인 후 시도하세요.");
+      setPushStatus("error");
+      return;
+    }
+
+    const userId = user.id;
+
     const convertKey = (key: string) => {
       const padding = "=".repeat((4 - (key.length % 4)) % 4);
       const base64 = (key + padding).replace(/-/g, "+").replace(/_/g, "/");
@@ -586,7 +594,7 @@ export default function ClientProfileEditPage() {
         throw new Error("브라우저가 푸시 키 정보를 제공하지 못했습니다.");
       }
 
-      const res = await fetch(`${API_BASE_URL}/api/users/${user.id}/push/subscriptions`, {
+      const res = await fetch(`${API_BASE_URL}/api/users/${userId}/push/subscriptions`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json", ...authHeaders() },

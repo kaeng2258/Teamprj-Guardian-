@@ -125,6 +125,8 @@ public class MedicationReminderScheduler {
         data.put("medicineId", alarm.getMedicine().getId());
         data.put("scheduledAt", scheduledTime.toString());
         data.put("reminder", reminder);
+        data.put("type", "medication");
+        data.put("url", "/client/mypage");
 
         Map<String, Object> notification = new HashMap<>();
         notification.put("title", "복약 알림");

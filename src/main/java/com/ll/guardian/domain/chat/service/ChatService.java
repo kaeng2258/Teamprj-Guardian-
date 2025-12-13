@@ -9,16 +9,20 @@ import com.ll.guardian.domain.chat.entity.ChatRoom;
 import com.ll.guardian.domain.chat.repository.ChatMessageRepository;
 import com.ll.guardian.domain.chat.repository.ChatRoomRepository;
 import com.ll.guardian.domain.matching.repository.CareMatchRepository;
+import com.ll.guardian.domain.notification.entity.WebPushSubscription;
+import com.ll.guardian.domain.notification.service.WebPushSender;
+import com.ll.guardian.domain.notification.service.WebPushSubscriptionService;
 import com.ll.guardian.domain.user.entity.User;
 import com.ll.guardian.domain.user.repository.UserRepository;
 import com.ll.guardian.global.exception.GuardianException;
+import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.time.LocalDateTime;
-import java.util.List;
-import java.util.stream.Collectors;
 
 @Service
 @Transactional
@@ -28,16 +32,22 @@ public class ChatService {
     private final ChatMessageRepository chatMessageRepository;
     private final CareMatchRepository careMatchRepository;
     private final UserRepository userRepository;
+    private final WebPushSubscriptionService webPushSubscriptionService;
+    private final WebPushSender webPushSender;
 
     public ChatService(
             ChatRoomRepository chatRoomRepository,
             ChatMessageRepository chatMessageRepository,
             CareMatchRepository careMatchRepository,
-            UserRepository userRepository) {
+            UserRepository userRepository,
+            WebPushSubscriptionService webPushSubscriptionService,
+            WebPushSender webPushSender) {
         this.chatRoomRepository = chatRoomRepository;
         this.chatMessageRepository = chatMessageRepository;
         this.careMatchRepository = careMatchRepository;
         this.userRepository = userRepository;
+        this.webPushSubscriptionService = webPushSubscriptionService;
+        this.webPushSender = webPushSender;
     }
 
     /** 내가 속한 채팅 스레드(방 목록) */
@@ -75,6 +85,7 @@ public class ChatService {
 
         ChatMessage saved = chatMessageRepository.save(message);
         room.updateLastMessage(saved.getContent(), saved.getSentAt(), sender.getId());
+        notifyCounterpart(room, sender, saved);
         return ChatMessageResponse.from(saved);
     }
 
@@ -171,5 +182,77 @@ public class ChatService {
         if (!isCurrentlyMatched(room.getClient().getId(), room.getManager().getId())) {
             throw new GuardianException(HttpStatus.FORBIDDEN, "배정이 해제된 상태에서는 채팅을 이용할 수 없습니다.");
         }
+    }
+
+    private void notifyCounterpart(ChatRoom room, User sender, ChatMessage message) {
+        if (!webPushSender.isEnabled()) {
+            return;
+        }
+
+        Long recipientId = resolveRecipient(room, sender);
+        if (recipientId == null) {
+            return;
+        }
+
+        List<WebPushSubscription> subscriptions = webPushSubscriptionService.findByUser(recipientId);
+        if (subscriptions.isEmpty()) {
+            return;
+        }
+
+        Map<String, Object> payload = buildChatPayload(room, sender, message);
+        subscriptions.forEach(subscription -> webPushSender.send(subscription, payload));
+    }
+
+    private Long resolveRecipient(ChatRoom room, User sender) {
+        if (room.getClient().getId().equals(sender.getId())) {
+            return room.getManager().getId();
+        }
+        if (room.getManager().getId().equals(sender.getId())) {
+            return room.getClient().getId();
+        }
+        return null;
+    }
+
+    private Map<String, Object> buildChatPayload(ChatRoom room, User sender, ChatMessage message) {
+        String senderName = sender.getName() != null ? sender.getName() : "알림";
+        String snippet = truncate(buildSnippet(message), 80);
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("roomId", room.getId());
+        data.put("senderId", sender.getId());
+        data.put("senderName", senderName);
+        data.put("type", "chat");
+        data.put("url", "/chat/" + room.getId());
+
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("title", "새 메시지");
+        payload.put("body", senderName + ": " + snippet);
+        payload.put("icon", "/vercel.svg");
+        payload.put("tag", "chat-room-" + room.getId());
+        payload.put("renotify", true);
+        payload.put("data", data);
+        return payload;
+    }
+
+    private String buildSnippet(ChatMessage message) {
+        return switch (message.getMessageType()) {
+            case IMAGE -> "사진이 도착했습니다.";
+            case FILE -> "파일이 도착했습니다.";
+            case NOTICE -> safeContent(message.getContent());
+            case CALL_START -> "영상통화 요청이 도착했습니다.";
+            case CALL_END -> "통화가 종료되었습니다.";
+            case TEXT -> safeContent(message.getContent());
+        };
+    }
+
+    private String truncate(String value, int maxLength) {
+        if (value == null || value.length() <= maxLength) {
+            return value;
+        }
+        return value.substring(0, Math.max(0, maxLength - 3)) + "...";
+    }
+
+    private String safeContent(String value) {
+        return value != null ? value : "";
     }
 }

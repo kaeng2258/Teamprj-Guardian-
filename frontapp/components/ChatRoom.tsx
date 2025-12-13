@@ -431,30 +431,55 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
     };
   }, [roomId, me.id]);
 
-  const startCamera = async () => {
-    if (camOn) return;
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: true,
-        audio: true,
-      });
-      localStreamRef.current = stream;
-      if (localVideoRef.current) {
-        localVideoRef.current.srcObject = stream;
-      }
-      setCamOn(true);
-      setMicOn(true);
+const startCamera = async () => {
+  if (camOn) return;
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: true,
+      audio: true,
+    });
 
-      const pc = ensurePc();
-      stream.getTracks().forEach((t) => pc.addTrack(t, stream));
+    localStreamRef.current = stream;
 
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-      sendRtc("offer", { sdp: offer.sdp });
-    } catch (e) {
-      alert("카메라 접근 실패: " + String(e));
+    if (localVideoRef.current) {
+      // 로컬 미리보기 안정화(일부 브라우저에서 play 트리거 필요)
+      localVideoRef.current.muted = true;
+      localVideoRef.current.srcObject = stream;
+
+      const play = async () => {
+        try {
+          await localVideoRef.current?.play();
+        } catch {
+          /* ignore */
+        }
+      };
+
+      localVideoRef.current.onloadedmetadata = () => {
+        void play();
+      };
+      void play();
     }
-  };
+
+    setCamOn(true);
+    setMicOn(true);
+
+    const pc = ensurePc();
+
+    // 중복 addTrack 방지 (재시작/재연결 시 중복 송신자 생성 방지)
+    const senders = pc.getSenders();
+    stream.getTracks().forEach((t) => {
+      const exists = senders.some((s) => s.track && s.track.kind === t.kind);
+      if (!exists) pc.addTrack(t, stream);
+    });
+
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    sendRtc("offer", { sdp: offer.sdp });
+  } catch (e) {
+    alert("카메라 접근 실패: " + String(e));
+  }
+};
+
 
   const stopCamera = async () => {
     if (!camOn) return;

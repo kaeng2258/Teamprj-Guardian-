@@ -7,4 +7,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface ClientProfileRepository extends JpaRepository<ClientProfile, Long> {
 
     Optional<ClientProfile> findByClientId(Long clientId);
+
+    void deleteByClient_Id(Long clientId);
 }

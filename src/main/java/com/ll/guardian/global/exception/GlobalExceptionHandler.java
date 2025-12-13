@@ -3,6 +3,8 @@ package com.ll.guardian.global.exception;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -75,5 +77,18 @@ public class GlobalExceptionHandler {
                         org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR,
                         "알 수 없는 오류가 발생했습니다.",
                         request.getRequestURI()));
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ErrorResponse> handleDataIntegrity(
+        DataIntegrityViolationException ex, HttpServletRequest request) {
+
+        log.warn("Data integrity violation: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+            .body(ErrorResponse.of(
+                HttpStatus.CONFLICT,
+                "연관 데이터가 남아 있어 삭제할 수 없습니다. (채팅/매칭/알림/투약기록 등을 먼저 정리해야 합니다.)",
+                request.getRequestURI()
+            ));
     }
 }

@@ -517,9 +517,24 @@ export default function ClientProfileEditPage() {
     void checkExistingSubscription();
   }, [supportsPushApi]);
 
+  const buildPushBlockReason = useCallback(() => {
+    // Helps mobile users understand why push failed (e.g., missing VAPID or non-HTTPS).
+    if (!supportsPushApi) {
+      return "브라우저가 푸시를 지원하지 않습니다. HTTPS(또는 iOS는 홈 화면 추가) 환경에서 시도하세요.";
+    }
+    if (!pushServiceEnabled || !vapidPublicKey) {
+      return "서버에서 웹푸시가 비활성화되어 있습니다. VAPID 키 설정 후 다시 시도하세요.";
+    }
+    if (!user?.id) {
+      return "로그인 정보가 확인되지 않습니다. 다시 로그인 후 시도하세요.";
+    }
+    return null;
+  }, [pushServiceEnabled, supportsPushApi, user?.id, vapidPublicKey]);
+
   const handleEnablePush = useCallback(async () => {
-    if (!supportsPushApi || !pushServiceEnabled || !vapidPublicKey || !user?.id) {
-      setPushMessage("현재 환경에서 푸시를 사용할 수 없습니다.");
+    const reason = buildPushBlockReason();
+    if (reason) {
+      setPushMessage(reason);
       setPushStatus("error");
       return;
     }
@@ -593,7 +608,7 @@ export default function ClientProfileEditPage() {
         error instanceof Error ? error.message : "푸시 알림을 설정하지 못했습니다.",
       );
     }
-  }, [API_BASE_URL, pushServiceEnabled, supportsPushApi, vapidPublicKey, user?.id]);
+  }, [API_BASE_URL, buildPushBlockReason, pushServiceEnabled, supportsPushApi, vapidPublicKey, user?.id]);
 
   const handleTogglePush = useCallback(async () => {
     if (pushEnabled) {

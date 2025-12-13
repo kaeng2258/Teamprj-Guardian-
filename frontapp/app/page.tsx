@@ -492,13 +492,15 @@ export default function Home() {
 
   // Reusable Form Content
   // We wrap them in divs to apply specific styles for desktop/mobile containers
-  const LoginContent = (
+  const renderLoginContent = (showLogo: boolean) => (
     <form onSubmit={handleLoginSubmit} style={{ height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
       <Stack align="center" mb={50}>
-        <Group gap="xs" mb="md">
-          <Image src="/image/logo.png" alt="Guardian Logo" width={50} height={50} />
-          <Text size={rem(28)} fw={900} tt="uppercase" c="indigo" style={{ letterSpacing: '4px' }}>GUARDIAN</Text>
-        </Group>
+        {showLogo && (
+          <Group gap="xs" mb="md">
+            <Image src="/image/logo.png" alt="Guardian Logo" width={50} height={50} />
+            <Text size={rem(28)} fw={900} tt="uppercase" c="indigo" style={{ letterSpacing: '4px' }}>GUARDIAN</Text>
+          </Group>
+        )}
         <Stack gap={0} align="center">
           <Title order={2} fw={800} style={{ letterSpacing: '-0.5px' }}>로그인</Title>
           <Text c="dimmed" size="sm">계정이 있으신가요? 이메일로 로그인하세요.</Text>
@@ -547,13 +549,15 @@ export default function Home() {
     </form>
   );
 
-  const RegisterContent = (
+  const renderRegisterContent = (showLogo: boolean) => (
     <form onSubmit={handleRegisterSubmit} style={{ width: '100%', minHeight: '100%', padding: '2rem 1rem' }}>
-      <Stack align="center" mb={40}>
-        <Group gap="xs" mb="lg">
-          <Image src="/image/logo.png" alt="Guardian Logo" width={44} height={44} />
-          <Text size={rem(24)} fw={900} tt="uppercase" c="indigo" style={{ letterSpacing: '3px' }}>GUARDIAN</Text>
-        </Group>
+      <Stack align="center" mb={50}>
+        {showLogo && (
+          <Group gap="xs" mb="lg">
+            <Image src="/image/logo.png" alt="Guardian Logo" width={50} height={50} />
+            <Text size={rem(28)} fw={900} tt="uppercase" c="indigo" style={{ letterSpacing: '4px' }}>GUARDIAN</Text>
+          </Group>
+        )}
         <Stack gap={0} align="center">
           <Title order={2} fw={800} style={{ letterSpacing: '-0.5px' }}>회원가입</Title>
           <Text c="dimmed" size="sm">Guardian의 회원이 되어 서비스를 이용해보세요.</Text>
@@ -776,7 +780,7 @@ export default function Home() {
           `}
         >
           <Box w="100%" h="100%" style={{ overflowY: 'auto' }} className="no-scrollbar">
-            {RegisterContent}
+            {renderRegisterContent(true)}
           </Box>
         </div>
 
@@ -787,7 +791,7 @@ export default function Home() {
           `}
         >
           <Box w="100%">
-            {LoginContent}
+            {renderLoginContent(true)}
           </Box>
         </div>
 
@@ -852,18 +856,18 @@ export default function Home() {
             <Group gap="xs">
               <Image
                 alt="Guardian 로고"
-                height={32}
+                height={50}
                 src="/image/logo.png"
-                width={32}
+                width={50}
               />
               <Text
-                size="xl"
-                fw={700}
+                size={rem(28)}
+                fw={900}
                 tt="uppercase"
                 c="indigo"
-                style={{ letterSpacing: "0.1em" }}
+                style={{ letterSpacing: "4px" }}
               >
-                Guardian
+                GUARDIAN
               </Text>
             </Group>
           </Center>
@@ -875,11 +879,11 @@ export default function Home() {
             </Tabs.List>
 
             <Tabs.Panel value="login">
-              {LoginContent}
+              {renderLoginContent(false)}
             </Tabs.Panel>
 
             <Tabs.Panel value="register">
-              {RegisterContent}
+              {renderRegisterContent(false)}
             </Tabs.Panel>
           </Tabs>
         </Paper>

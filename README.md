@@ -1,3 +1,7 @@
+<p align="center">
+  <img width="240" height="624" alt="logo" src="https://github.com/user-attachments/assets/830183fd-94ee-4940-86ea-49e45cfbe260" />
+
+</p>
 <h1 align="center">GUARDIAN</h1>
 <p align="center">복약 플랜 · 의료 매칭 · 웹푸시 알림 플랫폼</p>
 

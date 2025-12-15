@@ -70,6 +70,9 @@ npm run build # 배포 빌드
 - JWT 필터 충돌: Security Filter Chain 재설계
 - VAPID 키 미설정: 환경변수 주입 후 `/api/push/config`로 활성 여부 확인
 
+## 👤 담당 역할
+- 황정성: 백엔드 아키텍처 · DB 모델링 · WebPush · 매칭/복약/알림/인증 구현 · 프론트 구조/UX 참여
+
 ## 📍 서비스 주소
 - https://prjguardian.com/
 

@@ -71,7 +71,7 @@ npm run build # 배포 빌드
 - VAPID 키 미설정: 환경변수 주입 후 `/api/push/config`로 활성 여부 확인
 
 ## 👤 담당 역할
-- 황정성: 백엔드 전반(아키텍처, DB 모델링, 인증/JWT, 매칭/복약/알림/WebPush) 설계·구현 + 프론트엔드 전반(Next.js UI/UX, 페이지 로직, 프로필/푸시/관리자 등) 개발
+- 황정성: 백엔드 전반(아키텍처, DB 모델링, 인증/JWT, 매칭/복약/알림/WebPush) 설계·구현 + 프론트엔드 전반(SPA 구조, 페이지/UX/로직) 개발
 
 ## 📍 서비스 주소
 - https://prjguardian.com/

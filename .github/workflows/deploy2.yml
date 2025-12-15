@@ -3,6 +3,8 @@ name: Deploy Backend & Frontend
 on:
   push:
     branches: [ "main" ]
+    paths-ignore:
+      - '**.md'
 
 jobs:
   backend:
@@ -109,22 +111,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Node 20
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
+      # 🚫 (최적화) GitHub Runner에서 빌드하지 않음 -> 소스코드만 복사 -> EC2에서 빌드
+      # 불필요한 node_modules 업로드 방지
 
-      # ✅ 로컬에서 Next.js 빌드 (frontapp 폴더)
-      - name: Install & Build frontend
-        working-directory: frontapp
-        run: |
-          npm ci
-          npm run build
-
-          echo "==== frontapp 디렉토리 내용 ===="
-          ls -l
-          echo "==== frontapp/.next 내용 ===="
-          ls -l .next || echo ".next 없음"
 
       # ✅ 빌드된 frontapp 전체를 EC2로 복사
       - name: Upload frontend to EC2

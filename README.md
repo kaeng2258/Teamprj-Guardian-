@@ -90,7 +90,7 @@ npm run build # 배포 빌드
     <tr>
       <td></td>
       <td style="text-align: center;">
-        <img src="https://github.com/user-attachments/assets/878654ea-a0cc-4dc4-95e2-afa0eb394472" style="display: block; margin: 0 auto;" width="190" height="190" /></td>
+        <img src="https://github.com/user-attachments/assets/83c2a379-5c7e-4bf5-9d8c-ac5c9d5a9e3e" style="display: block; margin: 0 auto;" width="150" height="190" /></td>
     </tr>
     <tr style="text-align: center;">
       <td style="text-align: center;">깃 주소</td>
@@ -98,7 +98,7 @@ npm run build # 배포 빌드
     </tr>
   </tbody>
 </table>
-- 황정성: 백엔드 전반(아키텍처, DB 모델링, 인증/JWT, 매칭/복약/알림/WebPush) 설계·구현 + 프론트엔드 전반(SPA 구조, 페이지/UX/로직) 개발
+- 황정성: 백엔드 전반(아키텍처, DB 모델링, 인증/JWT, 매칭/복약/알림/WebPush) 설계·구현 + 프론트엔드 전반(SPA 구조, 페이지/UX/로직) 개발!
 
 ## 📍 서비스 주소
 - https://prjguardian.com/

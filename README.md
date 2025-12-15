@@ -70,6 +70,13 @@ npm run build # 배포 빌드
 - JWT 필터 충돌: Security Filter Chain 재설계
 - VAPID 키 미설정: 환경변수 주입 후 `/api/push/config`로 활성 여부 확인
 
+## 📑 기술적 의사결정
+- **웹푸시(Web Push)**: 모바일 브라우저 푸시를 위해 VAPID 기반 구현, iOS PWA 제약 대응 → 백엔드 `/api/push/config`로 활성 여부 노출, 프론트는 조건부 구독
+- **SPA 기반 Next.js**: 채팅/푸시 등 실시간 UX를 위해 클라이언트 라우팅 유지, 서버는 API 전담
+- **역할 기반 권한(RBAC)**: CLIENT/PROVIDER/MANAGER/ADMIN 분리로 데이터 접근·행동 제어, SecurityConfig로 최소 개방
+- **외부 설정 분리**: `spring.config.import` + 환경변수 우선으로 시크릿/키 관리 (`application-secret.yml`은 옵션)
+- **CI/CD 병렬화**: GitHub Actions에서 백엔드/프론트 잡을 병렬 실행해 배포 시간 단축
+
 ## 👤 담당 역할
 - 황정성: 백엔드 전반(아키텍처, DB 모델링, 인증/JWT, 매칭/복약/알림/WebPush) 설계·구현 + 프론트엔드 전반(SPA 구조, 페이지/UX/로직) 개발
 

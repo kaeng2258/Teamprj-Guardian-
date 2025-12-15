@@ -23,7 +23,7 @@
 - DB: MariaDB
 - Infra: AWS EC2, Nginx, Docker, GitHub Actions(CI/CD), Web Push
 
-## 🏗️ 아키텍처 개요
+## 🏗️ 아키텍처
 ```
 Client (Next.js)
    ↓

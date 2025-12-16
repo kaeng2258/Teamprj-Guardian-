@@ -185,7 +185,7 @@ npm run build # 배포 빌드
 
 ## 🎥 프로젝트 시연 영상
 
-https://youtu.be/xxxxxx (아직없음)
+- https://youtu.be/xxxxxx (아직없음)
 
 ---
 

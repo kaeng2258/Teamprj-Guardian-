@@ -39,7 +39,7 @@
 <img src="https://img.shields.io/badge/Next.js 14-000000?style=for-the-badge&logo=next.js&logoColor=white"> <img src="https://img.shields.io/badge/React-61DAFB?style=for-the-badge&logo=react&logoColor=black"> <img src="https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white"> <img src="https://img.shields.io/badge/PWA (Web Push)-5A0FC8?style=for-the-badge&logo=pwa&logoColor=white">
 
 ### Database
-<img src="https://img.shields.io/badge/MariaDB-003545?style=for-the-badge&logo=mariadb&logoColor=white"> 
+<img src="https://img.shields.io/badge/MariaDB-003545?style=for-the-badge&logo=mariadb&logoColor=white">
 
 ### Infra & Tools
 <img src="https://img.shields.io/badge/AWS EC2-232F3E?style=for-the-badge&logo=amazon-aws&logoColor=white"> <img src="https://img.shields.io/badge/Nginx-009639?style=for-the-badge&logo=nginx&logoColor=white"> <img src="https://img.shields.io/badge/GitHub Actions-2088FF?style=for-the-badge&logo=github-actions&logoColor=white">
@@ -102,6 +102,26 @@ npm run build # 배포 빌드
 - **Cause**: Next.js는 **빌드 타임(Build Time)**에 환경변수(`NEXT_PUBLIC_*`)를 굽는데(Embed), CI/CD 파이프라인 상에서 빌드 시점의 변수 주입이 누락됨.
 - **Solution**: 배포 스크립트 수정하여 빌드 직전에 `.env.production` 파일을 생성 및 주입하도록 파이프라인 개선.
 
+### 4. WebSocket 연결 실패 (400/403 Error)
+- **Problem**: 로컬에선 잘 되던 실시간 채팅이 배포 환경(Nginx)을 거치자 연결이 끊김.
+- **Cause**: WebSocket은 HTTP 핸드셰이크 과정에서 `Upgrade` 헤더가 필요한데, Nginx 프록시 기본 설정이 이를 전달하지 않음.
+- **Solution**: Nginx 설정에 `proxy_set_header Upgrade $http_upgrade` 및 `Connection "upgrade"`를 명시하여 핸드셰이크 패킷이 정상 전달되도록 수정.
+
+### 5. JWT 필터와 Spring Security 충돌
+- **Problem**: 인증 토큰이 있는데도 `AuthenticationCredentialsNotFoundException`이 발생하며 401 에러 리턴.
+- **Cause**: 커스텀 JWT 필터가 Security Filter Chain의 적절한 위치(UsernamePasswordFilter 앞)에 배치되지 않아, 인증 객체(Authentication)가 생성되기 전에 보안 검사가 실행됨.
+- **Solution**: `addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)`로 필터 순서를 명확히 재정의하여 해결.
+
+### 6. 서비스 워커 캐싱으로 구버전 화면 노출
+- **Problem**: 배포 후에도 이전 JS/CSS가 계속 로드되어 신규 기능이 보이지 않음.
+- **Cause**: PWA 서비스 워커가 `stale-while-revalidate` 캐시를 유지하며, 새 워커 활성화(`activate`)가 지연됨.
+- **Solution**: `skipWaiting()`·`clients.claim()` 호출로 새 워커 즉시 활성화, 캐시 버전 키에 빌드 해시를 포함해 롤백/재배포 시 캐시 충돌 방지.
+
+### 7. 환자/복용 로그 조회 시 N+1 쿼리 폭증
+- **Problem**: 환자 리스트 화면 로딩이 느려지고 DB 커넥션 사용량 급증.
+- **Cause**: JPA 연관관계(LAZY) 컬렉션을 조회하며 각 환자별로 추가 SELECT가 발생.
+- **Solution**: 핵심 조회에 `fetch join`·`@EntityGraph` 적용, 대량 목록에는 `hibernate.default_batch_fetch_size`로 배치 로딩을 설정해 쿼리 수를 상수에 가깝게 감소.
+
 ## 📑 기술적 의사결정 (Key Engineering Decisions)
 
 ### 1. 웹 푸시(Web Push) 도입
@@ -151,9 +171,9 @@ npm run build # 배포 빌드
   </tbody>
 </table>
 
-- 황정성: 백엔드 전반(아키텍처, DB 모델링, 인증/JWT, 매칭/복약/알림/WebPush) 설계·구현 + 프론트엔드 전반(SPA 구조, 페이지/UX/로직) 개발!  
+- 황정성: 백엔드 전반(아키텍처, DB 모델링, 인증/JWT, 매칭/복약/알림/WebPush) 설계·구현 + 프론트엔드 전반(SPA 구조, 페이지/UX/로직) 개발!
 
-- 서수한: 
+- 서수한:
 
 ## 📍 서비스 주소
 - https://prjguardian.com/

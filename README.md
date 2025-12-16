@@ -123,7 +123,7 @@ npm run build # 배포 빌드
 <table border="1" style="border-collapse: collapse; text-align: center;">
   <thead>
     <tr>
-      <th width="200">서수한 (팀장)(ㅌth>
+      <th width="200">서수한 (팀장)</th>
       <th width="200">황정성</th>
     </tr>
   </thead>

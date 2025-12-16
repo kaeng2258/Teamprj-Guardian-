@@ -152,6 +152,8 @@ npm run build # 배포 빌드
 </table>
 - 황정성: 백엔드 전반(아키텍처, DB 모델링, 인증/JWT, 매칭/복약/알림/WebPush) 설계·구현 + 프론트엔드 전반(SPA 구조, 페이지/UX/로직) 개발!
 
+- 서수한: 배포, e약은요 api연동, WebRTC 채팅방
+
 ## 📍 서비스 주소
 - https://prjguardian.com/
 

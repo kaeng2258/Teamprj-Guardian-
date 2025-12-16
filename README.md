@@ -90,7 +90,7 @@ npm run build # 배포 빌드
 ### 1. 로컬/배포 환경의 쿠키 정책 불일치 (Cookie & Session)
 - **Problem**: 로컬 개발(HTTP)에서는 로그인이 잘 되는데, 배포 환경(HTTPS)에서는 세션이 풀리는 현상 발생.
 - **Cause**: 보안 강화(Chrome 80+)로 `SameSite=None` 설정 시 `Secure` 속성이 필수지만, 로컬 HTTP 환경에서는 `Secure` 쿠키가 저장되지 않음.
-- **Solution**: 환경별 프로파일(Local/Prod)을 분리하여 로컬에서는 `Secure` 해제, 배포 시에는 HTTPS 및 `Secure` 적용으로 **보안과 개발 편의성 동시 확보**.
+- **Solution**: 환경별 프로파일(Dev/Prod)을 분리하여 로컬에서는 `Secure` 해제, 배포 시에는 HTTPS 및 `Secure` 적용으로 **보안과 개발 편의성 동시 확보**.
 
 ### 2. 글로벌 타임존 동기화 문제 (Timezone)
 - **Problem**: 복약 알림이 설정한 시간보다 9시간 늦게 오거나, 날짜가 하루 밀리는 현상.
@@ -150,9 +150,10 @@ npm run build # 배포 빌드
     </tr>
   </tbody>
 </table>
-- 황정성: 백엔드 전반(아키텍처, DB 모델링, 인증/JWT, 매칭/복약/알림/WebPush) 설계·구현 + 프론트엔드 전반(SPA 구조, 페이지/UX/로직) 개발!
 
-- 서수한: 배포, e약은요 api연동, WebRTC 채팅방
+- 황정성: 백엔드 전반(아키텍처, DB 모델링, 인증/JWT, 매칭/복약/알림/WebPush) 설계·구현 + 프론트엔드 전반(SPA 구조, 페이지/UX/로직) 개발!  
+
+- 서수한: 
 
 ## 📍 서비스 주소
 - https://prjguardian.com/

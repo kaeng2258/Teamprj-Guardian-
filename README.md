@@ -3,7 +3,10 @@
 
 </p>
 <h1 align="center">GUARDIAN</h1>
-<p align="center">복약 플랜 · 의료 매칭 · 웹푸시 알림 플랫폼</p>
+<p align="center">
+  <b>환자와 보호자를 잇는 스마트 복약 관리 솔루션</b><br>
+  복약 플랜 · 의료 매칭 · 웹푸시 알림
+</p>
 
 ---
 
@@ -25,13 +28,21 @@
 
 ### 3. 📊 관리자/전문가 전용 대시보드
 - **환자 현황 모니터링**: 담당 환자들의 복약 준수율과 건강 상태를 한눈에 파악
-- **매칭 시스템**: 환자와 적절한 케어 매니저를 연결하여 전문적인 관리 지원
+- **매칭 시스템**: 환자와 보호자를 연결하여 적절한 관리 지원
 
-## 🧰 기술 스택
-- Backend: Java 17, Spring Boot, Spring Security, JPA(Hibernate)
-- Frontend: Next.js 14 (React)
-- DB: MariaDB
-- Infra: AWS EC2, Nginx, Docker, GitHub Actions(CI/CD), Web Push
+## 🛠️ 기술 스택 (Tech Stack)
+
+### Backend
+<img src="https://img.shields.io/badge/Java 17-ED8B00?style=for-the-badge&logo=openjdk&logoColor=white"> <img src="https://img.shields.io/badge/Spring Boot 3.0-6DB33F?style=for-the-badge&logo=springboot&logoColor=white"> <img src="https://img.shields.io/badge/Spring Security-6DB33F?style=for-the-badge&logo=springsecurity&logoColor=white"> <img src="https://img.shields.io/badge/JPA (Hibernate)-59666C?style=for-the-badge&logo=hibernate&logoColor=white">
+
+### Frontend
+<img src="https://img.shields.io/badge/Next.js 14-000000?style=for-the-badge&logo=next.js&logoColor=white"> <img src="https://img.shields.io/badge/React-61DAFB?style=for-the-badge&logo=react&logoColor=black"> <img src="https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white"> <img src="https://img.shields.io/badge/PWA (Web Push)-5A0FC8?style=for-the-badge&logo=pwa&logoColor=white">
+
+### Database
+<img src="https://img.shields.io/badge/MariaDB-003545?style=for-the-badge&logo=mariadb&logoColor=white"> <img src="https://img.shields.io/badge/Redis-DC382D?style=for-the-badge&logo=redis&logoColor=white">
+
+### Infra & Tools
+<img src="https://img.shields.io/badge/AWS EC2-232F3E?style=for-the-badge&logo=amazon-aws&logoColor=white"> <img src="https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white"> <img src="https://img.shields.io/badge/Nginx-009639?style=for-the-badge&logo=nginx&logoColor=white"> <img src="https://img.shields.io/badge/GitHub Actions-2088FF?style=for-the-badge&logo=github-actions&logoColor=white">
 
 ## 🏗️ 아키텍처
 ```

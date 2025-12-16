@@ -87,7 +87,10 @@ npm run build # 배포 빌드
 - iOS Safari는 홈 화면에 추가된 PWA에서만 푸시 지원, HTTPS 접속 필수
 
 ## 🛠️ 주요 트러블슈팅
-### 1. 로컬/배포 환경의 쿠키 정책 불일치 (Cookie & Session)
+<details>
+  <summary> 황정성 </summary> 
+  
+  ### 1. 로컬/배포 환경의 쿠키 정책 불일치 (Cookie & Session)
 - **Problem**: 로컬 개발(HTTP)에서는 로그인이 잘 되는데, 배포 환경(HTTPS)에서는 세션이 풀리는 현상 발생.
 - **Cause**: 보안 강화(Chrome 80+)로 `SameSite=None` 설정 시 `Secure` 속성이 필수지만, 로컬 HTTP 환경에서는 `Secure` 쿠키가 저장되지 않음.
 - **Solution**: 환경별 프로파일(Dev/Prod)을 분리하여 로컬에서는 `Secure` 해제, 배포 시에는 HTTPS 및 `Secure` 적용으로 **보안과 개발 편의성 동시 확보**.
@@ -121,6 +124,8 @@ npm run build # 배포 빌드
 - **Problem**: 환자 리스트 화면 로딩이 느려지고 DB 커넥션 사용량 급증.
 - **Cause**: JPA 연관관계(LAZY) 컬렉션을 조회하며 각 환자별로 추가 SELECT가 발생.
 - **Solution**: 핵심 조회에 `fetch join`·`@EntityGraph` 적용, 대량 목록에는 `hibernate.default_batch_fetch_size`로 배치 로딩을 설정해 쿼리 수를 상수에 가깝게 감소.
+</details>
+
 
 ## 📑 기술적 의사결정 (Key Engineering Decisions)
 

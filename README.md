@@ -160,7 +160,7 @@ npm run build # 배포 빌드
   </thead>
   <tbody>
     <tr>
-      <td></td>
+      <td><img src="https://github.com/user-attachments/assets/9c46d2dc-9353-485a-a7ba-30f04adea97b" style="display: block; margin: 0 auto;" width="165" height="190" /></td>
       <td style="text-align: center;">
         <img src="https://github.com/user-attachments/assets/83c2a379-5c7e-4bf5-9d8c-ac5c9d5a9e3e" style="display: block; margin: 0 auto;" width="150" height="190" /></td>
     </tr>

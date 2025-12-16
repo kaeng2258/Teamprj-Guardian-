@@ -126,6 +126,10 @@ npm run build # 배포 빌드
 - **Solution**: 핵심 조회에 `fetch join`·`@EntityGraph` 적용, 대량 목록에는 `hibernate.default_batch_fetch_size`로 배치 로딩을 설정해 쿼리 수를 상수에 가깝게 감소.
 </details>
 
+<details>
+  <summary> 서수한 </summary> 
+</details>
+
 
 ## 📑 기술적 의사결정 (Key Engineering Decisions)
 

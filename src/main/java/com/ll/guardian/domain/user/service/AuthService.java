@@ -63,6 +63,7 @@ public class AuthService {
         return new LoginResponse(
                 user.getId(),
                 user.getRole(),
+                user.getName(),
                 accessToken,
                 refreshToken.getToken(),
                 resolveRedirectPath(user.getRole()));

@@ -46,6 +46,7 @@ type ApiErrorPayload = {
 type LoginSuccessPayload = {
   userId: number;
   role: string;
+  name: string;
   accessToken: string;
   refreshToken: string;
   redirectPath: string;
@@ -236,6 +237,7 @@ export default function Home() {
         const authPayload = {
           userId: payload.userId,
           role: payload.role,
+          name: payload.name,
           accessToken: payload.accessToken,
           refreshToken: payload.refreshToken,
           email: loginEmail,
@@ -250,6 +252,7 @@ export default function Home() {
         window.localStorage.setItem("userRole", payload.role);
         window.localStorage.setItem("userId", String(payload.userId));
         window.localStorage.setItem("userEmail", loginEmail);
+        window.localStorage.setItem("userName", payload.name);
       }
 
       if (payload.redirectPath) {

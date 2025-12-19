@@ -7,9 +7,9 @@ const WS_ENDPOINT = (() => {
   if (env) {
     return env.startsWith("http") ? env : env.replace(/^ws/, "http"); // ws → http, wss → https
   }
-  if (typeof window === "undefined") return "/ws";
+  if (typeof window === "undefined") return "/ws-stomp";
   const protocol = window.location.protocol === "https:" ? "https" : "http";
-  return `${protocol}://${window.location.host}/ws`;
+  return `${protocol}://${window.location.host}/ws-stomp`;
 })();
 
 interface UseWebRtcCallProps {
@@ -126,8 +126,10 @@ export function useWebRtcCall({ roomId, me }: UseWebRtcCallProps) {
 
     const socketFactory = () => new SockJS(WS_ENDPOINT);
 
+    const token = window.localStorage.getItem("accessToken");
     const client = new Client({
       webSocketFactory: socketFactory,
+      connectHeaders: token ? { Authorization: `Bearer ${token}` } : {},
       reconnectDelay: 5000,
       onConnect: () => {
         setRtcStatus("connected");

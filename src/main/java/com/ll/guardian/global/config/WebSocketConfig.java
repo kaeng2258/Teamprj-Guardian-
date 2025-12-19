@@ -1,17 +1,28 @@
 package com.ll.guardian.global.config;
 
+import com.ll.guardian.global.ws.StompAuthChannelInterceptor;
+import com.ll.guardian.global.ws.WebSocketSessionRegistry;
+import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.messaging.simp.config.ChannelRegistration;
 import org.springframework.messaging.simp.config.MessageBrokerRegistry;
 import org.springframework.scheduling.TaskScheduler;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
+import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBroker;
 import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
 import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
+import org.springframework.web.socket.config.annotation.WebSocketTransportRegistration;
+import org.springframework.web.socket.handler.WebSocketHandlerDecorator;
 
 @Configuration
 @EnableWebSocketMessageBroker
+@RequiredArgsConstructor
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
+
+    private final StompAuthChannelInterceptor stompAuthChannelInterceptor;
+    private final WebSocketSessionRegistry webSocketSessionRegistry;
 
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
@@ -30,6 +41,35 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
             )
             .withSockJS();
 
+    }
+
+    /**
+     * ✅ (핵심) STOMP inbound(클라이언트 → 서버) 채널에 인터셉터 등록
+     * - CONNECT 프레임의 Authorization 헤더를 읽어서 Principal 세팅
+     * - 이후 @MessageMapping 메서드에서 Principal 사용 가능
+     */
+    @Override
+    public void configureClientInboundChannel(ChannelRegistration registration) {
+        registration.interceptors(stompAuthChannelInterceptor);
+    }
+
+    @Override
+    public void configureWebSocketTransport(WebSocketTransportRegistration registry) {
+        registry.addDecoratorFactory(handler -> new WebSocketHandlerDecorator(handler) {
+            @Override
+            public void afterConnectionEstablished(org.springframework.web.socket.WebSocketSession session)
+                throws Exception {
+                webSocketSessionRegistry.registerSession(session);
+                super.afterConnectionEstablished(session);
+            }
+
+            @Override
+            public void afterConnectionClosed(org.springframework.web.socket.WebSocketSession session, CloseStatus status)
+                throws Exception {
+                webSocketSessionRegistry.unregisterSession(session.getId());
+                super.afterConnectionClosed(session, status);
+            }
+        });
     }
 
     /**

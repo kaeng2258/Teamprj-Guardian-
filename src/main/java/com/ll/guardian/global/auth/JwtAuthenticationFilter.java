@@ -43,8 +43,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         String token = authHeader.substring(7);
 
-        // 🔎 토큰 유효성 검증
-        if (!jwtTokenProvider.validateToken(token)) {
+        // 🔎 토큰 유효성 검증 + 블랙리스트 확인
+        if (!jwtTokenProvider.isTokenUsable(token)) {
             log.warn("[JwtFilter] invalid token, uri = {}", uri);
             filterChain.doFilter(request, response);
             return;
@@ -54,15 +54,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String email = jwtTokenProvider.getSubject(token);   // sub
         String role = jwtTokenProvider.getRole(token);       // "ADMIN" / "CLIENT" / "MANAGER"
 
-        if (email == null || role == null) {
-            log.warn("[JwtFilter] email or role is null, uri = {}", uri);
+        if (email == null) {
+            log.warn("[JwtFilter] email is null, uri = {}", uri);
             filterChain.doFilter(request, response);
             return;
         }
 
-        // ✅ 여기서 **권한 이름 = "ADMIN", "CLIENT", "MANAGER" 그대로** 사용
-        List<GrantedAuthority> authorities =
-                List.of(new SimpleGrantedAuthority(role));
+        // ✅ role 클레임이 없는 레거시 토큰도 허용
+        List<GrantedAuthority> authorities = (role == null)
+            ? List.of()
+            : List.of(new SimpleGrantedAuthority(role));
 
         UsernamePasswordAuthenticationToken authentication =
                 new UsernamePasswordAuthenticationToken(email, null, authorities);

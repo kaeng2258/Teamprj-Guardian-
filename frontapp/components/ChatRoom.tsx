@@ -44,9 +44,9 @@ const WS_ENDPOINT = (() => {
   if (env) {
     return env.startsWith("http") ? env : env.replace(/^ws/, "http");
   }
-  if (typeof window === "undefined") return "/ws";
+  if (typeof window === "undefined") return "/ws-stomp";
   const protocol = window.location.protocol === "https:" ? "https" : "http";
-  return `${protocol}://${window.location.host}/ws`;
+  return `${protocol}://${window.location.host}/ws-stomp`;
 })();
 
 type Props = {
@@ -400,8 +400,10 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
   useEffect(() => {
     if (!roomId || !me.id) return;
     const socketFactory = () => new SockJS(WS_ENDPOINT);
+    const token = window.localStorage.getItem("accessToken");
     const client = new Client({
       webSocketFactory: socketFactory,
+      connectHeaders: token ? { Authorization: `Bearer ${token}` } : {},
       reconnectDelay: 5000,
       onConnect: () => {
         setRtcStatus("connected");

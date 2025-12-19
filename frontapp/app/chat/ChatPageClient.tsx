@@ -16,27 +16,34 @@ function getMeFromLocalStorage(): Me | null {
   if (typeof window === "undefined") return null;
 
   const raw = localStorage.getItem("guardian_auth");
-  if (!raw) return null;
+  let parsed: any = null;
 
-  try {
-    const parsed = JSON.parse(raw);
-
-    // guardian_auth에 userId 또는 id 중 어떤 키가 있든 대응
-    const id = Number(parsed?.id ?? parsed?.userId);
-    const name = parsed?.name;
-
-    if (!id || Number.isNaN(id) || !name) return null;
-
-    return {
-      id,
-      name,
-      role: parsed?.role,
-      email: parsed?.email,
-      profileImageUrl: parsed?.profileImage ?? parsed?.profileImageUrl ?? null,
-    };
-  } catch {
-    return null;
+  if (raw) {
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      parsed = null;
+    }
   }
+
+  const storedId = localStorage.getItem("userId");
+  const id = Number(parsed?.id ?? parsed?.userId ?? storedId);
+  if (!id || Number.isNaN(id)) return null;
+
+  const name =
+    parsed?.name ||
+    localStorage.getItem("userName") ||
+    localStorage.getItem("userEmail") ||
+    (parsed?.email ? String(parsed.email) : null) ||
+    `사용자#${id}`;
+
+  return {
+    id,
+    name,
+    role: parsed?.role,
+    email: parsed?.email ?? localStorage.getItem("userEmail") ?? undefined,
+    profileImageUrl: parsed?.profileImage ?? parsed?.profileImageUrl ?? null,
+  };
 }
 
 export default function ChatPageClient() {

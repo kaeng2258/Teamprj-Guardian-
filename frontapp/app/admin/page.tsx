@@ -78,8 +78,8 @@ function SummaryCard({
 
 export default function AdminPage() {
   const router = useRouter();
-const isAllowed = useAdminGuard();
-const guardLoading = false; // 로딩 상태를 따로 관리하지 않는 구조라면
+  const isAllowed = useAdminGuard();
+  const guardLoading = false; // 로딩 상태를 따로 관리하지 않는 구조라면
 
   const [overview, setOverview] = useState<AdminOverview | null>(null);
   const [overviewLoading, setOverviewLoading] = useState(false);
@@ -97,17 +97,11 @@ const guardLoading = false; // 로딩 상태를 따로 관리하지 않는 구�
   const [userMedication, setUserMedication] = useState<UserMedicationSummary | null>(null);
   const [userMedicationError, setUserMedicationError] = useState<string | null>(null);
 
-  const [deleteLoading, setDeleteLoading] = useState(false);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
-
   const filteredUsers = useMemo(() => {
     const kw = userKeyword.trim();
     return users.filter((u) => {
       const okRole = userRole === "ALL" ? true : u.role === userRole;
-      const okKw =
-        !kw ||
-        (u.name ?? "").includes(kw) ||
-        (u.email ?? "").includes(kw);
+      const okKw = !kw || (u.name ?? "").includes(kw) || (u.email ?? "").includes(kw);
       return okRole && okKw;
     });
   }, [users, userKeyword, userRole]);
@@ -189,46 +183,6 @@ const guardLoading = false; // 로딩 상태를 따로 관리하지 않는 구�
     }
   }, []);
 
-  // ✅ 여기만 핵심 수정: 실패 응답을 JSON(message) 우선 파싱
-  const handleDeleteUser = async () => {
-    if (!selectedUser) return;
-    if (!confirm("정말 이 유저를 삭제하시겠습니까?")) return;
-
-    try {
-      setDeleteLoading(true);
-      setDeleteError(null);
-
-      const res = await fetchWithAuth(`${API_BASE_URL}/api/admin/users/${selectedUser.id}`, {
-        method: "DELETE",
-      });
-
-      if (!res.ok) {
-        let msg = "유저 삭제에 실패했습니다.";
-        try {
-          const json = await res.clone().json();
-          if (json && typeof json.message === "string" && json.message.trim().length > 0) {
-            msg = json.message;
-          } else {
-            msg = JSON.stringify(json);
-          }
-        } catch {
-          const text = await res.text();
-          if (text && text.trim().length > 0) msg = text.trim();
-        }
-        throw new Error(msg);
-      }
-
-      await loadUsers();
-      setSelectedUser(null);
-      setUserMedication(null);
-    } catch (e) {
-      console.error("[AdminDashboard] delete error:", e);
-      setDeleteError(e instanceof Error ? e.message : "유저 삭제에 실패했습니다.");
-    } finally {
-      setDeleteLoading(false);
-    }
-  };
-
   useEffect(() => {
     if (!isAllowed || guardLoading) return;
 
@@ -251,19 +205,16 @@ const guardLoading = false; // 로딩 상태를 따로 관리하지 않는 구�
     return <div className="min-h-screen bg-slate-50" />;
   }
 
- if (!isAllowed) {
-  return (
-    <div className="min-h-screen bg-slate-50 p-6">
-      <div className="mx-auto max-w-3xl rounded-xl border bg-white p-6">
-        <h1 className="text-lg font-bold">접근 권한이 없습니다.</h1>
-        <p className="mt-2 text-sm text-gray-600">
-          관리자 계정으로 로그인하세요.
-        </p>
+  if (!isAllowed) {
+    return (
+      <div className="min-h-screen bg-slate-50 p-6">
+        <div className="mx-auto max-w-3xl rounded-xl border bg-white p-6">
+          <h1 className="text-lg font-bold">접근 권한이 없습니다.</h1>
+          <p className="mt-2 text-sm text-gray-600">관리자 계정으로 로그인하세요.</p>
+        </div>
       </div>
-    </div>
-  );
-}
-
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -344,9 +295,7 @@ const guardLoading = false; // 로딩 상태를 따로 관리하지 않는 구�
               {userLoading && (
                 <div className="p-4 text-sm text-slate-500">유저 목록 로딩 중...</div>
               )}
-              {userError && (
-                <div className="p-4 text-sm text-red-600">{userError}</div>
-              )}
+              {userError && <div className="p-4 text-sm text-red-600">{userError}</div>}
               {!userLoading && !userError && filteredUsers.length === 0 && (
                 <div className="p-4 text-sm text-slate-500">검색 결과가 없습니다.</div>
               )}
@@ -396,7 +345,9 @@ const guardLoading = false; // 로딩 상태를 따로 관리하지 않는 구�
                     <div className="rounded-lg border border-slate-200 p-3">
                       <p className="text-sm font-semibold text-slate-900">복약 요약</p>
                       {selectedUser.role !== "CLIENT" ? (
-                        <p className="mt-2 text-sm text-slate-500">CLIENT만 복약 요약이 표시됩니다.</p>
+                        <p className="mt-2 text-sm text-slate-500">
+                          CLIENT만 복약 요약이 표시됩니다.
+                        </p>
                       ) : userMedicationError ? (
                         <p className="mt-2 text-sm text-red-600">{userMedicationError}</p>
                       ) : !userMedication ? (
@@ -406,7 +357,9 @@ const guardLoading = false; // 로딩 상태를 따로 관리하지 않는 구�
                           <p className="text-sm text-slate-700">
                             30일 복약률:{" "}
                             <span className="font-bold text-slate-900">
-                              {userMedication.adherenceRate?.toFixed?.(1) ?? userMedication.adherenceRate}%
+                              {userMedication.adherenceRate?.toFixed?.(1) ??
+                                userMedication.adherenceRate}
+                              %
                             </span>
                           </p>
                           <div className="text-xs text-slate-500">복약 계획</div>
@@ -421,20 +374,6 @@ const guardLoading = false; // 로딩 상태를 따로 관리하지 않는 구�
                             ))}
                           </ul>
                         </div>
-                      )}
-                    </div>
-
-                    <div className="rounded-lg border border-slate-200 p-3">
-                      <button
-                        type="button"
-                        onClick={() => void handleDeleteUser()}
-                        disabled={deleteLoading}
-                        className="w-full rounded-md bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-500 disabled:opacity-50"
-                      >
-                        {deleteLoading ? "삭제 중..." : "유저 삭제"}
-                      </button>
-                      {deleteError && (
-                        <p className="mt-2 text-sm text-red-600">{deleteError}</p>
                       )}
                     </div>
                   </>

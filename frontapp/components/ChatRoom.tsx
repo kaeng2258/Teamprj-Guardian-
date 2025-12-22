@@ -530,12 +530,16 @@ const startCamera = async () => {
 
     const pc = ensurePc();
 
-    // 중복 addTrack 방지 (재시작/재연결 시 중복 송신자 생성 방지)
+    // 재시작 시 기존 sender가 있으면 replaceTrack으로 갱신
     const senders = pc.getSenders();
-    stream.getTracks().forEach((t) => {
-      const exists = senders.some((s) => s.track && s.track.kind === t.kind);
-      if (!exists) pc.addTrack(t, stream);
-    });
+    for (const t of stream.getTracks()) {
+      const sender = senders.find((s) => s.track && s.track.kind === t.kind);
+      if (sender) {
+        await sender.replaceTrack(t);
+      } else {
+        pc.addTrack(t, stream);
+      }
+    }
 
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
@@ -551,6 +555,14 @@ const startCamera = async () => {
     localStreamRef.current?.getTracks().forEach((t) => t.stop());
     localStreamRef.current = null;
     if (localVideoRef.current) localVideoRef.current.srcObject = null;
+    const pc = pcRef.current;
+    if (pc) {
+      pc.getSenders().forEach((s) => {
+        if (s.track) {
+          s.replaceTrack(null).catch(() => {});
+        }
+      });
+    }
     setCamOn(false);
     setMicOn(false);
     sendRtc("video-off", {});

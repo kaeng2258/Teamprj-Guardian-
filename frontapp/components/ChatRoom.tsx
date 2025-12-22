@@ -842,7 +842,7 @@ const startCamera = async () => {
   );
 
   const layoutCols = isMobile ? "1fr" : "2fr 1fr";
-  const layoutRows = isMobile ? "60vh 1fr" : "1fr";
+  const layoutRows = isMobile ? "40vh 1fr" : "1fr";
 
   const handleExit = () => {
     if (typeof window !== "undefined") {

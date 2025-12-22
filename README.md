@@ -124,6 +124,21 @@ npm run build # 배포 빌드
 - **Problem**: 환자 리스트 화면 로딩이 느려지고 DB 커넥션 사용량 급증.
 - **Cause**: JPA 연관관계(LAZY) 컬렉션을 조회하며 각 환자별로 추가 SELECT가 발생.
 - **Solution**: 핵심 조회에 `fetch join`·`@EntityGraph` 적용, 대량 목록에는 `hibernate.default_batch_fetch_size`로 배치 로딩을 설정해 쿼리 수를 상수에 가깝게 감소.
+
+### 8. 채팅 목록이 403으로 실패
+- **Problem**: `/api/chat/threads`가 403으로 막혀 채팅 목록이 로드되지 않음.
+- **Cause**: 프론트에서 만료된 `accessToken`을 그대로 보내거나 Authorization 헤더 누락으로 인증 실패.
+- **Solution**: `fetchWithAuth`로 통합하고 401/403 시 `/api/auth/refresh`로 토큰 재발급 후 재시도하도록 보완.
+
+### 9. 화상채팅 연결 실패 및 화면 미표시
+- **Problem**: 화상채팅 연결 실패 또는 내/상대방 영상이 표시되지 않음.
+- **Cause**: WebSocket(STOMP) 연결 시 만료 토큰으로 인증 실패, 로컬 비디오가 렌더링되기 전에 스트림이 바인딩됨.
+- **Solution**: STOMP `beforeConnect`에서 토큰 갱신 후 연결, `camOn` 이후 로컬 비디오에 스트림 재바인딩.
+
+### 10. 카메라 재시작 시 상대방 화면이 안 보임
+- **Problem**: 상대방이 카메라를 다시 켜도 “카메라 꺼짐” 상태로 유지됨.
+- **Cause**: 기존 RTCRtpSender에 종료된 트랙이 남아 새로운 트랙이 전송되지 않음.
+- **Solution**: `replaceTrack`으로 기존 sender를 갱신하고, 카메라 종료 시 sender 트랙을 `null`로 교체해 재시작 가능하게 수정.
 </details>
 
 <details>

@@ -54,6 +54,9 @@ type MedicationPlan = {
   managerId?: number | null;
   managerName?: string | null;
   managerEmail?: string | null;
+  assignedManagerIds?: number[];
+  assignedManagerNames?: string[];
+  assignedManagerEmails?: string[];
   managerPhone?: string | null;
   managerOrganization?: string | null;
 };
@@ -515,7 +518,11 @@ export default function ClientMyPage() {
       const ids = Array.from(
         new Set(
           plans
-            .map((p) => p.managerId)
+            .flatMap((p) =>
+              (p.assignedManagerIds && p.assignedManagerIds.length > 0)
+                ? p.assignedManagerIds
+                : (typeof p.managerId === "number" ? [p.managerId] : []),
+            )
             .filter((id): id is number => typeof id === "number" && Number.isFinite(id)),
         ),
       ).filter((id) => !managerProfiles[id]);
@@ -765,6 +772,9 @@ export default function ClientMyPage() {
   type ManagerPlanGroup = {
     key: string;
     name: string;
+    managerId?: number | null;
+    managerNameRaw?: string | null;
+    managerEmail?: string | null;
     phone: string;
     meta: string;
     avatar: string;
@@ -774,24 +784,70 @@ export default function ClientMyPage() {
   const groupedPlans = useMemo<ManagerPlanGroup[]>(() => {
     const groups = new Map<string, ManagerPlanGroup>();
     plans.forEach((plan) => {
-      const managerRaw = plan.managerName?.trim();
-      const managerFallback =
-        plan.managerEmail?.trim() ||
-        plan.managerOrganization?.trim() ||
-        plan.managerPhone?.trim() ||
-        "";
-      const name =
-        managerRaw && managerRaw.length > 0 ? `${managerRaw} 매니저` : managerFallback || "담당 매니저 정보 없음";
-      const phone = plan.managerPhone?.trim() || (plan.managerId ? managerPhones[plan.managerId] : "") || "";
-      const meta = [plan.managerOrganization?.trim(), plan.managerEmail?.trim()]
-        .filter((value) => value && value.length > 0)
-        .join(" · ");
-      const avatar = (plan.managerId && managerProfiles[plan.managerId]) || defaultProfileImage;
-      const key = plan.managerId ? `id-${plan.managerId}` : `name-${name}`;
-      if (!groups.has(key)) {
-        groups.set(key, { key, name, phone, meta, avatar, plans: [] });
+      const assignedIds =
+        plan.assignedManagerIds && plan.assignedManagerIds.length > 0
+          ? plan.assignedManagerIds
+          : (typeof plan.managerId === "number" ? [plan.managerId] : []);
+      const assignedNames = plan.assignedManagerNames ?? [];
+      const assignedEmails = plan.assignedManagerEmails ?? [];
+
+      if (assignedIds.length === 0) {
+        const fallbackName = "담당 매니저 정보 없음";
+        const key = "unassigned";
+        const phone = "";
+        const meta = "";
+        const avatar = defaultProfileImage;
+        if (!groups.has(key)) {
+          groups.set(key, {
+            key,
+            name: fallbackName,
+            managerId: null,
+            managerNameRaw: null,
+            managerEmail: null,
+            phone,
+            meta,
+            avatar,
+            plans: [],
+          });
+        }
+        groups.get(key)!.plans.push(plan);
+        return;
       }
-      groups.get(key)!.plans.push(plan);
+
+      assignedIds.forEach((managerId, idx) => {
+        const nameRaw =
+          assignedNames[idx] ??
+          assignedNames[0] ??
+          plan.managerName?.trim() ??
+          null;
+        const email =
+          assignedEmails[idx] ??
+          assignedEmails[0] ??
+          plan.managerEmail?.trim() ??
+          null;
+        const displayName =
+          nameRaw && nameRaw.length > 0
+            ? `${nameRaw} 매니저`
+            : email || "담당 매니저 정보 없음";
+        const phone = managerId ? managerPhones[managerId] ?? "" : "";
+        const meta = email ?? "";
+        const avatar = managerId ? (managerProfiles[managerId] ?? defaultProfileImage) : defaultProfileImage;
+        const key = `id-${managerId}`;
+        if (!groups.has(key)) {
+          groups.set(key, {
+            key,
+            name: displayName,
+            managerId,
+            managerNameRaw: nameRaw,
+            managerEmail: email,
+            phone,
+            meta,
+            avatar,
+            plans: [],
+          });
+        }
+        groups.get(key)!.plans.push(plan);
+      });
     });
     return Array.from(groups.values());
   }, [plans, managerProfiles, defaultProfileImage, managerPhones]);
@@ -862,18 +918,30 @@ export default function ClientMyPage() {
     [emergencyAckKey, markChatAsRead, router],
   );
   const findChatRoomForPlan = useCallback(
-    (plan: MedicationPlan) => {
+    (plan: MedicationPlan, managerIdOverride?: number | null, managerNameOverride?: string | null) => {
       if (!chatThreads.length) return null;
-      if (plan.managerId) {
-        const byId = chatThreads.find((t) => t.managerId === plan.managerId);
+      const targetManagerId =
+        typeof managerIdOverride === "number"
+          ? managerIdOverride
+          : typeof plan.managerId === "number"
+            ? plan.managerId
+            : null;
+      if (targetManagerId != null) {
+        const byId = chatThreads.find((t) => t.managerId === targetManagerId);
         if (byId?.roomId) return byId.roomId;
       }
-      const managerName = plan.managerName?.trim().toLowerCase() ?? "";
+      const managerName =
+        (managerNameOverride ?? plan.managerName)?.trim().toLowerCase() ?? "";
       if (managerName.length > 0) {
         const byName = chatThreads.find(
           (t) => (t.managerName ?? "").trim().toLowerCase() === managerName,
         );
         if (byName?.roomId) return byName.roomId;
+      }
+      const assignedIds = plan.assignedManagerIds ?? [];
+      for (const managerId of assignedIds) {
+        const byId = chatThreads.find((t) => t.managerId === managerId);
+        if (byId?.roomId) return byId.roomId;
       }
       return chatThreads[0]?.roomId ?? null;
     },
@@ -881,8 +949,8 @@ export default function ClientMyPage() {
   );
 
   const handleChatWithManager = useCallback(
-    (plan: MedicationPlan) => {
-      const roomId = findChatRoomForPlan(plan);
+    (plan: MedicationPlan, managerIdOverride?: number | null, managerNameOverride?: string | null) => {
+      const roomId = findChatRoomForPlan(plan, managerIdOverride, managerNameOverride);
       if (roomId) {
         goToChatRoom(roomId);
         return;
@@ -1886,7 +1954,7 @@ export default function ClientMyPage() {
                               onClick={(e) => {
                                 e.stopPropagation();
                                 const firstPlan = group.plans[0];
-                                if (firstPlan) handleChatWithManager(firstPlan);
+                                if (firstPlan) handleChatWithManager(firstPlan, group.managerId ?? null, group.managerNameRaw ?? null);
                               }}
                               type="button"
                               aria-label="담당 매니저와 채팅"

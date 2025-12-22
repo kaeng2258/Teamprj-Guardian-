@@ -2,9 +2,9 @@ name: Deploy Backend & Frontend
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
     paths-ignore:
-      - '**.md'
+      - "**.md"
 
 jobs:
   backend:
@@ -35,7 +35,6 @@ jobs:
           echo "=== build/libs 내용 ==="
           ls -l build/libs || echo "⚠ build/libs 없음"
 
-      # 🔍 실제로 JAR이 만들어졌는지 체크
       - name: Check built JAR exists
         run: |
           echo "=== JAR 존재 여부 확인 ==="
@@ -53,7 +52,6 @@ jobs:
 
           echo "✅ JAR 파일 존재: build/libs/guardian-0.0.1-SNAPSHOT.jar"
 
-      # 🚛 빌드된 JAR을 EC2로 업로드
       - name: Upload backend JAR to EC2
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -63,8 +61,36 @@ jobs:
           source: "build/libs/guardian-0.0.1-SNAPSHOT.jar"
           target: "/home/ec2-user/app/backend/"
 
-      # 🔁 EC2에서 guardian.jar로 교체 + 서비스 재시작
-      - name: Restart backend service
+      # ✅ 로그 보관 제한 (디플로이마다 실행해도 무해)
+      - name: Configure journald log retention (once)
+        uses: appleboy/ssh-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST2 }}
+          username: ${{ secrets.EC2_USER2 }}
+          key: ${{ secrets.EC2_SSH_KEY2 }}
+          command_timeout: 300s
+          script: |
+            set -e
+
+            echo "=== Configure systemd-journald log limits ==="
+
+            sudo tee /etc/systemd/journald.conf > /dev/null << 'EOF'
+            [Journal]
+            SystemMaxUse=300M
+            SystemMaxFileSize=50M
+            MaxRetentionSec=14day
+            MaxFileSec=7day
+            SystemKeepFree=1G
+            EOF
+
+            echo "=== Restart systemd-journald ==="
+            sudo systemctl restart systemd-journald
+
+            echo "=== Vacuum old logs ==="
+            sudo journalctl --vacuum-size=300M
+
+      # ✅ 백업 없이 guardian.jar로 교체 + 서비스 재시작
+      - name: Restart backend service (no backup)
         uses: appleboy/ssh-action@v0.1.7
         with:
           host: ${{ secrets.EC2_HOST2 }}
@@ -79,24 +105,15 @@ jobs:
             pwd
             ls -l
 
-            # 기존 guardian.jar 백업 (있으면)
-            if [ -f guardian.jar ]; then
-              BACKUP_NAME="guardian_backup_$(date +%Y%m%d%H%M%S).jar"
-              echo "기존 guardian.jar 백업 → $BACKUP_NAME"
-              mv guardian.jar "$BACKUP_NAME"
-            fi
-
-            echo "=== build/libs 내용 확인 ==="
-            ls -l build/libs || echo "⚠ build/libs 디렉토리가 없습니다"
-
-            # 🔥 빌드된 JAR 위치: build/libs/guardian-0.0.1-SNAPSHOT.jar
-            if [ ! -f build/libs/guardian-0.0.1-SNAPSHOT.jar ]; then
-              echo "❌ build/libs/guardian-0.0.1-SNAPSHOT.jar 를 찾지 못했습니다."
+            # 업로드된 JAR 확인
+            if [ ! -f guardian-0.0.1-SNAPSHOT.jar ]; then
+              echo "❌ 업로드된 guardian-0.0.1-SNAPSHOT.jar 를 찾지 못했습니다."
               exit 1
             fi
 
-            echo "새 JAR 파일: build/libs/guardian-0.0.1-SNAPSHOT.jar → guardian.jar 로 사용"
-            cp build/libs/guardian-0.0.1-SNAPSHOT.jar guardian.jar
+            # 백업 제거: 기존 guardian.jar는 삭제 후 교체
+            rm -f guardian.jar
+            mv -f guardian-0.0.1-SNAPSHOT.jar guardian.jar
 
             echo "=== guardian-backend 서비스 재시작 ==="
             sudo systemctl daemon-reload
@@ -111,11 +128,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # 🚫 (최적화) GitHub Runner에서 빌드하지 않음 -> 소스코드만 복사 -> EC2에서 빌드
-      # 불필요한 node_modules 업로드 방지
-
-
-      # ✅ 빌드된 frontapp 전체를 EC2로 복사
+      # ✅ frontapp 소스 전체를 EC2로 복사 (EC2에서 빌드)
       - name: Upload frontend to EC2
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -153,7 +166,7 @@ jobs:
             echo "=== package*.json 확인 ==="
             ls -l package*.json || echo "❌ package.json / package-lock.json 없음"
 
-            # 🔥 devDependencies 포함해서 설치 (Tailwind 등)
+            # 🔥 devDependencies 포함 설치 (Tailwind 등)
             if [ -f package-lock.json ]; then
               echo "✅ package-lock.json 존재 → npm ci"
               npm ci

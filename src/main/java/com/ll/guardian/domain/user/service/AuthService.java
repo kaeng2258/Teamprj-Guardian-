@@ -46,14 +46,14 @@ public class AuthService {
     public LoginResponse login(LoginRequest request) {
         User user = userRepository
                 .findByEmail(request.email())
-                .orElseThrow(() -> new GuardianException(HttpStatus.UNAUTHORIZED, "계정??찾을 ???�습?�다."));
+                .orElseThrow(() -> new GuardianException(HttpStatus.UNAUTHORIZED, "계정을 찾을 수 없습니다."));
 
         if (user.getStatus() == UserStatus.SUSPENDED) {
-            throw new GuardianException(HttpStatus.UNAUTHORIZED, "?��???계정?�니??");
+            throw new GuardianException(HttpStatus.UNAUTHORIZED, "정지된 계정입니다.");
         }
 
         if (!passwordEncoder.matches(request.password(), user.getPassword())) {
-            throw new GuardianException(HttpStatus.UNAUTHORIZED, "비�?번호가 ?�바르�? ?�습?�다.");
+            throw new GuardianException(HttpStatus.UNAUTHORIZED, "비밀번호가 올바르지 않습니다.");
         }
 
         String accessToken = jwtTokenProvider.createAccessToken(user.getEmail());

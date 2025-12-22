@@ -869,7 +869,7 @@ const startCamera = async () => {
       <Box
         style={{
           position: "absolute",
-          top: layoutRows === "60vh 1fr" ? 5 : 31, // 모바일(상단 영역) vs 데스크톱 헤더 높이 근처
+          top: isMobile ? 5 : 31, // 모바일(상단 영역) vs 데스크톱 헤더 높이 근처
           right: 20,
           zIndex: 100,
         }}

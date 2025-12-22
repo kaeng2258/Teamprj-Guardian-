@@ -148,6 +148,9 @@ type ManagerClientSearchResult = {
   assignedManagerId?: number | null;
   assignedManagerName?: string | null;
   assignedManagerEmail?: string | null;
+  assignedManagerIds?: number[];
+  assignedManagerNames?: string[];
+  assignedManagerEmails?: string[];
   assignable: boolean;
 };
 
@@ -3920,12 +3923,19 @@ export default function ManagerMyPage() {
               ) : searchResults.length > 0 ? (
                 <div className="mt-4 space-y-3">
                   {searchResults.map((result) => {
+                    const assignedManagerIds =
+                      result.assignedManagerIds ??
+                      (result.assignedManagerId ? [result.assignedManagerId] : []);
+                    const assignedManagerNames =
+                      result.assignedManagerNames ??
+                      (result.assignedManagerName ? [result.assignedManagerName] : []);
+                    const assignedManagerEmails =
+                      result.assignedManagerEmails ??
+                      (result.assignedManagerEmail ? [result.assignedManagerEmail] : []);
                     const assignedToCurrent =
-                      result.currentlyAssigned &&
-                      result.assignedManagerId === manager.userId;
+                      result.currentlyAssigned && assignedManagerIds.includes(manager.userId);
                     const assignedToOther =
-                      result.currentlyAssigned &&
-                      result.assignedManagerId !== manager.userId;
+                      result.currentlyAssigned && !assignedToCurrent;
                     const assignState = assignmentStates[result.clientId] ?? "idle";
                     const isAssigning = assignState === "assigning";
                     const isUnassigning = assignState === "unassigning";
@@ -4022,9 +4032,11 @@ export default function ManagerMyPage() {
                             </span>
                             <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-indigo-800">
                               {assignedToOther
-                                ? `${result.assignedManagerName ?? "다른 매니저"} (${result.assignedManagerEmail ?? "정보 없음"})`
+                                ? `${assignedManagerNames[0] ?? "다른 매니저"} (${assignedManagerEmails[0] ?? "정보 없음"})`
                                 : assignedToCurrent
-                                  ? "현재 담당 중"
+                                  ? assignedManagerNames.length > 0
+                                    ? `${assignedManagerNames.join(", ")} (${assignedManagerEmails[0] ?? "정보 없음"})`
+                                    : "현재 담당 중"
                                   : "없음"}
                             </span>
                           </div>

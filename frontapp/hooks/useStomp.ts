@@ -72,6 +72,12 @@ export function useStomp({ roomId, me, onMessage }: UseStompOptions) {
         console.error("WebSocket error", event);
         setConnected(false);
       },
+      onWebSocketClose: () => {
+        setConnected(false);
+      },
+      onDisconnect: () => {
+        setConnected(false);
+      },
     });
 
     client.beforeConnect = async () => {

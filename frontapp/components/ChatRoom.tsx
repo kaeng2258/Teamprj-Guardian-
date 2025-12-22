@@ -233,6 +233,8 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
     onMessage: onMessageHandler,
   });
 
+  const POLL_INTERVAL_MS = 800;
+
   useEffect(() => {
     if (!roomId) return;
     if (connected) return;
@@ -265,7 +267,7 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
     };
 
     void fetchOnce();
-    const timer = setInterval(fetchOnce, 2000);
+    const timer = setInterval(fetchOnce, POLL_INTERVAL_MS);
     return () => {
       cancelled = true;
       clearInterval(timer);

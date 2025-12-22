@@ -6,7 +6,7 @@ import { Client } from "@stomp/stompjs";
 import SockJS from "sockjs-client";
 import { useRouter } from "next/navigation";
 import { resolveProfileImageUrl } from "@/lib/image";
-import { fetchWithAuth } from "@/lib/auth";
+import { ensureAccessToken, fetchWithAuth } from "@/lib/auth";
 import {
   ActionIcon,
   Avatar,
@@ -463,10 +463,8 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
   useEffect(() => {
     if (!roomId || !me.id) return;
     const socketFactory = () => new SockJS(WS_ENDPOINT);
-    const token = window.localStorage.getItem("accessToken");
     const client = new Client({
       webSocketFactory: socketFactory,
-      connectHeaders: token ? { Authorization: `Bearer ${token}` } : {},
       reconnectDelay: 5000,
       onConnect: () => {
         setRtcStatus("connected");
@@ -483,6 +481,11 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
       onStompError: () => setRtcStatus("disconnected"),
       onWebSocketError: () => setRtcStatus("disconnected"),
     });
+
+    client.beforeConnect = async () => {
+      const token = await ensureAccessToken();
+      client.connectHeaders = token ? { Authorization: `Bearer ${token}` } : {};
+    };
 
     setRtcStatus("connecting");
     client.activate();

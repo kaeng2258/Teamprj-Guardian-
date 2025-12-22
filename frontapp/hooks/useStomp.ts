@@ -4,6 +4,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Client, IMessage } from "@stomp/stompjs";
 import SockJS from "sockjs-client";
+import { ensureAccessToken } from "@/lib/auth";
 
 // 환경변수에 ws://, wss:// 를 넣어도 SockJS 에서 쓸 수 있게 변환
 const WS_ENDPOINT = (() => {
@@ -45,10 +46,8 @@ export function useStomp({ roomId, me, onMessage }: UseStompOptions) {
 
     const socketFactory = () => new SockJS(WS_ENDPOINT);
 
-    const token = window.localStorage.getItem("accessToken");
     const client = new Client({
       webSocketFactory: socketFactory,
-      connectHeaders: token ? { Authorization: `Bearer ${token}` } : {},
       reconnectDelay: 5000,
       heartbeatIncoming: 10000,
       heartbeatOutgoing: 10000,
@@ -72,6 +71,11 @@ export function useStomp({ roomId, me, onMessage }: UseStompOptions) {
         console.error("WebSocket error", event);
       },
     });
+
+    client.beforeConnect = async () => {
+      const token = await ensureAccessToken();
+      client.connectHeaders = token ? { Authorization: `Bearer ${token}` } : {};
+    };
 
     client.activate();
     clientRef.current = client;

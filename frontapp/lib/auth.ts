@@ -151,6 +151,62 @@ function persistAuthTokens(accessToken: string, refreshToken: string) {
   setAuthCookie(next);
 }
 
+function decodeJwtPayload(token: string): Record<string, unknown> | null {
+  if (typeof window === "undefined") return null;
+  const parts = token.split(".");
+  if (parts.length < 2) return null;
+  const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+  const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), "=");
+  try {
+    const json = atob(padded);
+    return JSON.parse(json) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
+function isTokenExpired(token: string, skewSeconds = 30): boolean {
+  const payload = decodeJwtPayload(token);
+  const exp = typeof payload?.exp === "number" ? payload.exp : null;
+  if (!exp) return false;
+  return Date.now() >= exp * 1000 - skewSeconds * 1000;
+}
+
+export async function refreshAccessToken(): Promise<string | null> {
+  const auth = readAuth();
+  if (!auth?.refreshToken || !API_BASE) {
+    return auth?.accessToken ?? null;
+  }
+  try {
+    const refreshRes = await fetch(`${API_BASE}/api/auth/refresh`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refreshToken: auth.refreshToken }),
+    });
+    if (!refreshRes.ok) {
+      return auth.accessToken ?? null;
+    }
+    const payload = (await refreshRes.json()) as {
+      accessToken: string;
+      refreshToken: string;
+    };
+    persistAuthTokens(payload.accessToken, payload.refreshToken);
+    return payload.accessToken;
+  } catch {
+    return auth.accessToken ?? null;
+  }
+}
+
+export async function ensureAccessToken(): Promise<string | null> {
+  const auth = readAuth();
+  if (!auth) return null;
+  const accessToken = auth.accessToken ?? null;
+  if (accessToken && !isTokenExpired(accessToken)) {
+    return accessToken;
+  }
+  return refreshAccessToken();
+}
+
 export async function fetchWithAuth(
   url: string,
   init: RequestInit = {},
@@ -166,28 +222,14 @@ export async function fetchWithAuth(
     headers,
   });
 
-  if (
-    (res.status === 401 || res.status === 403) &&
-    auth?.refreshToken &&
-    API_BASE
-  ) {
+  if ((res.status === 401 || res.status === 403) && auth?.refreshToken && API_BASE) {
     try {
-      const refreshRes = await fetch(`${API_BASE}/api/auth/refresh`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ refreshToken: auth.refreshToken }),
-      });
-      if (!refreshRes.ok) {
+      const nextToken = await refreshAccessToken();
+      if (!nextToken) {
         return res;
       }
-      const payload = (await refreshRes.json()) as {
-        accessToken: string;
-        refreshToken: string;
-      };
-      persistAuthTokens(payload.accessToken, payload.refreshToken);
-
       const retryHeaders = mergeHeaders(init.headers);
-      retryHeaders.Authorization = `Bearer ${payload.accessToken}`;
+      retryHeaders.Authorization = `Bearer ${nextToken}`;
       return await fetch(url, {
         ...init,
         headers: retryHeaders,

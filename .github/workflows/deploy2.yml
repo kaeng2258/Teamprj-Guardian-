@@ -60,6 +60,7 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY2 }}
           source: "build/libs/guardian-0.0.1-SNAPSHOT.jar"
           target: "/home/ec2-user/app/backend/"
+          strip_components: 2
 
       # ✅ 로그 보관 제한 (디플로이마다 실행해도 무해)
       - name: Configure journald log retention (once)

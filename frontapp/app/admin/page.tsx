@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAdminGuard } from "../../hooks/useAdminGuard";
+import { clearAuthCookie, readAuth } from "../../lib/auth";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "";
 
@@ -38,15 +39,8 @@ type UserMedicationSummary = {
 };
 
 function getAuthToken() {
-  if (typeof window === "undefined") return null;
-  const raw = window.localStorage.getItem("guardian_auth");
-  if (!raw) return null;
-  try {
-    const parsed = JSON.parse(raw);
-    return parsed?.accessToken ?? null;
-  } catch {
-    return null;
-  }
+  const auth = readAuth();
+  return auth?.accessToken ?? null;
 }
 
 async function fetchWithAuth(url: string, init?: RequestInit) {
@@ -109,6 +103,12 @@ export default function AdminPage() {
   const handleLogout = useCallback(() => {
     if (typeof window !== "undefined") {
       window.localStorage.removeItem("guardian_auth");
+      window.localStorage.removeItem("accessToken");
+      window.localStorage.removeItem("refreshToken");
+      window.localStorage.removeItem("userRole");
+      window.localStorage.removeItem("userEmail");
+      window.localStorage.removeItem("userId");
+      clearAuthCookie();
     }
     router.replace("/");
   }, [router]);

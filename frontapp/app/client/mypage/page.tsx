@@ -3,6 +3,7 @@ import MyChatRooms from "../../../components/MyChatRooms";
 import { InlineDrugSearch } from "../../../components/InlineDrugSearch";
 import { resolveProfileImageUrl } from "../../../lib/image";
 import { useRouter } from "next/navigation";
+import { clearAuthCookie, readAuth } from "../../../lib/auth";
 import Image, { type ImageLoader } from "next/image";
 import {
   useCallback,
@@ -269,17 +270,17 @@ export default function ClientMyPage() {
       return;
     }
 
-    const accessToken = window.localStorage.getItem("accessToken");
-    const role = window.localStorage.getItem("userRole");
+    const auth = readAuth();
+    const accessToken = auth?.accessToken;
+    const role = auth?.role;
 
     if (!accessToken || role !== "CLIENT") {
       router.replace("/");
       return;
     }
 
-    const storedEmail = window.localStorage.getItem("userEmail") ?? "";
-    const storedUserId = window.localStorage.getItem("userId");
-    const userId = storedUserId ? Number(storedUserId) : null;
+    const storedEmail = auth?.email ?? window.localStorage.getItem("userEmail") ?? "";
+    const userId = typeof auth?.userId === "number" ? auth.userId : null;
     setClient({
       email: storedEmail,
       userId,
@@ -1390,6 +1391,8 @@ export default function ClientMyPage() {
     window.localStorage.removeItem("userRole");
     window.localStorage.removeItem("userEmail");
     window.localStorage.removeItem("userId");
+    window.localStorage.removeItem("guardian_auth");
+    clearAuthCookie();
     router.replace("/");
   };
 

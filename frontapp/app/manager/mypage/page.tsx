@@ -5,6 +5,7 @@ import { InlineDrugSearch } from "@/components/InlineDrugSearch";
 import { DrugDetailModal } from "@/components/DrugDetailModal";
 import { resolveProfileImageUrl } from "@/lib/image";
 import { useRouter } from "next/navigation";
+import { clearAuthCookie, readAuth } from "../../../lib/auth";
 import { ChatClientPicker } from "@/components/ChatClientPicker";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faMagnifyingGlass, faPen, faRotateRight } from "@fortawesome/free-solid-svg-icons";
@@ -600,17 +601,17 @@ export default function ManagerMyPage() {
       return;
     }
 
-    const accessToken = window.localStorage.getItem("accessToken");
-    const role = window.localStorage.getItem("userRole");
+    const auth = readAuth();
+    const accessToken = auth?.accessToken;
+    const role = auth?.role;
 
     if (!accessToken || role !== "MANAGER") {
       router.replace("/");
       return;
     }
 
-    const storedEmail = window.localStorage.getItem("userEmail") ?? "";
-    const storedUserId = window.localStorage.getItem("userId");
-    const userId = storedUserId ? Number(storedUserId) : null;
+    const storedEmail = auth?.email ?? window.localStorage.getItem("userEmail") ?? "";
+    const userId = typeof auth?.userId === "number" ? auth.userId : null;
     setManager({
       email: storedEmail,
       userId,
@@ -2622,6 +2623,8 @@ export default function ManagerMyPage() {
     window.localStorage.removeItem("userRole");
     window.localStorage.removeItem("userEmail");
     window.localStorage.removeItem("userId");
+    window.localStorage.removeItem("guardian_auth");
+    clearAuthCookie();
     router.replace("/");
   };
 

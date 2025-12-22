@@ -4,6 +4,7 @@ import "./globals.css";
 import React from "react";
 import { MantineProvider, ColorSchemeScript } from "@mantine/core";
 import AuthHydrator from "../components/AuthHydrator";
+import CanonicalHostRedirect from "../components/CanonicalHostRedirect";
 import { theme } from "../theme";
 import type { Metadata } from "next";
 
@@ -24,6 +25,7 @@ export default function RootLayout({
       </head>
       <body>
         <MantineProvider theme={theme}>
+          <CanonicalHostRedirect />
           <AuthHydrator />
           {children}
         </MantineProvider>

@@ -4,6 +4,7 @@ import { resolveProfileImageUrl } from "../../../../lib/image";
 import PhoneNumberInput from "../../../../components/PhoneNumberInput";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { readAuth, setAuthCookie } from "../../../../lib/auth";
 import { Modal, Button, PasswordInput, Text, Group, Stack } from "@mantine/core";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "";
@@ -193,8 +194,10 @@ export default function ClientProfileEditPage() {
       "Notification" in window,
     );
     if (typeof window === "undefined") return;
-    const idStr = window.localStorage.getItem("userId");
-    const role = window.localStorage.getItem("userRole");
+    const auth = readAuth();
+    const role = auth?.role ?? window.localStorage.getItem("userRole");
+    const idStr =
+      typeof auth?.userId === "number" ? String(auth.userId) : window.localStorage.getItem("userId");
     if (!idStr || role !== "CLIENT") {
       router.replace("/");
       return;
@@ -661,6 +664,15 @@ export default function ClientProfileEditPage() {
       };
       const payload: LoginPayload = await res.json();
       if (typeof window !== "undefined") {
+        const authPayload = {
+          userId: payload.userId,
+          role: payload.role,
+          accessToken: payload.accessToken,
+          refreshToken: payload.refreshToken,
+          email,
+        };
+        window.localStorage.setItem("guardian_auth", JSON.stringify(authPayload));
+        setAuthCookie(authPayload);
         window.localStorage.setItem("accessToken", payload.accessToken);
         window.localStorage.setItem("refreshToken", payload.refreshToken);
         window.localStorage.setItem("userRole", payload.role);

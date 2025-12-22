@@ -28,6 +28,7 @@ import {
 import { useMediaQuery } from "@mantine/hooks";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faCheck, faTimes } from "@fortawesome/free-solid-svg-icons";
+import { setAuthCookie } from "../lib/auth";
 
 // Let's assume the user doesn't have @tabler/icons-react installed (package.json didn't show it).
 // I will use FontAwesome for icons since it's in package.json.
@@ -247,6 +248,7 @@ export default function Home() {
           "guardian_auth",
           JSON.stringify(authPayload)
         );
+        setAuthCookie(authPayload);
         window.localStorage.setItem("accessToken", payload.accessToken);
         window.localStorage.setItem("refreshToken", payload.refreshToken);
         window.localStorage.setItem("userRole", payload.role);

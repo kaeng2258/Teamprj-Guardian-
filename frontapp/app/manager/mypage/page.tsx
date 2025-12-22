@@ -3933,7 +3933,9 @@ export default function ManagerMyPage() {
                       result.assignedManagerEmails ??
                       (result.assignedManagerEmail ? [result.assignedManagerEmail] : []);
                     const assignedToCurrent =
-                      result.currentlyAssigned && assignedManagerIds.includes(manager.userId);
+                      result.currentlyAssigned &&
+                      typeof manager.userId === "number" &&
+                      assignedManagerIds.includes(manager.userId);
                     const assignedToOther =
                       result.currentlyAssigned && !assignedToCurrent;
                     const assignState = assignmentStates[result.clientId] ?? "idle";

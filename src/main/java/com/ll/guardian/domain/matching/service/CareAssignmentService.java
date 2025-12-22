@@ -31,14 +31,6 @@ public class CareAssignmentService {
         User client = getUser(request.clientId());
         User manager = getUser(request.managerId());
 
-        // 클라이언트가 이미 다른 매니저에게 배정되어 있는지 확인
-        careMatchRepository.findFirstByClientIdAndCurrentTrue(client.getId())
-            .ifPresent(match -> {
-                if (!match.getManager().getId().equals(manager.getId())) {
-                    throw new GuardianException(HttpStatus.CONFLICT, "해당 클라이언트는 이미 다른 매니저에게 배정되어 있습니다.");
-                }
-            });
-
         // 이미 같은 매니저가 활성 배정되어 있으면 새로 만들지 않고 기존 배정 반환
         CareMatch existing = careMatchRepository
                 .findFirstByClientIdAndManagerIdAndCurrentTrue(client.getId(), manager.getId())

@@ -198,6 +198,21 @@ npm run build # 배포 빌드
 - **Problem**: 장시간 운영 시 journald 로그가 누적되어 디스크 사용량이 급증.
 - **Cause**: 기본 journald 설정이 무제한으로 로그를 쌓음.
 - **Solution**: `journald.conf`에 보관 용량/기간 제한을 설정하고 정기 vacuum 적용으로 안정적인 로그 관리.
+
+### 13. 채팅 메시지 지연/전송 실패
+- **Problem**: 텍스트 채팅이 지연되거나 전송 실패, 연결이 자주 끊김.
+- **Cause**: STOMP 세션 토큰이 만료되면 `SEND/SUBSCRIBE`에서 차단되어 연결이 끊김.
+- **Solution**: STOMP `SEND/SUBSCRIBE`에서도 Authorization 헤더로 토큰 갱신 허용, 클라이언트는 전송 시 토큰 최신화 후 실패 시 HTTP fallback.
+
+### 14. M:N 매칭 전환 후 배정 버튼 상태 오류
+- **Problem**: 이미 배정된 매니저도 “배정하기” 버튼이 활성화됨.
+- **Cause**: 서버 응답이 단일 매니저 정보만 내려줘 프론트에서 자기 배정 여부를 판단 못함.
+- **Solution**: 배정된 매니저 리스트를 내려주고, 프론트는 `assignedManagerIds` 포함 여부로 버튼 상태 결정.
+
+### 15. Web Push 비활성화로 알림 설정 불가
+- **Problem**: 개인정보 수정에서 “웹푸시 비활성화”로 표시됨.
+- **Cause**: VAPID 키가 `application-secret.yml`에만 있고 systemd 환경변수로 주입되지 않아 런타임에 미설정 처리.
+- **Solution**: systemd override로 `WEB_PUSH_*` 환경변수 주입 후 서비스 재시작, `/api/push/config` 확인.
 </details>
 
 <details>

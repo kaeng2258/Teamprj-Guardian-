@@ -400,13 +400,13 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
 
   const sendRtc = useCallback((type: RtcMessageType, payload: RtcPayload = {}) => {
     const client = rtcClientRef.current;
-    if (!client || !client.connected || !roomId || !me.id) return;
-    const body = { type, from: me.id, ...payload };
+    if (!client || !client.connected || !roomId || !resolvedMe.id) return;
+    const body = { type, from: resolvedMe.id, ...payload };
     client.publish({
       destination: `/app/rtc/${roomId}`,
       body: JSON.stringify(body),
     });
-  }, [roomId, me.id]);
+  }, [roomId, resolvedMe.id]);
 
   const ensurePc = useCallback(() => {
     if (pcRef.current) return pcRef.current;
@@ -461,7 +461,7 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
   }, [handleRtcSignal]);
 
   useEffect(() => {
-    if (!roomId || !me.id) return;
+    if (!roomId || !resolvedMe.id) return;
     const socketFactory = () => new SockJS(WS_ENDPOINT);
     const client = new Client({
       webSocketFactory: socketFactory,
@@ -471,7 +471,7 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
         client.subscribe(`/topic/rtc/${roomId}`, async (frame) => {
           try {
             const msg = JSON.parse(frame.body) as RTCSignalMessage;
-            if (!msg || msg.from === me.id) return;
+            if (!msg || msg.from === resolvedMe.id) return;
             await handleRtcSignalRef.current(msg);
           } catch (e) {
             console.error("RTC Parse Error", e);
@@ -497,7 +497,7 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
       setRtcStatus("disconnected");
       setRemoteVideoOn(false);
     };
-  }, [roomId, me.id]);
+  }, [roomId, resolvedMe.id]);
 
 const startCamera = async () => {
   if (camOn) return;

@@ -66,9 +66,11 @@ export function useStomp({ roomId, me, onMessage }: UseStompOptions) {
       },
       onStompError: (frame) => {
         console.error("STOMP error", frame);
+        setConnected(false);
       },
       onWebSocketError: (event) => {
         console.error("WebSocket error", event);
+        setConnected(false);
       },
     });
 

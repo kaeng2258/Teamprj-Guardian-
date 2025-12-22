@@ -368,6 +368,36 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
   const localStreamRef = useRef<MediaStream | null>(null);
   const rtcClientRef = useRef<Client | null>(null);
 
+  useEffect(() => {
+    if (!camOn) return;
+    const video = localVideoRef.current;
+    const stream = localStreamRef.current;
+    if (!video || !stream) return;
+
+    video.muted = true;
+    video.srcObject = stream;
+
+    const play = async () => {
+      try {
+        await video.play();
+      } catch {
+        // ignore
+      }
+    };
+
+    if (video.readyState >= 1) {
+      void play();
+    } else {
+      video.onloadedmetadata = () => {
+        void play();
+      };
+    }
+
+    return () => {
+      video.onloadedmetadata = null;
+    };
+  }, [camOn]);
+
   const sendRtc = useCallback((type: RtcMessageType, payload: RtcPayload = {}) => {
     const client = rtcClientRef.current;
     if (!client || !client.connected || !roomId || !me.id) return;

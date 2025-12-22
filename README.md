@@ -139,6 +139,16 @@ npm run build # 배포 빌드
 - **Problem**: 상대방이 카메라를 다시 켜도 “카메라 꺼짐” 상태로 유지됨.
 - **Cause**: 기존 RTCRtpSender에 종료된 트랙이 남아 새로운 트랙이 전송되지 않음.
 - **Solution**: `replaceTrack`으로 기존 sender를 갱신하고, 카메라 종료 시 sender 트랙을 `null`로 교체해 재시작 가능하게 수정.
+
+### 11. Nginx 로그가 기록되지 않음
+- **Problem**: 배포 환경에서 Nginx access/error 로그가 남지 않아 트래픽/오류 추적이 어려움.
+- **Cause**: 기본 로그 경로 권한 문제 또는 systemd/journald로만 흘러가도록 설정된 상태.
+- **Solution**: Nginx `access_log`/`error_log` 경로를 명시하고 권한/rotate 설정 확인, 필요 시 `journalctl -u nginx`로 로그 확인하도록 운영 가이드 정리.
+
+### 12. EC2 로그 폭증/디스크 사용량 증가
+- **Problem**: 장시간 운영 시 journald 로그가 누적되어 디스크 사용량이 급증.
+- **Cause**: 기본 journald 설정이 무제한으로 로그를 쌓음.
+- **Solution**: `journald.conf`에 보관 용량/기간 제한을 설정하고 정기 vacuum 적용으로 안정적인 로그 관리.
 </details>
 
 <details>

@@ -116,3 +116,86 @@ export function buildAuthHeaders(): Record<string, string> {
   }
   return { Authorization: `Bearer ${auth.accessToken}` };
 }
+
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "";
+
+function mergeHeaders(initHeaders?: HeadersInit): Record<string, string> {
+  const headers: Record<string, string> = {};
+  if (!initHeaders) return headers;
+
+  if (initHeaders instanceof Headers) {
+    initHeaders.forEach((value, key) => {
+      headers[key] = value;
+    });
+    return headers;
+  }
+
+  if (Array.isArray(initHeaders)) {
+    initHeaders.forEach(([key, value]) => {
+      headers[key] = value;
+    });
+    return headers;
+  }
+
+  return { ...initHeaders };
+}
+
+function persistAuthTokens(accessToken: string, refreshToken: string) {
+  if (typeof window === "undefined") return;
+  const current = readAuth() ?? {};
+  const next = { ...current, accessToken, refreshToken };
+  window.localStorage.setItem("accessToken", accessToken);
+  window.localStorage.setItem("refreshToken", refreshToken);
+  window.localStorage.setItem("guardian_auth", JSON.stringify(next));
+  setAuthCookie(next);
+}
+
+export async function fetchWithAuth(
+  url: string,
+  init: RequestInit = {},
+): Promise<Response> {
+  const auth = readAuth();
+  const headers = mergeHeaders(init.headers);
+  if (auth?.accessToken) {
+    headers.Authorization = `Bearer ${auth.accessToken}`;
+  }
+
+  const res = await fetch(url, {
+    ...init,
+    headers,
+  });
+
+  if (
+    (res.status === 401 || res.status === 403) &&
+    auth?.refreshToken &&
+    API_BASE
+  ) {
+    try {
+      const refreshRes = await fetch(`${API_BASE}/api/auth/refresh`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refreshToken: auth.refreshToken }),
+      });
+      if (!refreshRes.ok) {
+        return res;
+      }
+      const payload = (await refreshRes.json()) as {
+        accessToken: string;
+        refreshToken: string;
+      };
+      persistAuthTokens(payload.accessToken, payload.refreshToken);
+
+      const retryHeaders = mergeHeaders(init.headers);
+      retryHeaders.Authorization = `Bearer ${payload.accessToken}`;
+      return await fetch(url, {
+        ...init,
+        headers: retryHeaders,
+      });
+    } catch {
+      return res;
+    }
+  }
+
+  return res;
+}

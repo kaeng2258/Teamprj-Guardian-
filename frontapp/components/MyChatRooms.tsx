@@ -2,7 +2,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { resolveProfileImageUrl } from "@/lib/image";
-import { buildAuthHeaders } from "@/lib/auth";
+import { fetchWithAuth } from "@/lib/auth";
 import {
   Avatar,
   Badge,
@@ -94,11 +94,11 @@ export default function MyChatRooms({
     async (roomId: number) => {
       if (!effectiveUserId) return;
       try {
-        await fetch(
+        await fetchWithAuth(
           `${API_BASE_URL}/api/chat/rooms/${roomId}/read?userId=${encodeURIComponent(
             String(effectiveUserId),
           )}`,
-          { method: "POST", headers: buildAuthHeaders() },
+          { method: "POST" },
         );
       } catch {
         // ignore
@@ -126,11 +126,10 @@ export default function MyChatRooms({
       setLoading(true);
       setErr(null);
       try {
-        const res = await fetch(
+        const res = await fetchWithAuth(
           `${API_BASE_URL}/api/chat/threads?userId=${encodeURIComponent(
             String(effectiveUserId),
           )}`,
-          { headers: buildAuthHeaders() },
         );
         if (!res.ok) {
           throw new Error("채팅 목록을 불러오지 못했습니다.");
@@ -164,9 +163,7 @@ export default function MyChatRooms({
       if (targets.length === 0) return;
       for (const id of targets) {
         try {
-          const res = await fetch(`${API_BASE_URL}/api/users/${id}`, {
-            headers: buildAuthHeaders(),
-          });
+          const res = await fetchWithAuth(`${API_BASE_URL}/api/users/${id}`);
           if (!res.ok) continue;
           const detail: { profileImageUrl?: string | null } = await res.json();
           setProfileImages((prev) => ({
@@ -223,11 +220,11 @@ export default function MyChatRooms({
     setLeaving(roomId);
     setActionError(null);
     try {
-      const res = await fetch(
+      const res = await fetchWithAuth(
         `${API_BASE_URL}/api/chat/rooms/${roomId}?userId=${encodeURIComponent(
           String(effectiveUserId),
         )}`,
-        { method: "DELETE", headers: buildAuthHeaders() },
+        { method: "DELETE" },
       );
       if (!res.ok) {
         throw new Error("채팅방에서 나갈 수 없습니다.");

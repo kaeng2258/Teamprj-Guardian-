@@ -1,37 +1,18 @@
 // frontapp/lib/api.ts
 
+import { fetchWithAuth } from "./auth";
+
 export const API_BASE =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "";
 
 // 공통 fetch 래퍼
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
-  const token =
-    typeof window !== "undefined" ? window.localStorage.getItem("accessToken") : null;
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-  };
-
-  if (init?.headers) {
-    if (init.headers instanceof Headers) {
-      init.headers.forEach((value, key) => {
-        headers[key] = value;
-      });
-    } else if (Array.isArray(init.headers)) {
-      init.headers.forEach(([key, value]) => {
-        headers[key] = value;
-      });
-    } else {
-      Object.assign(headers, init.headers);
-    }
-  }
-
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
-  }
-
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await fetchWithAuth(`${API_BASE}${path}`, {
     ...init,
-    headers,
+    headers: {
+      "Content-Type": "application/json",
+      ...(init?.headers || {}),
+    },
     cache: "no-store",
   });
 

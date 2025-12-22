@@ -2,7 +2,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { resolveProfileImageUrl } from "../lib/image";
-import { buildAuthHeaders } from "../lib/auth";
+import { fetchWithAuth } from "../lib/auth";
 
 
 const API_BASE_URL =
@@ -69,11 +69,10 @@ export function ChatClientPicker({
     setLoading(true);
     setError("");
     try {
-      const res = await fetch(
+      const res = await fetchWithAuth(
         `${API_BASE_URL}/api/managers/${managerId}/clients/search?keyword=${encodeURIComponent(
           trimmed,
         )}&size=10`,
-        { headers: buildAuthHeaders() },
       );
       if (!res.ok) {
         throw new Error("검색 결과를 가져오지 못했습니다.");
@@ -97,9 +96,9 @@ export function ChatClientPicker({
       setCreating(clientId);
       setError("");
       try {
-        const res = await fetch(`${API_BASE_URL}/api/chat/rooms`, {
+        const res = await fetchWithAuth(`${API_BASE_URL}/api/chat/rooms`, {
           method: "POST",
-          headers: { "Content-Type": "application/json", ...buildAuthHeaders() },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ clientId, managerId }),
         });
         if (!res.ok) {

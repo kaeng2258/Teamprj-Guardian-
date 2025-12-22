@@ -3,7 +3,7 @@ import MyChatRooms from "../../../components/MyChatRooms";
 import { InlineDrugSearch } from "../../../components/InlineDrugSearch";
 import { resolveProfileImageUrl } from "../../../lib/image";
 import { useRouter } from "next/navigation";
-import { buildAuthHeaders, clearAuthCookie, readAuth } from "../../../lib/auth";
+import { clearAuthCookie, fetchWithAuth, readAuth } from "../../../lib/auth";
 import Image, { type ImageLoader } from "next/image";
 import {
   useCallback,
@@ -832,10 +832,10 @@ export default function ClientMyPage() {
     async (roomId: number) => {
       if (!client.userId) return;
       try {
-        await fetch(`${API_BASE_URL}/api/chat/rooms/${roomId}/read?userId=${client.userId}`, {
-          method: "POST",
-          headers: buildAuthHeaders(),
-        });
+        await fetchWithAuth(
+          `${API_BASE_URL}/api/chat/rooms/${roomId}/read?userId=${client.userId}`,
+          { method: "POST" },
+        );
       } catch {
         // ignore sync errors
       }
@@ -915,9 +915,9 @@ export default function ClientMyPage() {
     const loadUnread = async () => {
       if (!client.userId) return;
       try {
-        const res = await fetch(`${API_BASE_URL}/api/chat/threads?userId=${client.userId}`, {
-          headers: buildAuthHeaders(),
-        });
+        const res = await fetchWithAuth(
+          `${API_BASE_URL}/api/chat/threads?userId=${client.userId}`,
+        );
         if (!res.ok) return;
         const data: ChatThread[] = await res.json();
         setChatThreads(data);

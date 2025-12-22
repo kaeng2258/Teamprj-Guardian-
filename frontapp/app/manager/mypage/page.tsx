@@ -5,7 +5,7 @@ import { InlineDrugSearch } from "@/components/InlineDrugSearch";
 import { DrugDetailModal } from "@/components/DrugDetailModal";
 import { resolveProfileImageUrl } from "@/lib/image";
 import { useRouter } from "next/navigation";
-import { buildAuthHeaders, clearAuthCookie, readAuth } from "../../../lib/auth";
+import { clearAuthCookie, fetchWithAuth, readAuth } from "../../../lib/auth";
 import { ChatClientPicker } from "@/components/ChatClientPicker";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faMagnifyingGlass, faPen, faRotateRight } from "@fortawesome/free-solid-svg-icons";
@@ -1096,9 +1096,9 @@ export default function ManagerMyPage() {
     const loadUnread = async () => {
       if (!manager.userId) return;
       try {
-        const res = await fetch(`${API_BASE_URL}/api/chat/threads?userId=${manager.userId}`, {
-          headers: buildAuthHeaders(),
-        });
+        const res = await fetchWithAuth(
+          `${API_BASE_URL}/api/chat/threads?userId=${manager.userId}`,
+        );
         if (!res.ok) return;
         const data: ChatThread[] = await res.json();
         setChatThreads(data);
@@ -1163,10 +1163,10 @@ export default function ManagerMyPage() {
     async (roomId: number) => {
       if (!manager.userId) return;
       try {
-        await fetch(`${API_BASE_URL}/api/chat/rooms/${roomId}/read?userId=${manager.userId}`, {
-          method: "POST",
-          headers: buildAuthHeaders(),
-        });
+        await fetchWithAuth(
+          `${API_BASE_URL}/api/chat/rooms/${roomId}/read?userId=${manager.userId}`,
+          { method: "POST" },
+        );
       } catch {
         // ignore read sync errors
       }
@@ -1800,11 +1800,10 @@ export default function ManagerMyPage() {
       }
 
       try {
-        const response = await fetch(`${API_BASE_URL}/api/chat/rooms`, {
+        const response = await fetchWithAuth(`${API_BASE_URL}/api/chat/rooms`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            ...buildAuthHeaders(),
           },
           body: JSON.stringify({
             clientId,

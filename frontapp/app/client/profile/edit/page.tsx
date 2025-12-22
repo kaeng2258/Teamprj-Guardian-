@@ -1073,7 +1073,7 @@ export default function ClientProfileEditPage() {
           />
 
           <Group justify="flex-end" mt="md">
-            <Button color="amber" onClick={() => void handleUnlockProfile()} loading={unlocking}>
+            <Button color="blue" variant="filled" onClick={() => void handleUnlockProfile()} loading={unlocking}>
               확인
             </Button>
             <Button variant="default" onClick={() => setUnlockModalOpen(false)} disabled={unlocking}>

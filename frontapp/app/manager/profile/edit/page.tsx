@@ -1051,7 +1051,7 @@ export default function ManagerProfileEditPage() {
           />
 
           <Group justify="flex-end" mt="md">
-            <Button color="indigo" onClick={() => void handleUnlockProfile()} loading={unlocking}>
+            <Button color="blue" variant="filled" onClick={() => void handleUnlockProfile()} loading={unlocking}>
               확인
             </Button>
             <Button variant="default" onClick={() => setUnlockModalOpen(false)} disabled={unlocking}>

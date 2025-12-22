@@ -86,6 +86,35 @@ npm run build # 배포 빌드
 - 백엔드 WebPush: `webpush.vapid.*` 설정이 비어 있으면 `/api/push/config`에서 비활성 처리됨
 - iOS Safari는 홈 화면에 추가된 PWA에서만 푸시 지원, HTTPS 접속 필수
 
+## 페이지별 기능
+
+### 회원가입/로그인
+
+![로그인 회원가입](https://github.com/user-attachments/assets/6c04e2b2-4765-41aa-8087-176989fa39f9)
+
+
+### 클라이언트 페이지
+
+![클라이언트페이지2](https://github.com/user-attachments/assets/ba52d228-f0eb-4877-b684-59147f7e7e48)
+
+### 매니저 페이지
+
+![매니저 마이페이지](https://github.com/user-attachments/assets/c03dc025-9f43-45c0-8bca-52a449546b4d)
+
+### 약검색
+
+![약검색](https://github.com/user-attachments/assets/fc0e419f-c25c-4b97-b876-e0357e1b61aa)
+
+### 채팅
+
+![채팅](https://github.com/user-attachments/assets/80b362ca-3b29-476a-9e62-110052436efd)
+
+### 개인정보 수정
+
+![개인정보 수정페이지](https://github.com/user-attachments/assets/b2657f8d-b6f4-435b-bc87-9eb56b7bb0ce)
+
+
+
 ## 🛠️ 주요 트러블슈팅
 <details>
   <summary> 황정성 </summary> 

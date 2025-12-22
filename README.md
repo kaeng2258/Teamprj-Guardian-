@@ -55,6 +55,11 @@ Spring Boot API (guardian.jar)
 MariaDB
 ```
 
+## ERD
+
+<img width="3000" height="2242" alt="Guardian" src="https://github.com/user-attachments/assets/d172af01-04eb-49f7-a02b-c9c9b3dd5075" />
+
+
 ## ⚙️ 로컬 개발 가이드
 ### Backend
 ```bash

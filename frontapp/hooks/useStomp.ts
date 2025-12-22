@@ -96,9 +96,12 @@ export function useStomp({ roomId, me, onMessage }: UseStompOptions) {
   }, [roomId, onMessage, me.id, me.name]);
 
   // ✅ 여기서는 publish 만, 실제 메시지 추가는 ChatRoom 쪽에서만 처리
-  const sendMessage = (content: string) => {
+  const sendMessage = async (content: string): Promise<boolean> => {
     const client = clientRef.current;
-    if (!client || !connected) return;
+    if (!client || !client.connected || !connected) {
+      setConnected(false);
+      return false;
+    }
 
     const payload: ChatMessage = {
       roomId,
@@ -107,10 +110,13 @@ export function useStomp({ roomId, me, onMessage }: UseStompOptions) {
       content,
     };
 
+    const token = await ensureAccessToken();
     client.publish({
       destination: `/app/signal/${roomId}`,
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
       body: JSON.stringify(payload),
     });
+    return true;
   };
 
   return {

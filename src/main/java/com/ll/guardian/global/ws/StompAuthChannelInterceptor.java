@@ -60,7 +60,7 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
 
         if (StompCommand.SEND.equals(accessor.getCommand())
             || StompCommand.SUBSCRIBE.equals(accessor.getCommand())) {
-            String token = getSessionToken(accessor);
+            String token = resolveToken(accessor);
             if (!jwtTokenProvider.isTokenUsable(token)) {
                 webSocketSessionRegistry.closeSession(accessor.getSessionId());
                 throw new IllegalArgumentException("Invalid token");
@@ -82,5 +82,41 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
         }
         Object token = sessionAttributes.get("token");
         return (token instanceof String) ? (String) token : null;
+    }
+
+    private String resolveToken(StompHeaderAccessor accessor) {
+        String auth = getFirstNativeHeader(accessor, "Authorization");
+        if (auth != null && auth.startsWith("Bearer ")) {
+            String headerToken = auth.substring(7);
+            if (jwtTokenProvider.isTokenUsable(headerToken)) {
+                updateSessionFromToken(accessor, headerToken);
+                return headerToken;
+            }
+        }
+        return getSessionToken(accessor);
+    }
+
+    private void updateSessionFromToken(StompHeaderAccessor accessor, String token) {
+        if (token == null) {
+            return;
+        }
+        String email = jwtTokenProvider.getSubject(token);
+        String role = jwtTokenProvider.getRole(token);
+
+        var authorities = (role == null)
+            ? List.<SimpleGrantedAuthority>of()
+            : List.of(new SimpleGrantedAuthority(role));
+        var authentication = new UsernamePasswordAuthenticationToken(email, null, authorities);
+
+        accessor.setUser(authentication);
+        SecurityContextHolder.getContext().setAuthentication(authentication);
+
+        Map<String, Object> sessionAttributes = accessor.getSessionAttributes();
+        if (sessionAttributes != null) {
+            sessionAttributes.put("token", token);
+        }
+        if (accessor.getSessionId() != null && email != null) {
+            webSocketSessionRegistry.bindUser(accessor.getSessionId(), email);
+        }
     }
 }

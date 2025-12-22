@@ -332,14 +332,14 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
     }
   };
 
-  const handleSend = (e: React.FormEvent) => {
+  const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
     const text = input.trim();
     if (!text || !resolvedMe.id) return;
     setInput("");
     if (connected) {
-      sendMessage(text);
-      return;
+      const ok = await sendMessage(text);
+      if (ok) return;
     }
     void sendViaHttp(text);
   };

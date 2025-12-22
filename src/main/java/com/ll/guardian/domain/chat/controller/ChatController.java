@@ -67,10 +67,7 @@ public class ChatController {
             req.fileUrl()
         );
         ChatMessageResponse saved = chatService.sendMessage(fixed);
-        String recipientEmail = chatService.getRecipientEmail(roomId, senderId);
-        if (webSocketSessionRegistry.isOnline(recipientEmail)) {
-            messagingTemplate.convertAndSend("/topic/room/" + roomId, saved);
-        }
+        messagingTemplate.convertAndSend("/topic/room/" + roomId, saved);
     }
 
     @GetMapping("/threads")
@@ -115,10 +112,7 @@ public class ChatController {
             req.fileUrl()
         );
         ChatMessageResponse saved = chatService.sendMessage(fixed);
-        String recipientEmail = chatService.getRecipientEmail(roomId, senderId);
-        if (webSocketSessionRegistry.isOnline(recipientEmail)) {
-            messagingTemplate.convertAndSend("/topic/room/" + roomId, saved);
-        }
+        messagingTemplate.convertAndSend("/topic/room/" + roomId, saved);
         return saved;
     }
 

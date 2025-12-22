@@ -6,6 +6,7 @@ import { Client } from "@stomp/stompjs";
 import SockJS from "sockjs-client";
 import { useRouter } from "next/navigation";
 import { resolveProfileImageUrl } from "@/lib/image";
+import { buildAuthHeaders } from "@/lib/auth";
 import {
   ActionIcon,
   Avatar,
@@ -145,7 +146,9 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
     if (!roomId) return;
     (async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/api/chat/rooms/${roomId}`);
+        const res = await fetch(`${API_BASE_URL}/api/chat/rooms/${roomId}`, {
+          headers: buildAuthHeaders(),
+        });
         if (!res.ok) return;
         const data: ThreadInfo = await res.json();
         setThread(data);
@@ -202,7 +205,9 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
 
       for (const id of targets) {
         try {
-          const res = await fetch(`${API_BASE_URL}/api/users/${id}`);
+          const res = await fetch(`${API_BASE_URL}/api/users/${id}`, {
+            headers: buildAuthHeaders(),
+          });
           if (!res.ok) continue;
           const detail: { profileImageUrl?: string | null } = await res.json();
           setParticipantProfiles((prev) => ({
@@ -239,7 +244,8 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
     const fetchOnce = async () => {
       try {
         const res = await fetch(
-          `${API_BASE_URL}/api/chat/rooms/${roomId}/messages`
+          `${API_BASE_URL}/api/chat/rooms/${roomId}/messages`,
+          { headers: buildAuthHeaders() },
         );
         if (!res.ok) return;
         const data = await res.json();
@@ -301,12 +307,45 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
     [thread, getProfileImage, participantProfiles]
   );
 
+  const sendViaHttp = async (text: string) => {
+    try {
+      const res = await fetch(
+        `${API_BASE_URL}/api/chat/rooms/${roomId}/messages`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...buildAuthHeaders(),
+          },
+          body: JSON.stringify({
+            roomId,
+            senderId: resolvedMe.id,
+            content: text,
+          }),
+        },
+      );
+      if (!res.ok) return;
+      const saved = (await res.json()) as ChatMessage;
+      const key = buildKey(saved);
+      if (!seen.current.has(key)) {
+        seen.current.add(key);
+        setMessages((prev) => [...prev, saved]);
+      }
+    } catch {
+      // ignore
+    }
+  };
+
   const handleSend = (e: React.FormEvent) => {
     e.preventDefault();
     const text = input.trim();
     if (!text || !resolvedMe.id) return;
     setInput("");
-    sendMessage(text);
+    if (connected) {
+      sendMessage(text);
+      return;
+    }
+    void sendViaHttp(text);
   };
 
   useEffect(() => {

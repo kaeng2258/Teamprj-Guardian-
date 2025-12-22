@@ -108,3 +108,11 @@ export function readAuth(): GuardianAuthPayload | null {
     email,
   };
 }
+
+export function buildAuthHeaders(): Record<string, string> {
+  const auth = readAuth();
+  if (!auth?.accessToken) {
+    return {};
+  }
+  return { Authorization: `Bearer ${auth.accessToken}` };
+}

@@ -2,6 +2,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { resolveProfileImageUrl } from "@/lib/image";
+import { buildAuthHeaders } from "@/lib/auth";
 import {
   Avatar,
   Badge,
@@ -97,7 +98,7 @@ export default function MyChatRooms({
           `${API_BASE_URL}/api/chat/rooms/${roomId}/read?userId=${encodeURIComponent(
             String(effectiveUserId),
           )}`,
-          { method: "POST" },
+          { method: "POST", headers: buildAuthHeaders() },
         );
       } catch {
         // ignore
@@ -129,6 +130,7 @@ export default function MyChatRooms({
           `${API_BASE_URL}/api/chat/threads?userId=${encodeURIComponent(
             String(effectiveUserId),
           )}`,
+          { headers: buildAuthHeaders() },
         );
         if (!res.ok) {
           throw new Error("채팅 목록을 불러오지 못했습니다.");
@@ -162,7 +164,9 @@ export default function MyChatRooms({
       if (targets.length === 0) return;
       for (const id of targets) {
         try {
-          const res = await fetch(`${API_BASE_URL}/api/users/${id}`);
+          const res = await fetch(`${API_BASE_URL}/api/users/${id}`, {
+            headers: buildAuthHeaders(),
+          });
           if (!res.ok) continue;
           const detail: { profileImageUrl?: string | null } = await res.json();
           setProfileImages((prev) => ({
@@ -223,7 +227,7 @@ export default function MyChatRooms({
         `${API_BASE_URL}/api/chat/rooms/${roomId}?userId=${encodeURIComponent(
           String(effectiveUserId),
         )}`,
-        { method: "DELETE" },
+        { method: "DELETE", headers: buildAuthHeaders() },
       );
       if (!res.ok) {
         throw new Error("채팅방에서 나갈 수 없습니다.");

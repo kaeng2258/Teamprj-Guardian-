@@ -10,6 +10,9 @@ import com.ll.guardian.domain.alarm.entity.MedicationAlarm;
 import com.ll.guardian.domain.alarm.repository.AlarmOccurrenceRepository;
 import com.ll.guardian.domain.alarm.repository.MedicationAlarmRepository;
 import com.ll.guardian.domain.alarm.repository.MedicationLogRepository;
+import com.ll.guardian.domain.chat.MessageType;
+import com.ll.guardian.domain.chat.dto.ChatMessageRequest;
+import com.ll.guardian.domain.chat.service.ChatService;
 import com.ll.guardian.domain.matching.entity.CareMatch;
 import com.ll.guardian.domain.matching.repository.CareMatchRepository;
 import com.ll.guardian.domain.medicine.entity.Medicine;
@@ -39,6 +42,7 @@ public class MedicationPlanService {
     private final CareMatchRepository careMatchRepository;
     private final UserRepository userRepository;
     private final MedicineRepository medicineRepository;
+    private final ChatService chatService;
 
     public MedicationPlanService(
             MedicationAlarmRepository medicationAlarmRepository,
@@ -46,13 +50,15 @@ public class MedicationPlanService {
             AlarmOccurrenceRepository alarmOccurrenceRepository,
             CareMatchRepository careMatchRepository,
             UserRepository userRepository,
-            MedicineRepository medicineRepository) {
+            MedicineRepository medicineRepository,
+            ChatService chatService) {
         this.medicationAlarmRepository = medicationAlarmRepository;
         this.medicationLogRepository = medicationLogRepository;
         this.alarmOccurrenceRepository = alarmOccurrenceRepository;
         this.careMatchRepository = careMatchRepository;
         this.userRepository = userRepository;
         this.medicineRepository = medicineRepository;
+        this.chatService = chatService;
     }
 
     public MedicationPlanResponse createPlan(Long clientId, MedicationPlanRequest request) {
@@ -64,6 +70,7 @@ public class MedicationPlanService {
                 client, medicine, request.dosageAmount(), request.dosageUnit(), request.alarmTime(), daysOfWeek);
         MedicationAlarm saved = medicationAlarmRepository.save(alarm);
         CareMatch match = findCurrentMatch(clientId);
+        notifyManagerPlanCreated(match, client, saved.getMedicine().getName(), saved.getAlarmTime());
         return MedicationPlanResponse.from(saved, match);
     }
 
@@ -72,14 +79,21 @@ public class MedicationPlanService {
         String daysOfWeek = normalizeDaysOfWeek(request.daysOfWeek());
         CareMatch match = findCurrentMatch(clientId);
 
-        return request.items().stream()
+        List<MedicationAlarm> saved = request.items().stream()
                 .map(item -> {
                     Medicine medicine = resolveMedicine(item);
                     MedicationAlarm alarm = createMedicationAlarm(
                             client, medicine, item.dosageAmount(), item.dosageUnit(), request.alarmTime(), daysOfWeek);
-                    MedicationAlarm saved = medicationAlarmRepository.save(alarm);
-                    return MedicationPlanResponse.from(saved, match);
+                    return medicationAlarmRepository.save(alarm);
                 })
+                .toList();
+
+        if (!saved.isEmpty()) {
+            notifyManagerBatchPlansCreated(match, client, saved.size(), saved.get(0).getAlarmTime());
+        }
+
+        return saved.stream()
+                .map(alarm -> MedicationPlanResponse.from(alarm, match))
                 .collect(Collectors.toList());
     }
 
@@ -131,6 +145,46 @@ public class MedicationPlanService {
 
     private CareMatch findCurrentMatch(Long clientId) {
         return careMatchRepository.findFirstByClientIdAndCurrentTrue(clientId).orElse(null);
+    }
+
+    private void notifyManagerPlanCreated(CareMatch match, User client, String medicineName, LocalTime alarmTime) {
+        if (match == null || match.getManager() == null) {
+            return;
+        }
+        String name = StringUtils.hasText(medicineName) ? medicineName : "약품";
+        String timeText = alarmTime != null ? alarmTime.toString() : "미지정";
+        String content = String.format("%s님의 복용 일정이 등록되었습니다. %s / 알람 %s", client.getName(), name, timeText);
+
+        Long roomId = chatService.openOrGetRoom(client.getId(), match.getManager().getId()).getId();
+        chatService.sendMessage(new ChatMessageRequest(
+                roomId,
+                client.getId(),
+                content,
+                MessageType.NOTICE,
+                null
+        ));
+    }
+
+    private void notifyManagerBatchPlansCreated(CareMatch match, User client, int count, LocalTime alarmTime) {
+        if (match == null || match.getManager() == null) {
+            return;
+        }
+        String timeText = alarmTime != null ? alarmTime.toString() : "미지정";
+        String content = String.format(
+                "%s님의 복용 일정 %d건이 등록되었습니다. 알람 %s",
+                client.getName(),
+                count,
+                timeText
+        );
+
+        Long roomId = chatService.openOrGetRoom(client.getId(), match.getManager().getId()).getId();
+        chatService.sendMessage(new ChatMessageRequest(
+                roomId,
+                client.getId(),
+                content,
+                MessageType.NOTICE,
+                null
+        ));
     }
 
     private Medicine resolveMedicine(Long medicineId, ManualMedicineRequest manual) {

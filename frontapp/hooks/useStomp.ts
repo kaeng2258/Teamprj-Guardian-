@@ -44,7 +44,8 @@ export function useStomp({ roomId, me, onMessage }: UseStompOptions) {
   useEffect(() => {
     if (!roomId) return;
 
-    const socketFactory = () => new SockJS(WS_ENDPOINT);
+    // withCredentials: true -> send cookies if server uses session-based auth alongside Bearer tokens
+    const socketFactory = () => new SockJS(WS_ENDPOINT, undefined, { withCredentials: true });
 
     const client = new Client({
       webSocketFactory: socketFactory,

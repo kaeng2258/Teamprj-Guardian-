@@ -234,9 +234,11 @@ export async function fetchWithAuth(
   const res = await fetch(url, {
     ...init,
     headers,
+    credentials: "include",
   });
 
-  if ((res.status === 401 || res.status === 403) && auth?.refreshToken && API_BASE) {
+  // 401: 토큰 만료/검증 실패 시에만 새 토큰 요청. 403은 권한 거부일 수 있으니 그대로 반환.
+  if (res.status === 401 && auth?.refreshToken && API_BASE) {
     try {
       const nextToken = await refreshAccessToken();
       if (!nextToken) {
@@ -247,6 +249,7 @@ export async function fetchWithAuth(
       return await fetch(url, {
         ...init,
         headers: retryHeaders,
+        credentials: "include",
       });
     } catch {
       return res;

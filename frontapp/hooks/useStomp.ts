@@ -44,8 +44,18 @@ export function useStomp({ roomId, me, onMessage }: UseStompOptions) {
   useEffect(() => {
     if (!roomId) return;
 
-    // withCredentials: true -> send cookies if server uses session-based auth alongside Bearer tokens
-    const socketFactory = () => new SockJS(WS_ENDPOINT, undefined, { withCredentials: true });
+    // withCredentials for SockJS isn't typed; use transportOptions and cast to allow cookies on XHR transports.
+    const socketFactory = () =>
+      new SockJS(
+        WS_ENDPOINT,
+        undefined,
+        {
+          transportOptions: {
+            "xhr-streaming": { withCredentials: true },
+            "xhr-polling": { withCredentials: true },
+          },
+        } as any,
+      );
 
     const client = new Client({
       webSocketFactory: socketFactory,

@@ -464,7 +464,17 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
 
   useEffect(() => {
     if (!roomId || !resolvedMe.id) return;
-    const socketFactory = () => new SockJS(WS_ENDPOINT, undefined, { withCredentials: true });
+    const socketFactory = () =>
+      new SockJS(
+        WS_ENDPOINT,
+        undefined,
+        {
+          transportOptions: {
+            "xhr-streaming": { withCredentials: true },
+            "xhr-polling": { withCredentials: true },
+          },
+        } as any,
+      );
     const client = new Client({
       webSocketFactory: socketFactory,
       reconnectDelay: 5000,

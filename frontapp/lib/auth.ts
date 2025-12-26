@@ -54,6 +54,18 @@ export function clearAuthCookie() {
   document.cookie = `${AUTH_COOKIE}=; path=/; max-age=0; samesite=lax; secure${domain}`;
 }
 
+function clearAuthStorage() {
+  if (typeof window === "undefined") return;
+  window.localStorage.removeItem("accessToken");
+  window.localStorage.removeItem("refreshToken");
+  window.localStorage.removeItem("guardian_auth");
+  window.localStorage.removeItem("userId");
+  window.localStorage.removeItem("userRole");
+  window.localStorage.removeItem("userEmail");
+  window.localStorage.removeItem("userName");
+  clearAuthCookie();
+}
+
 export function readAuth(): GuardianAuthPayload | null {
   if (typeof window === "undefined") return null;
 
@@ -184,7 +196,8 @@ export async function refreshAccessToken(): Promise<string | null> {
       body: JSON.stringify({ refreshToken: auth.refreshToken }),
     });
     if (!refreshRes.ok) {
-      return auth.accessToken ?? null;
+      clearAuthStorage();
+      return null;
     }
     const payload = (await refreshRes.json()) as {
       accessToken: string;
@@ -193,7 +206,8 @@ export async function refreshAccessToken(): Promise<string | null> {
     persistAuthTokens(payload.accessToken, payload.refreshToken);
     return payload.accessToken;
   } catch {
-    return auth.accessToken ?? null;
+    clearAuthStorage();
+    return null;
   }
 }
 

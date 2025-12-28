@@ -370,6 +370,25 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
   const localStreamRef = useRef<MediaStream | null>(null);
   const rtcClientRef = useRef<Client | null>(null);
   const pendingCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
+  const makingOfferRef = useRef(false);
+  const ignoreOfferRef = useRef(false);
+  const politeRef = useRef(true);
+
+  const remoteParticipantId = useMemo(() => {
+    if (!thread) return null;
+    if (resolvedMe.id === thread.clientId) return thread.managerId;
+    if (resolvedMe.id === thread.managerId) return thread.clientId;
+    return null;
+  }, [thread, resolvedMe.id]);
+
+  useEffect(() => {
+    if (!remoteParticipantId) {
+      politeRef.current = true;
+      return;
+    }
+    // Higher user id yields to avoid offer collisions.
+    politeRef.current = resolvedMe.id > remoteParticipantId;
+  }, [remoteParticipantId, resolvedMe.id]);
 
   useEffect(() => {
     if (!camOn) return;
@@ -447,14 +466,36 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
       });
     };
 
+    pc.onnegotiationneeded = async () => {
+      try {
+        makingOfferRef.current = true;
+        const offer = await pc.createOffer();
+        if (pc.signalingState !== "stable") return;
+        await pc.setLocalDescription(offer);
+        const sdp = pc.localDescription?.sdp;
+        if (sdp) sendRtc("offer", { sdp });
+      } catch (e) {
+        console.error("WebRTC negotiation failed", e);
+      } finally {
+        makingOfferRef.current = false;
+      }
+    };
+
     pcRef.current = pc;
     return pc;
   }, [sendRtc]);
 
   const handleRtcSignal = useCallback(async (msg: RTCSignalMessage) => {
     const pc = ensurePc();
+    const offerCollision =
+      msg.type === "offer" && (makingOfferRef.current || pc.signalingState !== "stable");
+    ignoreOfferRef.current = !politeRef.current && offerCollision;
+    if (ignoreOfferRef.current) return;
 
     if (msg.type === "offer" && "sdp" in msg) {
+      if (offerCollision) {
+        await pc.setLocalDescription({ type: "rollback" } as RTCSessionDescriptionInit);
+      }
       await pc.setRemoteDescription({ type: "offer", sdp: msg.sdp });
       if (pendingCandidatesRef.current.length > 0) {
         const pending = pendingCandidatesRef.current;
@@ -469,7 +510,9 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
       }
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
-      sendRtc("answer", { sdp: answer.sdp });
+      if (pc.localDescription?.sdp) {
+        sendRtc("answer", { sdp: pc.localDescription.sdp });
+      }
     } else if (msg.type === "answer" && "sdp" in msg) {
       await pc.setRemoteDescription({ type: "answer", sdp: msg.sdp });
       if (pendingCandidatesRef.current.length > 0) {
@@ -484,6 +527,7 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
         }
       }
     } else if (msg.type === "candidate" && "candidate" in msg) {
+      if (ignoreOfferRef.current) return;
       if (!pc.remoteDescription || !pc.remoteDescription.type) {
         pendingCandidatesRef.current.push(msg.candidate);
         return;
@@ -587,10 +631,6 @@ const startCamera = async () => {
         pc.addTrack(t, stream);
       }
     }
-
-    const offer = await pc.createOffer();
-    await pc.setLocalDescription(offer);
-    sendRtc("offer", { sdp: offer.sdp });
   } catch (e) {
     alert("카메라 접근 실패: " + String(e));
   }

@@ -54,6 +54,8 @@ export function useWebRtcCall({ roomId, me }: UseWebRtcCallProps) {
   const localStreamRef = useRef<MediaStream | null>(null);
   const rtcClientRef = useRef<Client | null>(null);
   const pendingCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
+  const makingOfferRef = useRef(false);
+  const ignoreOfferRef = useRef(false);
 
   const sendRtc = useCallback((type: RtcMessageType, payload: RtcPayload = {}) => {
     const client = rtcClientRef.current;
@@ -93,6 +95,21 @@ export function useWebRtcCall({ roomId, me }: UseWebRtcCallProps) {
       }
     };
 
+    pc.onnegotiationneeded = async () => {
+      try {
+        makingOfferRef.current = true;
+        const offer = await pc.createOffer();
+        if (pc.signalingState !== "stable") return;
+        await pc.setLocalDescription(offer);
+        const sdp = pc.localDescription?.sdp;
+        if (sdp) sendRtc("offer", { sdp });
+      } catch (e) {
+        console.error("WebRTC negotiation failed", e);
+      } finally {
+        makingOfferRef.current = false;
+      }
+    };
+
     pc.onconnectionstatechange = () => {
       // console.log("pc state", pc.connectionState);
     };
@@ -103,8 +120,16 @@ export function useWebRtcCall({ roomId, me }: UseWebRtcCallProps) {
 
   const handleRtcSignal = useCallback(async (msg: RTCSignalMessage) => {
     const pc = ensurePc();
+    const offerCollision =
+      msg.type === "offer" && (makingOfferRef.current || pc.signalingState !== "stable");
+    const isPolite = me.id > msg.from;
+    ignoreOfferRef.current = !isPolite && offerCollision;
+    if (ignoreOfferRef.current) return;
 
     if (msg.type === "offer" && "sdp" in msg) {
+      if (offerCollision) {
+        await pc.setLocalDescription({ type: "rollback" } as RTCSessionDescriptionInit);
+      }
       await pc.setRemoteDescription({ type: "offer", sdp: msg.sdp });
       if (pendingCandidatesRef.current.length > 0) {
         const pending = pendingCandidatesRef.current;
@@ -119,7 +144,9 @@ export function useWebRtcCall({ roomId, me }: UseWebRtcCallProps) {
       }
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
-      sendRtc("answer", { sdp: answer.sdp });
+      if (pc.localDescription?.sdp) {
+        sendRtc("answer", { sdp: pc.localDescription.sdp });
+      }
     } else if (msg.type === "answer" && "sdp" in msg) {
       await pc.setRemoteDescription({ type: "answer", sdp: msg.sdp });
       if (pendingCandidatesRef.current.length > 0) {
@@ -134,6 +161,7 @@ export function useWebRtcCall({ roomId, me }: UseWebRtcCallProps) {
         }
       }
     } else if (msg.type === "candidate" && "candidate" in msg) {
+      if (ignoreOfferRef.current) return;
       if (!pc.remoteDescription || !pc.remoteDescription.type) {
         pendingCandidatesRef.current.push(msg.candidate);
         return;
@@ -217,9 +245,6 @@ export function useWebRtcCall({ roomId, me }: UseWebRtcCallProps) {
       stream.getTracks().forEach((t) => pc.addTrack(t, stream));
 
       // Negotiation
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-      sendRtc("offer", { sdp: offer.sdp });
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : String(e);
       alert("Camera access failed: " + message);

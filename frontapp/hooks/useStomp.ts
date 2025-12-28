@@ -55,14 +55,21 @@ export function useStomp({ roomId, me, onMessage }: UseStompOptions) {
         setConnected(true);
 
         // ✅ 백엔드와 동일: /topic/room/{roomId}
-        client.subscribe(`/topic/room/${roomId}`, (msg: IMessage) => {
-          try {
-            const body = JSON.parse(msg.body) as ChatMessage;
-            onMessage?.(body);
-          } catch (e) {
-            console.error("메시지 파싱 실패:", e);
-          }
-        });
+        void (async () => {
+          const token = await ensureAccessToken();
+          client.subscribe(
+            `/topic/room/${roomId}`,
+            (msg: IMessage) => {
+              try {
+                const body = JSON.parse(msg.body) as ChatMessage;
+                onMessage?.(body);
+              } catch (e) {
+                console.error("메시지 파싱 실패:", e);
+              }
+            },
+            token ? { Authorization: `Bearer ${token}` } : {},
+          );
+        })();
       },
       onStompError: (frame) => {
         console.error("STOMP error", frame);

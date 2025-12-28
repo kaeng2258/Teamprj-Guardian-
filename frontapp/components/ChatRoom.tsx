@@ -556,15 +556,22 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
       reconnectDelay: 5000,
       onConnect: () => {
         setRtcStatus("connected");
-        client.subscribe(`/topic/rtc/${roomId}`, async (frame) => {
-          try {
-            const msg = JSON.parse(frame.body) as RTCSignalMessage;
-            if (!msg || msg.from === resolvedMe.id) return;
-            await handleRtcSignalRef.current(msg);
-          } catch (e) {
-            console.error("RTC Parse Error", e);
-          }
-        });
+        void (async () => {
+          const token = await ensureAccessToken();
+          client.subscribe(
+            `/topic/rtc/${roomId}`,
+            async (frame) => {
+              try {
+                const msg = JSON.parse(frame.body) as RTCSignalMessage;
+                if (!msg || msg.from === resolvedMe.id) return;
+                await handleRtcSignalRef.current(msg);
+              } catch (e) {
+                console.error("RTC Parse Error", e);
+              }
+            },
+            token ? { Authorization: `Bearer ${token}` } : {},
+          );
+        })();
       },
       onStompError: () => setRtcStatus("disconnected"),
       onWebSocketError: () => setRtcStatus("disconnected"),

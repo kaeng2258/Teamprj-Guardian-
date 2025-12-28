@@ -196,15 +196,22 @@ export function useWebRtcCall({ roomId, me }: UseWebRtcCallProps) {
       reconnectDelay: 5000,
       onConnect: () => {
         setRtcStatus("connected");
-        client.subscribe(`/topic/rtc/${roomId}`, async (frame) => {
-          try {
-            const msg = JSON.parse(frame.body) as RTCSignalMessage;
-            if (!msg || msg.from === me.id) return;
-            await handleRtcSignalRef.current(msg);
-          } catch (e) {
-            console.error("RTC message parsing failed", e);
-          }
-        });
+        void (async () => {
+          const token = await ensureAccessToken();
+          client.subscribe(
+            `/topic/rtc/${roomId}`,
+            async (frame) => {
+              try {
+                const msg = JSON.parse(frame.body) as RTCSignalMessage;
+                if (!msg || msg.from === me.id) return;
+                await handleRtcSignalRef.current(msg);
+              } catch (e) {
+                console.error("RTC message parsing failed", e);
+              }
+            },
+            token ? { Authorization: `Bearer ${token}` } : {},
+          );
+        })();
       },
       onStompError: (f) => {
         console.error("RTC STOMP error", f);

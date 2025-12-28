@@ -369,6 +369,7 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const rtcClientRef = useRef<Client | null>(null);
+  const pendingCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
 
   useEffect(() => {
     if (!camOn) return;
@@ -427,8 +428,23 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
       const stream = e.streams[0];
       if (remoteVideoRef.current) {
         remoteVideoRef.current.srcObject = stream;
+        const play = async () => {
+          try {
+            await remoteVideoRef.current?.play();
+          } catch {
+            // ignore autoplay errors
+          }
+        };
+        void play();
       }
       setRemoteVideoOn(true);
+      stream.getTracks().forEach((track) => {
+        const markOff = () => setRemoteVideoOn(false);
+        const markOn = () => setRemoteVideoOn(true);
+        track.addEventListener("ended", markOff);
+        track.addEventListener("mute", markOff);
+        track.addEventListener("unmute", markOn);
+      });
     };
 
     pcRef.current = pc;
@@ -440,12 +456,38 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
 
     if (msg.type === "offer" && "sdp" in msg) {
       await pc.setRemoteDescription({ type: "offer", sdp: msg.sdp });
+      if (pendingCandidatesRef.current.length > 0) {
+        const pending = pendingCandidatesRef.current;
+        pendingCandidatesRef.current = [];
+        for (const candidate of pending) {
+          try {
+            await pc.addIceCandidate(new RTCIceCandidate(candidate));
+          } catch (e) {
+            console.error("ICE 추가 실패", e);
+          }
+        }
+      }
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
       sendRtc("answer", { sdp: answer.sdp });
     } else if (msg.type === "answer" && "sdp" in msg) {
       await pc.setRemoteDescription({ type: "answer", sdp: msg.sdp });
+      if (pendingCandidatesRef.current.length > 0) {
+        const pending = pendingCandidatesRef.current;
+        pendingCandidatesRef.current = [];
+        for (const candidate of pending) {
+          try {
+            await pc.addIceCandidate(new RTCIceCandidate(candidate));
+          } catch (e) {
+            console.error("ICE 추가 실패", e);
+          }
+        }
+      }
     } else if (msg.type === "candidate" && "candidate" in msg) {
+      if (!pc.remoteDescription || !pc.remoteDescription.type) {
+        pendingCandidatesRef.current.push(msg.candidate);
+        return;
+      }
       try {
         await pc.addIceCandidate(new RTCIceCandidate(msg.candidate));
       } catch (e) {

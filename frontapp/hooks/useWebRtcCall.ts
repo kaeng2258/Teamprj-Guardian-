@@ -53,6 +53,7 @@ export function useWebRtcCall({ roomId, me }: UseWebRtcCallProps) {
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const rtcClientRef = useRef<Client | null>(null);
+  const pendingCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
 
   const sendRtc = useCallback((type: RtcMessageType, payload: RtcPayload = {}) => {
     const client = rtcClientRef.current;
@@ -81,6 +82,14 @@ export function useWebRtcCall({ roomId, me }: UseWebRtcCallProps) {
       const stream = e.streams[0];
       if (remoteVideoRef.current) {
         remoteVideoRef.current.srcObject = stream;
+        const play = async () => {
+          try {
+            await remoteVideoRef.current?.play();
+          } catch {
+            // ignore autoplay errors
+          }
+        };
+        void play();
       }
     };
 
@@ -97,12 +106,38 @@ export function useWebRtcCall({ roomId, me }: UseWebRtcCallProps) {
 
     if (msg.type === "offer" && "sdp" in msg) {
       await pc.setRemoteDescription({ type: "offer", sdp: msg.sdp });
+      if (pendingCandidatesRef.current.length > 0) {
+        const pending = pendingCandidatesRef.current;
+        pendingCandidatesRef.current = [];
+        for (const candidate of pending) {
+          try {
+            await pc.addIceCandidate(new RTCIceCandidate(candidate));
+          } catch (e) {
+            console.error("Failed to add ICE candidate", e);
+          }
+        }
+      }
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
       sendRtc("answer", { sdp: answer.sdp });
     } else if (msg.type === "answer" && "sdp" in msg) {
       await pc.setRemoteDescription({ type: "answer", sdp: msg.sdp });
+      if (pendingCandidatesRef.current.length > 0) {
+        const pending = pendingCandidatesRef.current;
+        pendingCandidatesRef.current = [];
+        for (const candidate of pending) {
+          try {
+            await pc.addIceCandidate(new RTCIceCandidate(candidate));
+          } catch (e) {
+            console.error("Failed to add ICE candidate", e);
+          }
+        }
+      }
     } else if (msg.type === "candidate" && "candidate" in msg) {
+      if (!pc.remoteDescription || !pc.remoteDescription.type) {
+        pendingCandidatesRef.current.push(msg.candidate);
+        return;
+      }
       try {
         await pc.addIceCandidate(new RTCIceCandidate(msg.candidate));
       } catch (e) {

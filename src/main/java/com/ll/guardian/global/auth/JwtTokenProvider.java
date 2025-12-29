@@ -4,18 +4,23 @@ import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
 import com.auth0.jwt.exceptions.JWTVerificationException;
 import com.ll.guardian.domain.auth.service.JwtBlacklistService;
+import jakarta.annotation.PostConstruct;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.Date;
 import java.util.UUID;
-import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 @Component
 public class JwtTokenProvider {
+
+    private static final String CLAIM_TYPE = "type";
+    private static final String CLAIM_ROLE = "role";
+    private static final String TYPE_ACCESS = "access";
+    private static final String TYPE_REFRESH = "refresh";
 
     @Value("${jwt.secret}")
     private String secret;
@@ -38,8 +43,16 @@ public class JwtTokenProvider {
         this.algorithm = Algorithm.HMAC256(secret);
     }
 
-    public String createAccessToken(String subject) {
-        return createToken(subject, accessTokenValidity);
+    public String createAccessToken(String subject, String role) {
+        Instant now = Instant.now();
+        Instant expiresAt = now.plus(accessTokenValidity);
+        return JWT.create()
+                .withSubject(subject)
+                .withIssuedAt(Date.from(now))
+                .withExpiresAt(Date.from(expiresAt))
+                .withClaim(CLAIM_TYPE, TYPE_ACCESS)
+                .withClaim(CLAIM_ROLE, role)
+                .sign(algorithm);
     }
 
     public String createRefreshToken(String subject) {
@@ -50,17 +63,7 @@ public class JwtTokenProvider {
                 .withIssuedAt(Date.from(now))
                 .withExpiresAt(Date.from(expiresAt))
                 .withJWTId(UUID.randomUUID().toString())
-                .withClaim("type", "refresh")
-                .sign(algorithm);
-    }
-
-    private String createToken(String subject, Duration validity) {
-        Instant now = Instant.now();
-        Instant expiresAt = now.plus(validity);
-        return JWT.create()
-                .withSubject(subject)
-                .withIssuedAt(Date.from(now))
-                .withExpiresAt(Date.from(expiresAt))
+                .withClaim(CLAIM_TYPE, TYPE_REFRESH)
                 .sign(algorithm);
     }
 
@@ -86,8 +89,7 @@ public class JwtTokenProvider {
         return LocalDateTime.ofInstant(expiresAt.toInstant(), ZoneId.systemDefault());
     }
 
-    // 레거시 토큰에는 role 클레임이 없으므로 null 리턴
     public String getRole(String token) {
-        return null;
+        return JWT.require(algorithm).build().verify(token).getClaim(CLAIM_ROLE).asString();
     }
 }

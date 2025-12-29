@@ -56,7 +56,7 @@ public class AuthService {
             throw new GuardianException(HttpStatus.UNAUTHORIZED, "비밀번호가 올바르지 않습니다.");
         }
 
-        String accessToken = jwtTokenProvider.createAccessToken(user.getEmail());
+        String accessToken = jwtTokenProvider.createAccessToken(user.getEmail(), user.getRole().name());
         String refreshTokenValue = jwtTokenProvider.createRefreshToken(user.getEmail());
         RefreshToken refreshToken = refreshTokenService.issue(user, refreshTokenValue, refreshTokenValidity);
 
@@ -72,7 +72,9 @@ public class AuthService {
     public RefreshTokenResponse refresh(RefreshTokenRequest request) {
         RefreshToken refreshToken = refreshTokenService.getValidToken(request.refreshToken());
         String email = refreshToken.getUser().getEmail();
-        String newAccessToken = jwtTokenProvider.createAccessToken(email);
+        String newAccessToken = jwtTokenProvider.createAccessToken(
+                email,
+                refreshToken.getUser().getRole().name());
         String newRefreshToken = jwtTokenProvider.createRefreshToken(email);
         RefreshToken reissued = refreshTokenService.issue(refreshToken.getUser(), newRefreshToken, refreshTokenValidity);
         return new RefreshTokenResponse(newAccessToken, reissued.getToken());

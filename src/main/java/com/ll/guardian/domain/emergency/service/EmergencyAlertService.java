@@ -160,8 +160,9 @@ public class EmergencyAlertService {
         }
 
         return careMatchRepository.findFirstByClientIdAndCurrentTrue(clientId)
-                .or(() -> careMatchRepository.findFirstByClientIdOrderByIdDesc(clientId))
                 .map(match -> match.getManager().getId())
-                .orElse(null);
+                .orElseThrow(() -> new GuardianException(
+                        HttpStatus.FORBIDDEN,
+                        "현재 매칭된 매니저가 없습니다."));
     }
 }

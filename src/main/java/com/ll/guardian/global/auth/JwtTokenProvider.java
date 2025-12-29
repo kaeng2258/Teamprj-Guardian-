@@ -9,6 +9,7 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.Date;
+import java.util.UUID;
 import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -42,7 +43,15 @@ public class JwtTokenProvider {
     }
 
     public String createRefreshToken(String subject) {
-        return createToken(subject, refreshTokenValidity);
+        Instant now = Instant.now();
+        Instant expiresAt = now.plus(refreshTokenValidity);
+        return JWT.create()
+                .withSubject(subject)
+                .withIssuedAt(Date.from(now))
+                .withExpiresAt(Date.from(expiresAt))
+                .withJWTId(UUID.randomUUID().toString())
+                .withClaim("type", "refresh")
+                .sign(algorithm);
     }
 
     private String createToken(String subject, Duration validity) {

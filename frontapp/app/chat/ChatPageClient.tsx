@@ -1,12 +1,13 @@
 "use client";
 
 import { useSearchParams, useRouter } from "next/navigation";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import ChatRoom from "@/components/ChatRoom";
+import { ensureAccessToken } from "@/lib/auth";
 
 type Me = {
-  id: number;              // ✅ ChatRoom이 요구하는 필드명
-  name: string;            // ✅ ChatRoom이 요구하는 필드명
+  id: number;
+  name: string;
   role?: string;
   email?: string;
   profileImageUrl?: string | null;
@@ -35,7 +36,7 @@ function getMeFromLocalStorage(): Me | null {
     localStorage.getItem("userName") ||
     localStorage.getItem("userEmail") ||
     (parsed?.email ? String(parsed.email) : null) ||
-    `사용자#${id}`;
+    `사용자${id}`;
 
   return {
     id,
@@ -49,6 +50,7 @@ function getMeFromLocalStorage(): Me | null {
 export default function ChatPageClient() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const [tokenReady, setTokenReady] = useState(false);
 
   const roomIdParam = searchParams.get("roomId");
   const roomId = roomIdParam ? Number(roomIdParam) : NaN;
@@ -56,23 +58,32 @@ export default function ChatPageClient() {
   const me = useMemo(() => getMeFromLocalStorage(), []);
 
   useEffect(() => {
-    if (!roomId || Number.isNaN(roomId)) {
-      router.replace("/");
-      return;
-    }
-    if (!me) {
-      router.replace("/login");
-    }
+    const bootstrap = async () => {
+      if (!roomId || Number.isNaN(roomId)) {
+        router.replace("/");
+        return;
+      }
+      const token = await ensureAccessToken();
+      if (!token) {
+        router.replace("/login");
+        return;
+      }
+      if (!me) {
+        router.replace("/login");
+        return;
+      }
+      setTokenReady(true);
+    };
+    void bootstrap();
   }, [roomId, me, router]);
 
-  if (!me || !roomId || Number.isNaN(roomId)) {
+  if (!tokenReady || !me || !roomId || Number.isNaN(roomId)) {
     return (
       <div className="flex h-screen items-center justify-center text-sm text-gray-500">
-        채팅방을 불러오는 중...
+        채팅방을 불러오는 중..
       </div>
     );
   }
 
-  // ✅ ChatRoom Props 타입에 정확히 일치
   return <ChatRoom roomId={roomId} me={me} />;
 }

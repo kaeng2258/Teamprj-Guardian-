@@ -445,8 +445,20 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
 
     pc.ontrack = (e) => {
       const stream = e.streams[0];
+      const updateRemoteVideoState = () => {
+        const videoEl = remoteVideoRef.current;
+        const currentStream = videoEl?.srcObject as MediaStream | null;
+        const hasLiveVideo =
+          currentStream?.getVideoTracks().some((t) => t.readyState === "live" && !t.muted) ??
+          false;
+        const hasFrame = Boolean(videoEl && videoEl.videoWidth > 0 && videoEl.videoHeight > 0);
+        setRemoteVideoOn(hasLiveVideo || hasFrame);
+      };
+
       if (remoteVideoRef.current) {
         remoteVideoRef.current.srcObject = stream;
+        remoteVideoRef.current.onloadeddata = updateRemoteVideoState;
+        remoteVideoRef.current.onloadedmetadata = updateRemoteVideoState;
         const play = async () => {
           try {
             await remoteVideoRef.current?.play();
@@ -456,14 +468,21 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
         };
         void play();
       }
-      setRemoteVideoOn(true);
-      stream.getTracks().forEach((track) => {
-        const markOff = () => setRemoteVideoOn(false);
-        const markOn = () => setRemoteVideoOn(true);
-        track.addEventListener("ended", markOff);
-        track.addEventListener("mute", markOff);
-        track.addEventListener("unmute", markOn);
-      });
+
+      if (e.track?.kind === "video") {
+        updateRemoteVideoState();
+        const markOff = () => {
+          updateRemoteVideoState();
+          setRemoteVideoOn(false);
+        };
+        const markOn = () => {
+          updateRemoteVideoState();
+          setRemoteVideoOn(true);
+        };
+        e.track.addEventListener("ended", markOff);
+        e.track.addEventListener("mute", markOff);
+        e.track.addEventListener("unmute", markOn);
+      }
     };
 
     pc.onnegotiationneeded = async () => {
@@ -571,6 +590,24 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
             },
             token ? { Authorization: `Bearer ${token}` } : {},
           );
+        })();
+
+        void (async () => {
+          const pc = pcRef.current;
+          if (!pc || !localStreamRef.current) return;
+          if (pc.signalingState !== "stable") return;
+          try {
+            makingOfferRef.current = true;
+            const offer = await pc.createOffer();
+            if (pc.signalingState !== "stable") return;
+            await pc.setLocalDescription(offer);
+            const sdp = pc.localDescription?.sdp;
+            if (sdp) sendRtc("offer", { sdp });
+          } catch (e) {
+            console.error("WebRTC negotiation failed", e);
+          } finally {
+            makingOfferRef.current = false;
+          }
         })();
       },
       onStompError: () => setRtcStatus("disconnected"),

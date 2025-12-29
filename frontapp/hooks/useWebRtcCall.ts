@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { Client } from "@stomp/stompjs";
 import SockJS from "sockjs-client";
 import { ensureAccessToken } from "@/lib/auth";
-import { buildIceServers } from "@/lib/rtc";
+import { buildRtcConfig } from "@/lib/rtc";
 
 const WS_ENDPOINT = (() => {
   const env = process.env.NEXT_PUBLIC_WS_URL;
@@ -72,9 +72,7 @@ export function useWebRtcCall({ roomId, me }: UseWebRtcCallProps) {
   const ensurePc = useCallback(() => {
     if (pcRef.current) return pcRef.current;
 
-    const pc = new RTCPeerConnection({
-      iceServers: buildIceServers(),
-    });
+    const pc = new RTCPeerConnection(buildRtcConfig());
 
     pc.onicecandidate = (e) => {
       if (e.candidate) {

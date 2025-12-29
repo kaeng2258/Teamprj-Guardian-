@@ -7,7 +7,7 @@ import SockJS from "sockjs-client";
 import { useRouter } from "next/navigation";
 import { resolveProfileImageUrl } from "@/lib/image";
 import { ensureAccessToken, fetchWithAuth } from "@/lib/auth";
-import { buildIceServers } from "@/lib/rtc";
+import { buildRtcConfig } from "@/lib/rtc";
 import {
   ActionIcon,
   Avatar,
@@ -435,9 +435,7 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
   const ensurePc = useCallback(() => {
     if (pcRef.current) return pcRef.current;
 
-    const pc = new RTCPeerConnection({
-      iceServers: buildIceServers(),
-    });
+    const pc = new RTCPeerConnection(buildRtcConfig());
 
     pc.onicecandidate = (e) => {
       if (e.candidate) {

@@ -23,3 +23,11 @@ export function buildIceServers(): RTCIceServer[] {
 
   return servers;
 }
+
+export function buildRtcConfig(): RTCConfiguration {
+  const policy = (process.env.NEXT_PUBLIC_ICE_POLICY ?? "all").toLowerCase();
+  return {
+    iceServers: buildIceServers(),
+    iceTransportPolicy: policy === "relay" ? "relay" : "all",
+  };
+}

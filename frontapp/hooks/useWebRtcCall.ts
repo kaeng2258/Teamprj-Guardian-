@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Client } from "@stomp/stompjs";
 import SockJS from "sockjs-client";
+import { ensureAccessToken } from "@/lib/auth";
 
 const WS_ENDPOINT = (() => {
   const env = process.env.NEXT_PUBLIC_WS_URL;

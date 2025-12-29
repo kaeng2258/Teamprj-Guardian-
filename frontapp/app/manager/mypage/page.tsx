@@ -1213,7 +1213,7 @@ export default function ManagerMyPage() {
     setClientEmergencyMessage((prev) => ({ ...prev, [clientId]: undefined }));
     setClientEmergencySending((prev) => ({ ...prev, [clientId]: true }));
     try {
-      const res = await fetch(`${API_BASE_URL}/api/emergency/alerts`, {
+      const res = await fetchWithAuth(`${API_BASE_URL}/api/emergency/alerts`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

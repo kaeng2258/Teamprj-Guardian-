@@ -1368,11 +1368,21 @@ export default function ClientMyPage() {
     setEmergencySending((prev) => ({ ...prev, [plan.id]: true }));
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/emergency/alerts`, {
+      const targetManagerId =
+        plan.managerId ??
+        (plan.assignedManagerIds && plan.assignedManagerIds.length === 1
+          ? plan.assignedManagerIds[0]
+          : null);
+      if (!targetManagerId) {
+        throw new Error("담당 매니저를 선택할 수 없습니다. 매니저에게 문의해주세요.");
+      }
+
+      const response = await fetchWithAuth(`${API_BASE_URL}/api/emergency/alerts`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           clientId: client.userId,
+          managerId: targetManagerId,
           alertType: "CLIENT_EMERGENCY",
           shareLocation: false,
         }),

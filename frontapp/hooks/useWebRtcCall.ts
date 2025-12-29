@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Client } from "@stomp/stompjs";
 import SockJS from "sockjs-client";
+import { ensureAccessToken } from "@/lib/auth";
+import { buildRtcConfig } from "@/lib/rtc";
 
 const WS_ENDPOINT = (() => {
   const env = process.env.NEXT_PUBLIC_WS_URL;
@@ -53,6 +55,9 @@ export function useWebRtcCall({ roomId, me }: UseWebRtcCallProps) {
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const rtcClientRef = useRef<Client | null>(null);
+  const pendingCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
+  const makingOfferRef = useRef(false);
+  const ignoreOfferRef = useRef(false);
 
   const sendRtc = useCallback((type: RtcMessageType, payload: RtcPayload = {}) => {
     const client = rtcClientRef.current;
@@ -67,9 +72,7 @@ export function useWebRtcCall({ roomId, me }: UseWebRtcCallProps) {
   const ensurePc = useCallback(() => {
     if (pcRef.current) return pcRef.current;
 
-    const pc = new RTCPeerConnection({
-      iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
-    });
+    const pc = new RTCPeerConnection(buildRtcConfig());
 
     pc.onicecandidate = (e) => {
       if (e.candidate) {
@@ -81,6 +84,29 @@ export function useWebRtcCall({ roomId, me }: UseWebRtcCallProps) {
       const stream = e.streams[0];
       if (remoteVideoRef.current) {
         remoteVideoRef.current.srcObject = stream;
+        const play = async () => {
+          try {
+            await remoteVideoRef.current?.play();
+          } catch {
+            // ignore autoplay errors
+          }
+        };
+        void play();
+      }
+    };
+
+    pc.onnegotiationneeded = async () => {
+      try {
+        makingOfferRef.current = true;
+        const offer = await pc.createOffer();
+        if (pc.signalingState !== "stable") return;
+        await pc.setLocalDescription(offer);
+        const sdp = pc.localDescription?.sdp;
+        if (sdp) sendRtc("offer", { sdp });
+      } catch (e) {
+        console.error("WebRTC negotiation failed", e);
+      } finally {
+        makingOfferRef.current = false;
       }
     };
 
@@ -94,15 +120,52 @@ export function useWebRtcCall({ roomId, me }: UseWebRtcCallProps) {
 
   const handleRtcSignal = useCallback(async (msg: RTCSignalMessage) => {
     const pc = ensurePc();
+    const offerCollision =
+      msg.type === "offer" && (makingOfferRef.current || pc.signalingState !== "stable");
+    const isPolite = me.id > msg.from;
+    ignoreOfferRef.current = !isPolite && offerCollision;
+    if (ignoreOfferRef.current) return;
 
     if (msg.type === "offer" && "sdp" in msg) {
+      if (offerCollision) {
+        await pc.setLocalDescription({ type: "rollback" } as RTCSessionDescriptionInit);
+      }
       await pc.setRemoteDescription({ type: "offer", sdp: msg.sdp });
+      if (pendingCandidatesRef.current.length > 0) {
+        const pending = pendingCandidatesRef.current;
+        pendingCandidatesRef.current = [];
+        for (const candidate of pending) {
+          try {
+            await pc.addIceCandidate(new RTCIceCandidate(candidate));
+          } catch (e) {
+            console.error("Failed to add ICE candidate", e);
+          }
+        }
+      }
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
-      sendRtc("answer", { sdp: answer.sdp });
+      if (pc.localDescription?.sdp) {
+        sendRtc("answer", { sdp: pc.localDescription.sdp });
+      }
     } else if (msg.type === "answer" && "sdp" in msg) {
       await pc.setRemoteDescription({ type: "answer", sdp: msg.sdp });
+      if (pendingCandidatesRef.current.length > 0) {
+        const pending = pendingCandidatesRef.current;
+        pendingCandidatesRef.current = [];
+        for (const candidate of pending) {
+          try {
+            await pc.addIceCandidate(new RTCIceCandidate(candidate));
+          } catch (e) {
+            console.error("Failed to add ICE candidate", e);
+          }
+        }
+      }
     } else if (msg.type === "candidate" && "candidate" in msg) {
+      if (ignoreOfferRef.current) return;
+      if (!pc.remoteDescription || !pc.remoteDescription.type) {
+        pendingCandidatesRef.current.push(msg.candidate);
+        return;
+      }
       try {
         await pc.addIceCandidate(new RTCIceCandidate(msg.candidate));
       } catch (e) {
@@ -133,15 +196,22 @@ export function useWebRtcCall({ roomId, me }: UseWebRtcCallProps) {
       reconnectDelay: 5000,
       onConnect: () => {
         setRtcStatus("connected");
-        client.subscribe(`/topic/rtc/${roomId}`, async (frame) => {
-          try {
-            const msg = JSON.parse(frame.body) as RTCSignalMessage;
-            if (!msg || msg.from === me.id) return;
-            await handleRtcSignalRef.current(msg);
-          } catch (e) {
-            console.error("RTC message parsing failed", e);
-          }
-        });
+        void (async () => {
+          const token = await ensureAccessToken();
+          client.subscribe(
+            `/topic/rtc/${roomId}`,
+            async (frame) => {
+              try {
+                const msg = JSON.parse(frame.body) as RTCSignalMessage;
+                if (!msg || msg.from === me.id) return;
+                await handleRtcSignalRef.current(msg);
+              } catch (e) {
+                console.error("RTC message parsing failed", e);
+              }
+            },
+            token ? { Authorization: `Bearer ${token}` } : {},
+          );
+        })();
       },
       onStompError: (f) => {
         console.error("RTC STOMP error", f);
@@ -182,9 +252,6 @@ export function useWebRtcCall({ roomId, me }: UseWebRtcCallProps) {
       stream.getTracks().forEach((t) => pc.addTrack(t, stream));
 
       // Negotiation
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-      sendRtc("offer", { sdp: offer.sdp });
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : String(e);
       alert("Camera access failed: " + message);

@@ -7,6 +7,7 @@ import SockJS from "sockjs-client";
 import { useRouter } from "next/navigation";
 import { resolveProfileImageUrl } from "@/lib/image";
 import { ensureAccessToken, fetchWithAuth } from "@/lib/auth";
+import { buildRtcConfig } from "@/lib/rtc";
 import {
   ActionIcon,
   Avatar,
@@ -368,7 +369,28 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
   const [remoteVideoOn, setRemoteVideoOn] = useState(false);
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
+  const remoteStreamRef = useRef<MediaStream | null>(null);
   const rtcClientRef = useRef<Client | null>(null);
+  const pendingCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
+  const makingOfferRef = useRef(false);
+  const ignoreOfferRef = useRef(false);
+  const politeRef = useRef(true);
+
+  const remoteParticipantId = useMemo(() => {
+    if (!thread) return null;
+    if (resolvedMe.id === thread.clientId) return thread.managerId;
+    if (resolvedMe.id === thread.managerId) return thread.clientId;
+    return null;
+  }, [thread, resolvedMe.id]);
+
+  useEffect(() => {
+    if (!remoteParticipantId) {
+      politeRef.current = true;
+      return;
+    }
+    // Higher user id yields to avoid offer collisions.
+    politeRef.current = resolvedMe.id > remoteParticipantId;
+  }, [remoteParticipantId, resolvedMe.id]);
 
   useEffect(() => {
     if (!camOn) return;
@@ -413,9 +435,7 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
   const ensurePc = useCallback(() => {
     if (pcRef.current) return pcRef.current;
 
-    const pc = new RTCPeerConnection({
-      iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
-    });
+    const pc = new RTCPeerConnection(buildRtcConfig());
 
     pc.onicecandidate = (e) => {
       if (e.candidate) {
@@ -424,11 +444,66 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
     };
 
     pc.ontrack = (e) => {
-      const stream = e.streams[0];
+      const stream = e.streams[0] ?? remoteStreamRef.current ?? new MediaStream();
+      if (!remoteStreamRef.current || remoteStreamRef.current !== stream) {
+        remoteStreamRef.current = stream;
+      }
+      if (!stream.getTracks().includes(e.track)) {
+        stream.addTrack(e.track);
+      }
+      const updateRemoteVideoState = () => {
+        const videoEl = remoteVideoRef.current;
+        const currentStream = videoEl?.srcObject as MediaStream | null;
+        const hasLiveVideo =
+          currentStream?.getVideoTracks().some((t) => t.readyState === "live" && !t.muted) ??
+          false;
+        const hasFrame = Boolean(videoEl && videoEl.videoWidth > 0 && videoEl.videoHeight > 0);
+        setRemoteVideoOn(hasLiveVideo || hasFrame);
+      };
+
       if (remoteVideoRef.current) {
         remoteVideoRef.current.srcObject = stream;
+        remoteVideoRef.current.onloadeddata = updateRemoteVideoState;
+        remoteVideoRef.current.onloadedmetadata = updateRemoteVideoState;
+        const play = async () => {
+          try {
+            await remoteVideoRef.current?.play();
+          } catch {
+            // ignore autoplay errors
+          }
+        };
+        void play();
       }
-      setRemoteVideoOn(true);
+
+      if (e.track?.kind === "video") {
+        updateRemoteVideoState();
+        const markOff = () => {
+          updateRemoteVideoState();
+          setRemoteVideoOn(false);
+        };
+        const markOn = () => {
+          updateRemoteVideoState();
+          setRemoteVideoOn(true);
+        };
+        e.track.addEventListener("ended", markOff);
+        e.track.addEventListener("mute", markOff);
+        e.track.addEventListener("unmute", markOn);
+      }
+    };
+
+    pc.onnegotiationneeded = async () => {
+      try {
+        makingOfferRef.current = true;
+        const offer = await pc.createOffer();
+        if (pc.signalingState !== "stable") return;
+        await pc.setLocalDescription(offer);
+        const sdp = pc.localDescription?.sdp;
+        if (sdp) sendRtc("offer", { sdp });
+      } catch (e) {
+        console.error("WebRTC negotiation failed", e);
+      } finally {
+        makingOfferRef.current = false;
+      }
     };
 
     pcRef.current = pc;
@@ -437,15 +512,51 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
 
   const handleRtcSignal = useCallback(async (msg: RTCSignalMessage) => {
     const pc = ensurePc();
+    const offerCollision =
+      msg.type === "offer" && (makingOfferRef.current || pc.signalingState !== "stable");
+    ignoreOfferRef.current = !politeRef.current && offerCollision;
+    if (ignoreOfferRef.current) return;
 
     if (msg.type === "offer" && "sdp" in msg) {
+      if (offerCollision) {
+        await pc.setLocalDescription({ type: "rollback" } as RTCSessionDescriptionInit);
+      }
       await pc.setRemoteDescription({ type: "offer", sdp: msg.sdp });
+      if (pendingCandidatesRef.current.length > 0) {
+        const pending = pendingCandidatesRef.current;
+        pendingCandidatesRef.current = [];
+        for (const candidate of pending) {
+          try {
+            await pc.addIceCandidate(new RTCIceCandidate(candidate));
+          } catch (e) {
+            console.error("ICE 추가 실패", e);
+          }
+        }
+      }
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
-      sendRtc("answer", { sdp: answer.sdp });
+      if (pc.localDescription?.sdp) {
+        sendRtc("answer", { sdp: pc.localDescription.sdp });
+      }
     } else if (msg.type === "answer" && "sdp" in msg) {
       await pc.setRemoteDescription({ type: "answer", sdp: msg.sdp });
+      if (pendingCandidatesRef.current.length > 0) {
+        const pending = pendingCandidatesRef.current;
+        pendingCandidatesRef.current = [];
+        for (const candidate of pending) {
+          try {
+            await pc.addIceCandidate(new RTCIceCandidate(candidate));
+          } catch (e) {
+            console.error("ICE 추가 실패", e);
+          }
+        }
+      }
     } else if (msg.type === "candidate" && "candidate" in msg) {
+      if (ignoreOfferRef.current) return;
+      if (!pc.remoteDescription || !pc.remoteDescription.type) {
+        pendingCandidatesRef.current.push(msg.candidate);
+        return;
+      }
       try {
         await pc.addIceCandidate(new RTCIceCandidate(msg.candidate));
       } catch (e) {
@@ -480,15 +591,40 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
       reconnectDelay: 5000,
       onConnect: () => {
         setRtcStatus("connected");
-        client.subscribe(`/topic/rtc/${roomId}`, async (frame) => {
+        void (async () => {
+          const token = await ensureAccessToken();
+          client.subscribe(
+            `/topic/rtc/${roomId}`,
+            async (frame) => {
+              try {
+                const msg = JSON.parse(frame.body) as RTCSignalMessage;
+                if (!msg || msg.from === resolvedMe.id) return;
+                await handleRtcSignalRef.current(msg);
+              } catch (e) {
+                console.error("RTC Parse Error", e);
+              }
+            },
+            token ? { Authorization: `Bearer ${token}` } : {},
+          );
+        })();
+
+        void (async () => {
+          const pc = pcRef.current;
+          if (!pc || !localStreamRef.current) return;
+          if (pc.signalingState !== "stable") return;
           try {
-            const msg = JSON.parse(frame.body) as RTCSignalMessage;
-            if (!msg || msg.from === resolvedMe.id) return;
-            await handleRtcSignalRef.current(msg);
+            makingOfferRef.current = true;
+            const offer = await pc.createOffer();
+            if (pc.signalingState !== "stable") return;
+            await pc.setLocalDescription(offer);
+            const sdp = pc.localDescription?.sdp;
+            if (sdp) sendRtc("offer", { sdp });
           } catch (e) {
-            console.error("RTC Parse Error", e);
+            console.error("WebRTC negotiation failed", e);
+          } finally {
+            makingOfferRef.current = false;
           }
-        });
+        })();
       },
       onStompError: () => setRtcStatus("disconnected"),
       onWebSocketError: () => setRtcStatus("disconnected"),
@@ -555,10 +691,6 @@ const startCamera = async () => {
         pc.addTrack(t, stream);
       }
     }
-
-    const offer = await pc.createOffer();
-    await pc.setLocalDescription(offer);
-    sendRtc("offer", { sdp: offer.sdp });
   } catch (e) {
     alert("카메라 접근 실패: " + String(e));
   }

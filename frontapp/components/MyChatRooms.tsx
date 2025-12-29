@@ -127,9 +127,7 @@ export default function MyChatRooms({
       setErr(null);
       try {
         const res = await fetchWithAuth(
-          `${API_BASE_URL}/api/chat/threads?userId=${encodeURIComponent(
-            String(effectiveUserId),
-          )}`,
+          `${API_BASE_URL}/api/chat/threads`,
         );
         if (!res.ok) {
           throw new Error("채팅 목록을 불러오지 못했습니다.");

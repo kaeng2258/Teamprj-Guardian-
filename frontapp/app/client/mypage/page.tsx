@@ -984,7 +984,7 @@ export default function ClientMyPage() {
       if (!client.userId) return;
       try {
         const res = await fetchWithAuth(
-          `${API_BASE_URL}/api/chat/threads?userId=${client.userId}`,
+          `${API_BASE_URL}/api/chat/threads`,
         );
         if (!res.ok) return;
         const data: ChatThread[] = await res.json();

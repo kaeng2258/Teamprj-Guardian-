@@ -1100,7 +1100,7 @@ export default function ManagerMyPage() {
       if (!manager.userId) return;
       try {
         const res = await fetchWithAuth(
-          `${API_BASE_URL}/api/chat/threads?userId=${manager.userId}`,
+          `${API_BASE_URL}/api/chat/threads`,
         );
         if (!res.ok) return;
         const data: ChatThread[] = await res.json();

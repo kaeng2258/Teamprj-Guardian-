@@ -71,7 +71,8 @@ public class ChatController {
     }
 
     @GetMapping("/threads")
-    public List<ChatThreadResponse> myThreads(@RequestParam @NotNull Long userId) {
+    public List<ChatThreadResponse> myThreads(Principal principal) {
+        Long userId = chatService.getUserIdByEmail(requirePrincipal(principal));
         return chatService.getThreadsForUser(userId);
     }
 
@@ -117,7 +118,11 @@ public class ChatController {
     }
 
     @PostMapping(value = "/rooms", consumes = MediaType.APPLICATION_JSON_VALUE)
-    public ChatThreadResponse openOrGetRoom(@RequestBody @Valid OpenRoomRequest req) {
+    public ChatThreadResponse openOrGetRoom(@RequestBody @Valid OpenRoomRequest req, Principal principal) {
+        Long userId = chatService.getUserIdByEmail(requirePrincipal(principal));
+        if (!userId.equals(req.clientId()) && !userId.equals(req.managerId())) {
+            throw new GuardianException(HttpStatus.FORBIDDEN, "본인이 참여하지 않는 방은 생성할 수 없습니다.");
+        }
         return ChatThreadResponse.from(chatService.openOrGetRoom(req.clientId(), req.managerId()));
     }
 

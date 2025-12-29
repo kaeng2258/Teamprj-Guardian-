@@ -63,7 +63,8 @@ public class EmergencyAlertService {
                 .build();
         EmergencyAlert saved = emergencyAlertRepository.save(alert);
         Long requesterId = resolveRequesterId(requesterEmail);
-        Long managerIdForAlert = resolveManagerForAlert(client.getId(), request.alertType(), requesterId);
+        Long managerIdForAlert =
+                resolveManagerForAlert(client.getId(), request.alertType(), request.managerId(), requesterId);
         notifyViaChat(client, request.alertType(), managerIdForAlert);
         return EmergencyAlertResponse.from(saved);
     }
@@ -146,7 +147,11 @@ public class EmergencyAlertService {
         return userRepository.findByEmail(requesterEmail).map(User::getId).orElse(null);
     }
 
-    private Long resolveManagerForAlert(Long clientId, EmergencyAlertType alertType, Long requesterId) {
+    private Long resolveManagerForAlert(
+            Long clientId,
+            EmergencyAlertType alertType,
+            Long managerId,
+            Long requesterId) {
         if (alertType == EmergencyAlertType.MANAGER_REQUEST) {
             if (requesterId == null) {
                 throw new GuardianException(HttpStatus.FORBIDDEN, "매니저 인증 정보가 없습니다.");
@@ -159,10 +164,22 @@ public class EmergencyAlertService {
                             "해당 클라이언트에 대한 매칭 권한이 없습니다."));
         }
 
-        return careMatchRepository.findFirstByClientIdAndCurrentTrue(clientId)
-                .map(match -> match.getManager().getId())
-                .orElseThrow(() -> new GuardianException(
-                        HttpStatus.FORBIDDEN,
-                        "현재 매칭된 매니저가 없습니다."));
+        if (managerId != null) {
+            return careMatchRepository
+                    .findFirstByClientIdAndManagerIdAndCurrentTrue(clientId, managerId)
+                    .map(match -> match.getManager().getId())
+                    .orElseThrow(() -> new GuardianException(
+                            HttpStatus.FORBIDDEN,
+                            "해당 매니저와 현재 매칭되어 있지 않습니다."));
+        }
+
+        var matches = careMatchRepository.findByClientIdAndCurrentTrue(clientId);
+        if (matches.isEmpty()) {
+            throw new GuardianException(HttpStatus.FORBIDDEN, "현재 매칭된 매니저가 없습니다.");
+        }
+        if (matches.size() > 1) {
+            throw new GuardianException(HttpStatus.FORBIDDEN, "담당 매니저를 선택해주세요.");
+        }
+        return matches.get(0).getManager().getId();
     }
 }

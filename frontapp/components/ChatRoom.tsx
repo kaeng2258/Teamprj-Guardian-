@@ -368,6 +368,7 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
   const [remoteVideoOn, setRemoteVideoOn] = useState(false);
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
+  const remoteStreamRef = useRef<MediaStream | null>(null);
   const rtcClientRef = useRef<Client | null>(null);
   const pendingCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
   const makingOfferRef = useRef(false);
@@ -444,7 +445,13 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
     };
 
     pc.ontrack = (e) => {
-      const stream = e.streams[0];
+      const stream = e.streams[0] ?? remoteStreamRef.current ?? new MediaStream();
+      if (!remoteStreamRef.current || remoteStreamRef.current !== stream) {
+        remoteStreamRef.current = stream;
+      }
+      if (!stream.getTracks().includes(e.track)) {
+        stream.addTrack(e.track);
+      }
       const updateRemoteVideoState = () => {
         const videoEl = remoteVideoRef.current;
         const currentStream = videoEl?.srcObject as MediaStream | null;

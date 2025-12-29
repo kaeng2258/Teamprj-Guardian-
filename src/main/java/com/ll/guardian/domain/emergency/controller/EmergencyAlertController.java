@@ -6,6 +6,7 @@ import com.ll.guardian.domain.emergency.service.EmergencyAlertService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import java.security.Principal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -25,8 +26,11 @@ public class EmergencyAlertController {
     }
 
     @PostMapping
-    public ResponseEntity<EmergencyAlertResponse> trigger(@Valid @RequestBody EmergencyAlertRequest request) {
-        EmergencyAlertResponse response = emergencyAlertService.triggerAlert(request);
+    public ResponseEntity<EmergencyAlertResponse> trigger(
+            @Valid @RequestBody EmergencyAlertRequest request,
+            Principal principal) {
+        String requesterEmail = principal != null ? principal.getName() : null;
+        EmergencyAlertResponse response = emergencyAlertService.triggerAlert(request, requesterEmail);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 

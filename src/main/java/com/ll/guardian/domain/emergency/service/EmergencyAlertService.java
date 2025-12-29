@@ -63,7 +63,8 @@ public class EmergencyAlertService {
                 .build();
         EmergencyAlert saved = emergencyAlertRepository.save(alert);
         Long requesterId = resolveRequesterId(requesterEmail);
-        notifyViaChat(client, request.alertType(), requesterId);
+        Long managerIdForAlert = resolveManagerForAlert(client.getId(), request.alertType(), requesterId);
+        notifyViaChat(client, request.alertType(), managerIdForAlert);
         return EmergencyAlertResponse.from(saved);
     }
 
@@ -111,17 +112,7 @@ public class EmergencyAlertService {
                 .orElseThrow(() -> new GuardianException(HttpStatus.NOT_FOUND, "사용자를 찾을 수 없습니다."));
     }
 
-    private void notifyViaChat(User client, EmergencyAlertType alertType, Long requesterId) {
-        Long managerId = null;
-        if (alertType == EmergencyAlertType.MANAGER_REQUEST && requesterId != null) {
-            managerId = requesterId;
-        } else {
-            managerId = careMatchRepository.findFirstByClientIdAndCurrentTrue(client.getId())
-                    .or(() -> careMatchRepository.findFirstByClientIdOrderByIdDesc(client.getId()))
-                    .map(match -> match.getManager().getId())
-                    .orElse(null);
-        }
-
+    private void notifyViaChat(User client, EmergencyAlertType alertType, Long managerId) {
         if (managerId == null) {
             log.warn("Emergency chat notify skipped. No manager found for clientId={}", client.getId());
             return;
@@ -153,5 +144,24 @@ public class EmergencyAlertService {
             return null;
         }
         return userRepository.findByEmail(requesterEmail).map(User::getId).orElse(null);
+    }
+
+    private Long resolveManagerForAlert(Long clientId, EmergencyAlertType alertType, Long requesterId) {
+        if (alertType == EmergencyAlertType.MANAGER_REQUEST) {
+            if (requesterId == null) {
+                throw new GuardianException(HttpStatus.FORBIDDEN, "매니저 인증 정보가 없습니다.");
+            }
+            return careMatchRepository
+                    .findFirstByClientIdAndManagerIdAndCurrentTrue(clientId, requesterId)
+                    .map(match -> match.getManager().getId())
+                    .orElseThrow(() -> new GuardianException(
+                            HttpStatus.FORBIDDEN,
+                            "해당 클라이언트에 대한 매칭 권한이 없습니다."));
+        }
+
+        return careMatchRepository.findFirstByClientIdAndCurrentTrue(clientId)
+                .or(() -> careMatchRepository.findFirstByClientIdOrderByIdDesc(clientId))
+                .map(match -> match.getManager().getId())
+                .orElse(null);
     }
 }

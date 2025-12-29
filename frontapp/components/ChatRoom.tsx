@@ -7,6 +7,7 @@ import SockJS from "sockjs-client";
 import { useRouter } from "next/navigation";
 import { resolveProfileImageUrl } from "@/lib/image";
 import { ensureAccessToken, fetchWithAuth } from "@/lib/auth";
+import { buildIceServers } from "@/lib/rtc";
 import {
   ActionIcon,
   Avatar,
@@ -435,7 +436,7 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
     if (pcRef.current) return pcRef.current;
 
     const pc = new RTCPeerConnection({
-      iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+      iceServers: buildIceServers(),
     });
 
     pc.onicecandidate = (e) => {

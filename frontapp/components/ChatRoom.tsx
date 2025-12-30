@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import { resolveProfileImageUrl } from "@/lib/image";
 import { ensureAccessToken, fetchWithAuth } from "@/lib/auth";
 import { buildRtcConfig } from "@/lib/rtc";
+import { formatKstDateTime } from "@/lib/date";
 import {
   ActionIcon,
   Avatar,
@@ -351,11 +352,7 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
     box.scrollTop = box.scrollHeight;
   }, [messages.length]);
 
-  const fmt = (iso?: string) => {
-    if (!iso) return "";
-    const d = new Date(iso);
-    return d.toLocaleString();
-  };
+  const fmt = (iso?: string) => formatKstDateTime(iso);
 
   const isEmergencyNotice = (m: ChatMessage) => {
     const type = (m.messageType ?? "").trim().toUpperCase();

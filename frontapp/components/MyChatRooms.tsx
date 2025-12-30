@@ -3,6 +3,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { resolveProfileImageUrl } from "@/lib/image";
 import { fetchWithAuth } from "@/lib/auth";
+import { formatKstDate, getServerTimeMs } from "@/lib/date";
 import {
   Avatar,
   Badge,
@@ -84,8 +85,8 @@ export default function MyChatRooms({
       const aStar = star.has(a.roomId) ? 1 : 0;
       const bStar = star.has(b.roomId) ? 1 : 0;
       if (aStar !== bStar) return bStar - aStar;
-      const aTime = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0;
-      const bTime = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : 0;
+      const aTime = getServerTimeMs(a.lastMessageAt ?? undefined);
+      const bTime = getServerTimeMs(b.lastMessageAt ?? undefined);
       return bTime - aTime;
     });
   };
@@ -324,7 +325,7 @@ export default function MyChatRooms({
                       </UnstyledButton>
                       {lastTime && (
                         <Text size="xs" c="dimmed">
-                          {new Date(lastTime).toLocaleDateString()}
+                          {formatKstDate(lastTime)}
                         </Text>
                       )}
                     </Group>

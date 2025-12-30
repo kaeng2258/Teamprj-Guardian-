@@ -4,6 +4,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Client, IMessage } from "@stomp/stompjs";
 import SockJS from "sockjs-client";
+import { ensureAccessToken } from "@/lib/auth";
 
 // 환경변수에 ws://, wss:// 를 넣어도 SockJS 에서 쓸 수 있게 변환
 const WS_ENDPOINT = (() => {
@@ -11,9 +12,9 @@ const WS_ENDPOINT = (() => {
   if (env) {
     return env.startsWith("http") ? env : env.replace(/^ws/, "http"); // ws → http, wss → https
   }
-  if (typeof window === "undefined") return "/ws";
+  if (typeof window === "undefined") return "/ws-stomp";
   const protocol = window.location.protocol === "https:" ? "https" : "http";
-  return `${protocol}://${window.location.host}/ws`;
+  return `${protocol}://${window.location.host}/ws-stomp`;
 })();
 
 // 백엔드 ChatMessageResponse 형태에 맞춰서 사용
@@ -43,7 +44,18 @@ export function useStomp({ roomId, me, onMessage }: UseStompOptions) {
   useEffect(() => {
     if (!roomId) return;
 
-    const socketFactory = () => new SockJS(WS_ENDPOINT);
+    // withCredentials for SockJS isn't typed; use transportOptions and cast to allow cookies on XHR transports.
+    const socketFactory = () =>
+      new SockJS(
+        WS_ENDPOINT,
+        undefined,
+        {
+          transportOptions: {
+            "xhr-streaming": { withCredentials: true },
+            "xhr-polling": { withCredentials: true },
+          },
+        } as any,
+      );
 
     const client = new Client({
       webSocketFactory: socketFactory,
@@ -54,22 +66,42 @@ export function useStomp({ roomId, me, onMessage }: UseStompOptions) {
         setConnected(true);
 
         // ✅ 백엔드와 동일: /topic/room/{roomId}
-        client.subscribe(`/topic/room/${roomId}`, (msg: IMessage) => {
-          try {
-            const body = JSON.parse(msg.body) as ChatMessage;
-            onMessage?.(body);
-          } catch (e) {
-            console.error("메시지 파싱 실패:", e);
-          }
-        });
+        void (async () => {
+          const token = await ensureAccessToken();
+          client.subscribe(
+            `/topic/room/${roomId}`,
+            (msg: IMessage) => {
+              try {
+                const body = JSON.parse(msg.body) as ChatMessage;
+                onMessage?.(body);
+              } catch (e) {
+                console.error("메시지 파싱 실패:", e);
+              }
+            },
+            token ? { Authorization: `Bearer ${token}` } : {},
+          );
+        })();
       },
       onStompError: (frame) => {
         console.error("STOMP error", frame);
+        setConnected(false);
       },
       onWebSocketError: (event) => {
         console.error("WebSocket error", event);
+        setConnected(false);
+      },
+      onWebSocketClose: () => {
+        setConnected(false);
+      },
+      onDisconnect: () => {
+        setConnected(false);
       },
     });
+
+    client.beforeConnect = async () => {
+      const token = await ensureAccessToken();
+      client.connectHeaders = token ? { Authorization: `Bearer ${token}` } : {};
+    };
 
     client.activate();
     clientRef.current = client;
@@ -82,9 +114,12 @@ export function useStomp({ roomId, me, onMessage }: UseStompOptions) {
   }, [roomId, onMessage, me.id, me.name]);
 
   // ✅ 여기서는 publish 만, 실제 메시지 추가는 ChatRoom 쪽에서만 처리
-  const sendMessage = (content: string) => {
+  const sendMessage = async (content: string): Promise<boolean> => {
     const client = clientRef.current;
-    if (!client || !connected) return;
+    if (!client || !client.connected || !connected) {
+      setConnected(false);
+      return false;
+    }
 
     const payload: ChatMessage = {
       roomId,
@@ -93,10 +128,13 @@ export function useStomp({ roomId, me, onMessage }: UseStompOptions) {
       content,
     };
 
+    const token = await ensureAccessToken();
     client.publish({
       destination: `/app/signal/${roomId}`,
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
       body: JSON.stringify(payload),
     });
+    return true;
   };
 
   return {

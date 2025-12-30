@@ -2,8 +2,36 @@
 
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { FormEvent, useEffect, useState, type CSSProperties } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import PhoneNumberInput from "@/components/PhoneNumberInput";
+import {
+  Anchor,
+  Box,
+  Button,
+  Center,
+  Checkbox,
+  Container,
+  Group,
+  Paper,
+  PasswordInput,
+  Select,
+  Stack,
+  Tabs,
+  Text,
+  TextInput,
+  Title,
+  Grid,
+  ThemeIcon,
+  rem,
+  LoadingOverlay,
+} from "@mantine/core";
+import { useMediaQuery } from "@mantine/hooks";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faCheck, faTimes } from "@fortawesome/free-solid-svg-icons";
+import { setAuthCookie } from "../lib/auth";
+
+// Let's assume the user doesn't have @tabler/icons-react installed (package.json didn't show it).
+// I will use FontAwesome for icons since it's in package.json.
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "";
@@ -19,6 +47,7 @@ type ApiErrorPayload = {
 type LoginSuccessPayload = {
   userId: number;
   role: string;
+  name: string;
   accessToken: string;
   refreshToken: string;
   redirectPath: string;
@@ -48,7 +77,9 @@ const roleLabels: Record<UserRoleOption, string> = {
 declare global {
   interface Window {
     daum?: {
-      Postcode: new (config: { oncomplete: (data: DaumPostcodeData) => void }) => {
+      Postcode: new (config: {
+        oncomplete: (data: DaumPostcodeData) => void;
+      }) => {
         open: () => void;
       };
     };
@@ -73,18 +104,19 @@ async function extractErrorMessage(response: Response) {
 
 export default function Home() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<AuthMode>("login");
-  const [transitionKey, setTransitionKey] = useState(0);
+  const isMobile = useMediaQuery("(max-width: 50em)");
+
+  const [activeTab, setActiveTab] = useState<AuthMode | null>("login");
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [loginMessage, setLoginMessage] = useState("");
   const [loginError, setLoginError] = useState("");
   const [loginLoading, setLoginLoading] = useState(false);
 
-  const [registerRole, setRegisterRole] = useState<RegisterRoleValue>("");
+  const [registerRole, setRegisterRole] = useState<string | null>(null);
   const [registerName, setRegisterName] = useState("");
   const [registerBirthDate, setRegisterBirthDate] = useState("");
-  const [registerGender, setRegisterGender] = useState("");
+  const [registerGender, setRegisterGender] = useState<string | null>(null);
   const [registerPhone1, setRegisterPhone1] = useState("");
   const [registerPhone2, setRegisterPhone2] = useState("");
   const [registerPhone3, setRegisterPhone3] = useState("");
@@ -103,36 +135,46 @@ export default function Home() {
   const [registerAddress, setRegisterAddress] = useState("");
   const [registerDetailAddress, setRegisterDetailAddress] = useState("");
   const [registerError, setRegisterError] = useState("");
+  const [registerBirthDateError, setRegisterBirthDateError] = useState("");
   const [registerLoading, setRegisterLoading] = useState(false);
+
   const [passwordStatus, setPasswordStatus] = useState<"idle" | "valid" | "invalid">("idle");
   const [passwordMessage, setPasswordMessage] = useState("");
   const [confirmStatus, setConfirmStatus] = useState<"idle" | "valid" | "invalid">("idle");
   const [confirmMessage, setConfirmMessage] = useState("");
-  const inputClassName =
-    "w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-[15px] transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 focus:outline-none placeholder:text-slate-400";
-  const labelClassName = "flex flex-col gap-2 text-sm font-medium text-slate-800";
-  const statusClassName = {
-    success:
-      "rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-800",
-    error: "rounded-xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-700",
-  };
-  const tabSwitchClass = {
-    base:
-      "relative z-10 flex-1 rounded-2xl px-4 py-2 text-sm font-semibold uppercase tracking-[0.2em] transition-all duration-300 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-slate-50/70 hover:shadow-lg hover:shadow-slate-900/20 active:shadow-inner",
-    active: "text-slate-900",
-    inactive: "text-slate-100/80 hover:text-white",
-  };
-  const handleTabSwitch = (mode: AuthMode) => {
-    if (mode === activeTab) return;
+
+  const today = useMemo(
+    () =>
+      new Date(Date.now() - new Date().getTimezoneOffset() * 60000)
+        .toISOString()
+        .split("T")[0],
+    []
+  );
+
+  // Toggle state for sliding animation
+  const [isSignUp, setIsSignUp] = useState(false);
+
+  // Sync activeTab with isSignUp for mobile tabs
+  useEffect(() => {
+    setActiveTab(isSignUp ? "register" : "login");
+  }, [isSignUp]);
+
+  const handleMobileTabChange = (value: string | null) => {
+    const mode = value as AuthMode;
+    // Don't change if null
+    if (!mode) return;
+
     if (mode === "login") {
       setLoginError("");
       setRegisterMessage("");
+      setIsSignUp(false);
     } else {
       setRegisterError("");
+      setRegisterBirthDateError("");
       setLoginMessage("");
+      setIsSignUp(true);
     }
     setActiveTab(mode);
-    setTransitionKey((value) => value + 1);
   };
 
   useEffect(() => {
@@ -147,10 +189,25 @@ export default function Home() {
 
     const script = document.createElement("script");
     script.id = "daum-postcode-script";
-    script.src = "https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js";
+    script.src =
+      "https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js";
     script.async = true;
     document.body.appendChild(script);
   }, []);
+
+  const handleRegisterBirthDateChange = (value: string) => {
+    setRegisterBirthDate(value);
+    if (value && value > today) {
+      const msg = "생년월일은 오늘 이후 날짜를 선택할 수 없습니다.";
+      setRegisterBirthDateError(msg);
+      setRegisterError(msg);
+    } else {
+      setRegisterBirthDateError("");
+      if (registerError === "생년월일은 오늘 이후 날짜를 선택할 수 없습니다.") {
+        setRegisterError("");
+      }
+    }
+  };
 
   const handleLoginSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -181,17 +238,23 @@ export default function Home() {
         const authPayload = {
           userId: payload.userId,
           role: payload.role,
+          name: payload.name,
           accessToken: payload.accessToken,
           refreshToken: payload.refreshToken,
           email: loginEmail,
         };
 
-        window.localStorage.setItem("guardian_auth", JSON.stringify(authPayload));
+        window.localStorage.setItem(
+          "guardian_auth",
+          JSON.stringify(authPayload)
+        );
+        setAuthCookie(authPayload);
         window.localStorage.setItem("accessToken", payload.accessToken);
         window.localStorage.setItem("refreshToken", payload.refreshToken);
         window.localStorage.setItem("userRole", payload.role);
         window.localStorage.setItem("userId", String(payload.userId));
         window.localStorage.setItem("userEmail", loginEmail);
+        window.localStorage.setItem("userName", payload.name);
       }
 
       if (payload.redirectPath) {
@@ -201,7 +264,9 @@ export default function Home() {
 
       setLoginMessage("로그인에 성공했습니다.");
     } catch (error) {
-      setLoginError("서버에 연결할 수 없습니다. 네트워크 상태를 확인해주세요.");
+      setLoginError(
+        "서버에 연결할 수 없습니다. 네트워크 상태를 확인해주세요."
+      );
     } finally {
       setLoginLoading(false);
     }
@@ -234,7 +299,10 @@ export default function Home() {
     event.preventDefault();
     setRegisterMessage("");
     setRegisterError("");
-    const registerPhone = [registerPhone1, registerPhone2, registerPhone3].join("-");
+    setRegisterBirthDateError("");
+    const registerPhone = [registerPhone1, registerPhone2, registerPhone3].join(
+      "-"
+    );
 
     if (!registerRole) {
       setRegisterError("회원 유형을 선택해주세요.");
@@ -243,6 +311,13 @@ export default function Home() {
 
     if (!registerBirthDate) {
       setRegisterError("생년월일을 입력해주세요.");
+      return;
+    }
+
+    if (registerBirthDate > today) {
+      const msg = "생년월일은 오늘 이후 날짜를 선택할 수 없습니다.";
+      setRegisterBirthDateError(msg);
+      setRegisterError(msg);
       return;
     }
 
@@ -270,7 +345,10 @@ export default function Home() {
       return;
     }
 
-    const confirmCheck = validateConfirmPassword(registerConfirmPassword, registerPassword);
+    const confirmCheck = validateConfirmPassword(
+      registerConfirmPassword,
+      registerPassword
+    );
     if (!confirmCheck.valid) {
       setConfirmStatus("invalid");
       setConfirmMessage(confirmCheck.message);
@@ -289,7 +367,9 @@ export default function Home() {
     }
 
     if (!registerTermsAgreed || !registerPrivacyAgreed) {
-      setRegisterError("이용약관과 개인정보 처리방침에 모두 동의해야 합니다.");
+      setRegisterError(
+        "이용약관과 개인정보 처리방침에 모두 동의해야 합니다."
+      );
       return;
     }
 
@@ -324,17 +404,19 @@ export default function Home() {
       }
 
       const payload: RegisterSuccessPayload = await response.json();
-      setRegisterMessage(`${payload.name}님, 가입이 완료되었습니다. 로그인 해주세요.`);
+      setRegisterMessage(
+        `${payload.name}님, 가입이 완료되었습니다. 로그인 해주세요.`
+      );
       setLoginEmail(payload.email);
       setActiveTab("login");
       setRegisterZipCode("");
       setRegisterAddress("");
       setRegisterDetailAddress("");
-      setRegisterRole("");
+      setRegisterRole(null);
       setRegisterPassword("");
       setRegisterConfirmPassword("");
       setRegisterBirthDate("");
-      setRegisterGender("");
+      setRegisterGender(null);
       setEmailCheckStatus("idle");
       setEmailCheckMessage("");
       setCheckedEmail("");
@@ -343,7 +425,9 @@ export default function Home() {
       setConfirmStatus("idle");
       setConfirmMessage("");
     } catch (error) {
-      setRegisterError("서버에 연결할 수 없습니다. 잠시 후 다시 시도해주세요.");
+      setRegisterError(
+        "서버에 연결할 수 없습니다. 잠시 후 다시 시도해주세요."
+      );
     } finally {
       setRegisterLoading(false);
     }
@@ -355,7 +439,9 @@ export default function Home() {
     }
 
     if (!window.daum || !window.daum.Postcode) {
-      alert("주소 검색 스크립트를 불러오는 중입니다. 잠시 후 다시 시도해주세요.");
+      alert(
+        "주소 검색 스크립트를 불러오는 중입니다. 잠시 후 다시 시도해주세요."
+      );
       return;
     }
 
@@ -384,7 +470,9 @@ export default function Home() {
 
     try {
       const response = await fetch(
-        `${API_BASE_URL}/api/users/check-email?email=${encodeURIComponent(registerEmail)}`
+        `${API_BASE_URL}/api/users/check-email?email=${encodeURIComponent(
+          registerEmail
+        )}`
       );
 
       if (!response.ok) {
@@ -394,500 +482,428 @@ export default function Home() {
         return;
       }
 
-      const data: { available: boolean; message: string } = await response.json();
+      const data: { available: boolean; message: string } =
+        await response.json();
       setCheckedEmail(registerEmail);
       setEmailCheckStatus(data.available ? "available" : "unavailable");
       setEmailCheckMessage(data.message);
     } catch (error) {
       setEmailCheckStatus("unavailable");
-      setEmailCheckMessage("이메일 중복 확인 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
+      setEmailCheckMessage(
+        "이메일 중복 확인 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."
+      );
     }
   };
 
+  // Reusable Form Content
+  // We wrap them in divs to apply specific styles for desktop/mobile containers
+  const renderLoginContent = (showLogo: boolean) => (
+    <form onSubmit={handleLoginSubmit} style={{ height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+      <Stack align="center" mb={50}>
+        {showLogo && (
+          <Group gap="xs" mb="md">
+            <Image src="/image/logo.png" alt="Guardian Logo" width={50} height={50} />
+            <Text size={rem(28)} fw={900} tt="uppercase" c="indigo" style={{ letterSpacing: '4px' }}>GUARDIAN</Text>
+          </Group>
+        )}
+        <Stack gap={0} align="center">
+          <Title order={2} fw={800} style={{ letterSpacing: '-0.5px' }}>로그인</Title>
+          <Text c="dimmed" size="sm">계정이 있으신가요? 이메일로 로그인하세요.</Text>
+        </Stack>
+      </Stack>
+      <Stack w="100%">
+        <TextInput
+          label="이메일"
+          placeholder="input@email.com"
+          required
+          value={loginEmail}
+          onChange={(event) => setLoginEmail(event.currentTarget.value)}
+          variant="filled"
+        />
+        <PasswordInput
+          label="비밀번호"
+          placeholder="비밀번호 입력"
+          required
+          value={loginPassword}
+          onChange={(event) => setLoginPassword(event.currentTarget.value)}
+          variant="filled"
+        />
+
+        {loginError && (
+          <Paper p="sm" bg="red.0" c="red.9" withBorder style={{ borderColor: 'var(--mantine-color-red-2)' }}>
+            <Group gap="xs">
+              <FontAwesomeIcon icon={faTimes} />
+              <Text size="sm">{loginError}</Text>
+            </Group>
+          </Paper>
+        )}
+
+        {loginMessage && (
+          <Paper p="sm" bg="teal.0" c="teal.9" withBorder style={{ borderColor: 'var(--mantine-color-teal-2)' }}>
+            <Group gap="xs">
+              <FontAwesomeIcon icon={faCheck} />
+              <Text size="sm">{loginMessage}</Text>
+            </Group>
+          </Paper>
+        )}
+
+        <Button type="submit" fullWidth mt="md" size="md" loading={loginLoading} radius="xl" bg="indigo.6">
+          로그인
+        </Button>
+      </Stack>
+    </form>
+  );
+
+  const renderRegisterContent = (showLogo: boolean) => (
+    <form onSubmit={handleRegisterSubmit} style={{ width: '100%', minHeight: '100%', padding: '2rem 1rem' }}>
+      <Stack align="center" mb={50}>
+        {showLogo && (
+          <Group gap="xs" mb="lg">
+            <Image src="/image/logo.png" alt="Guardian Logo" width={50} height={50} />
+            <Text size={rem(28)} fw={900} tt="uppercase" c="indigo" style={{ letterSpacing: '4px' }}>GUARDIAN</Text>
+          </Group>
+        )}
+        <Stack gap={0} align="center">
+          <Title order={2} fw={800} style={{ letterSpacing: '-0.5px' }}>회원가입</Title>
+          <Text c="dimmed" size="sm">Guardian의 회원이 되어 서비스를 이용해보세요.</Text>
+        </Stack>
+      </Stack>
+
+      <Stack gap="md" w="100%">
+        {/* Basic Info */}
+        <Text fw={700} size="sm" c="gray.7">기본 정보</Text>
+        <div>
+          <TextInput
+            label="이름"
+            placeholder="홍길동"
+            required
+            value={registerName}
+            onChange={(e) => setRegisterName(e.currentTarget.value)}
+            variant="filled"
+          />
+        </div>
+        <div>
+          <TextInput
+            label="생년월일"
+            type="date"
+            required
+            max={today}
+            value={registerBirthDate}
+            onChange={(e) => handleRegisterBirthDateChange(e.currentTarget.value)}
+            error={registerBirthDateError}
+            variant="filled"
+          />
+        </div>
+
+        <div>
+          <Select
+            label="성별"
+            placeholder="선택"
+            data={[
+              { value: 'MALE', label: '남성' },
+              { value: 'FEMALE', label: '여성' },
+            ]}
+            value={registerGender}
+            onChange={setRegisterGender}
+            required
+            variant="filled"
+          />
+        </div>
+        <div>
+          <Box>
+            <Text size="sm" fw={500} mb={3}>연락처 <Text span c="red">*</Text></Text>
+            <PhoneNumberInput
+              parts={{ first: registerPhone1, middle: registerPhone2, last: registerPhone3 }}
+              onChange={(parts) => {
+                setRegisterPhone1(parts.first);
+                setRegisterPhone2(parts.middle);
+                setRegisterPhone3(parts.last);
+              }}
+              required
+            />
+          </Box>
+        </div>
+
+        {/* Account Info */}
+        <Text fw={700} size="sm" c="gray.7" mt="sm">계정 정보</Text>
+
+        <Stack gap="xs">
+          <Text size="sm" fw={500}>이메일 <Text span c="red">*</Text></Text>
+          <Group align="flex-start" wrap="nowrap">
+            <TextInput
+              placeholder="you@example.com"
+              required
+              value={registerEmail}
+              onChange={(e) => {
+                setRegisterEmail(e.currentTarget.value);
+                if (e.currentTarget.value !== checkedEmail) {
+                  setEmailCheckStatus("idle");
+                  setEmailCheckMessage("");
+                }
+              }}
+              style={{ flex: 1 }}
+              error={emailCheckStatus === "unavailable" ? emailCheckMessage : null}
+              variant="filled"
+            />
+            <Button
+              onClick={handleEmailCheck}
+              disabled={emailCheckStatus === "checking" || !registerEmail}
+              variant="outline"
+              color="indigo"
+            >
+              {emailCheckStatus === "checking" ? "확인" : "중복 확인"}
+            </Button>
+          </Group>
+          {emailCheckStatus === "available" && (
+            <Text size="xs" c="teal">{emailCheckMessage}</Text>
+          )}
+        </Stack>
+
+        <div>
+          <PasswordInput
+            label="비밀번호"
+            placeholder="8자 이상 영문/숫자"
+            required
+            value={registerPassword}
+            onChange={(e) => {
+              const val = e.currentTarget.value;
+              setRegisterPassword(val);
+              const res = validatePassword(val);
+              setPasswordStatus(res.valid ? "valid" : "invalid");
+              setPasswordMessage(res.message);
+              if (registerConfirmPassword) {
+                const confirmRes = validateConfirmPassword(registerConfirmPassword, val);
+                setConfirmStatus(confirmRes.valid ? "valid" : "invalid");
+                setConfirmMessage(confirmRes.message);
+              }
+            }}
+            error={passwordStatus === "invalid" && passwordMessage}
+            variant="filled"
+          />
+        </div>
+        <div>
+          <PasswordInput
+            label="확인"
+            placeholder="재입력"
+            required
+            value={registerConfirmPassword}
+            onChange={(e) => {
+              const val = e.currentTarget.value;
+              setRegisterConfirmPassword(val);
+              const res = validateConfirmPassword(val, registerPassword);
+              setConfirmStatus(res.valid ? "valid" : "invalid");
+              setConfirmMessage(res.message);
+            }}
+            error={confirmStatus === "invalid" && confirmMessage}
+            variant="filled"
+          />
+        </div>
+
+        <Select
+          label="가입 유형"
+          placeholder="선택하세요"
+          data={[
+            { value: 'CLIENT', label: '일반' },
+            { value: 'MANAGER', label: '매니저' },
+          ]}
+          value={registerRole}
+          onChange={setRegisterRole}
+          required
+          variant="filled"
+        />
+
+        {/* Address */}
+        <Text fw={700} size="sm" c="gray.7" mt="sm">주소</Text>
+        <Group align="flex-end">
+          <TextInput
+            label="우편번호"
+            readOnly
+            value={registerZipCode}
+            placeholder="00000"
+            style={{ flex: 1 }}
+            variant="filled"
+          />
+          <Button onClick={handleAddressSearch} variant="light" color="gray">주소 검색</Button>
+        </Group>
+        <TextInput
+          label="기본 주소"
+          readOnly
+          value={registerAddress}
+          placeholder="주소 검색 버튼을 눌러주세요"
+          variant="filled"
+        />
+        <TextInput
+          label="상세 주소"
+          value={registerDetailAddress}
+          onChange={(e) => setRegisterDetailAddress(e.currentTarget.value)}
+          placeholder="상세 주소를 입력하세요"
+          variant="filled"
+        />
+
+        {/* Agreements */}
+        <Paper withBorder p="md" mt="md" radius="md" bg="gray.0">
+          <Stack gap="xs">
+            <Checkbox
+              size="xs"
+              label="이용약관(필수)을 확인하고 동의합니다."
+              checked={registerTermsAgreed}
+              onChange={(e) => setRegisterTermsAgreed(e.currentTarget.checked)}
+            />
+            <Checkbox
+              size="xs"
+              label="개인정보 처리방침(필수)에 동의합니다."
+              checked={registerPrivacyAgreed}
+              onChange={(e) => setRegisterPrivacyAgreed(e.currentTarget.checked)}
+            />
+          </Stack>
+        </Paper>
+
+        <Button type="submit" fullWidth mt="lg" size="md" loading={registerLoading} radius="xl" bg="indigo.6">
+          {registerLoading ? "가입 중..." : "회원가입 완료"}
+        </Button>
+
+        {registerError && (
+          <Text c="red" size="sm" ta="center">{registerError}</Text>
+        )}
+        {registerMessage && (
+          <Text c="teal" size="sm" ta="center">{registerMessage}</Text>
+        )}
+      </Stack>
+    </form>
+  );
+
   return (
-    <div className="relative flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-50 via-white to-indigo-50 px-4 py-10 text-slate-900">
-      <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute left-12 top-10 h-48 w-48 rounded-full bg-indigo-100 blur-3xl" />
-        <div className="absolute bottom-12 right-16 h-56 w-56 rounded-full bg-sky-100 blur-3xl" />
+    <div className="min-h-screen flex items-center justify-center bg-slate-100 dark:bg-slate-900 py-10 px-4">
+      {/* Container for Sliding Animation (Desktop) */}
+      <div
+        className={`hidden md:block relative bg-white dark:bg-slate-800 rounded-[2rem] shadow-2xl overflow-hidden w-full max-w-[1000px] min-h-[750px]`}
+      >
+        {/* Sign Up Container */}
+        <div
+          className={`absolute top-0 h-full transition-all duration-700 ease-in-out left-0 w-1/2 flex items-center justify-center p-12
+            ${isSignUp ? 'translate-x-[100%] opacity-100 z-[5]' : 'opacity-0 z-[1]'}
+          `}
+        >
+          <Box w="100%" h="100%" style={{ overflowY: 'auto' }} className="no-scrollbar">
+            {renderRegisterContent(true)}
+          </Box>
+        </div>
+
+        {/* Sign In Container */}
+        <div
+          className={`absolute top-0 h-full transition-all duration-700 ease-in-out left-0 w-1/2 z-[2] flex items-center justify-center p-12
+            ${isSignUp ? 'opacity-0 z-0' : 'opacity-100 z-2'}
+          `}
+        >
+          <Box w="100%">
+            {renderLoginContent(true)}
+          </Box>
+        </div>
+
+        {/* Overlay Container */}
+        <div
+          className={`absolute top-0 left-1/2 w-1/2 h-full overflow-hidden transition-transform duration-700 ease-in-out z-[100]
+            ${isSignUp ? '-translate-x-full' : ''}
+          `}
+        >
+          <div
+            className={`bg-gradient-to-br from-slate-900 to-indigo-900 text-white relative -left-[100%] h-full w-[200%] transform transition-transform duration-700 ease-in-out
+              ${isSignUp ? 'translate-x-1/2' : 'translate-x-0'}
+            `}
+          >
+            {/* Overlay Left */}
+            <div
+              className={`absolute top-0 flex flex-col items-center justify-center h-full w-1/2 px-12 text-center transform transition-transform duration-700 ease-in-out
+                ${isSignUp ? 'translate-x-0' : '-translate-x-[20%]'}
+              `}
+            >
+              <Title order={1} mb="md" style={{ fontSize: '2.5rem' }}>Welcome Back!</Title>
+              <Text size="lg" mb="xl">이미 계정이 있으신가요?<br />로그인하고 서비스를 계속 이용하세요.</Text>
+              <Button
+                variant="outline"
+                color="white"
+                size="lg"
+                radius="xl"
+                style={{ borderWidth: '2px' }}
+                onClick={() => setIsSignUp(false)}
+              >
+                로그인하기
+              </Button>
+            </div>
+
+            {/* Overlay Right */}
+            <div
+              className={`absolute top-0 right-0 flex flex-col items-center justify-center h-full w-1/2 px-12 text-center transform transition-transform duration-700 ease-in-out
+                ${isSignUp ? 'translate-x-[20%]' : 'translate-x-0'}
+              `}
+            >
+              <Title order={1} mb="md" style={{ fontSize: '2.5rem' }}>Hello, Friend!</Title>
+              <Text size="lg" mb="xl">아직 회원이 아니신가요?<br />간단한 정보를 입력하고 시작하세요.</Text>
+              <Button
+                variant="outline"
+                color="white"
+                size="lg"
+                radius="xl"
+                style={{ borderWidth: '2px' }}
+                onClick={() => setIsSignUp(true)}
+              >
+                회원가입하기
+              </Button>
+            </div>
+          </div>
+        </div>
       </div>
 
-      <main className="relative z-10 w-full max-w-5xl overflow-hidden rounded-3xl border border-slate-100 bg-white/90 shadow-2xl backdrop-blur">
-        <div className="relative md:h-[620px] md:max-h-[80vh]">
-          <section
-            className={`hidden flex-col justify-between bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-800 px-10 py-12 text-slate-100 transition-all duration-600 ease-in-out md:absolute md:inset-y-0 md:flex md:h-full md:w-[42%] ${
-              activeTab === "login"
-                ? "md:left-0 md:animate-panel-swap-in-left motion-reduce:animate-none"
-                : "md:left-[58%] md:animate-panel-swap-out-left motion-reduce:animate-none"
-            }`}
-          >
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.06),transparent_35%),radial-gradient(circle_at_78%_28%,rgba(79,70,229,0.18),transparent_32%)]" />
-            <div className="relative space-y-4">
-              <div className="flex items-center gap-3">
-                <Image
-                  alt="Guardian 로고"
-                  height={42}
-                  src="/image/logo.png"
-                  width={42}
-                  priority
-                />
-                <p className="text-4xl font-semibold uppercase tracking-[0.24em] text-indigo-100 leading-none">
-                  Guardian
-                </p>
-              </div>
-              <h1 className="text-3xl font-semibold leading-tight">
-                간병 관리와 간병인을 위한
-                <br />
-                안정적인 시작
-              </h1>
-              <p className="text-sm text-slate-200/90">
-                한 계정으로 일정을 확인하고 필요한 서비스를 바로 이용하세요.
-              </p>
-            </div>
-              <div className="relative mt-8 grid gap-3 text-sm">
-                <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 backdrop-blur">
-                  <p className="font-semibold text-white">체계적인 복약 관리</p>
-                  <p className="mt-1 text-slate-200/90">
-                    일정, 약물, 주기 알림을 한 화면에서 관리할 수 있습니다.
-                  </p>
-                </div>
-                <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 backdrop-blur">
-                  <p className="font-semibold text-white">손쉬운 사용</p>
-                  <p className="mt-1 text-slate-200/90">
-                    누구든지 금방 서비스를 이용할 수 있습니다.
-                  </p>
-                </div>
-              </div>
-          </section>
-
-          <section
-            className={`relative p-6 sm:p-8 transition-all duration-600 ease-in-out md:absolute md:inset-y-0 md:flex md:w-[58%] md:flex-col md:h-full md:overflow-y-auto md:pr-6 scroll-thin ${
-              activeTab === "login"
-                ? "md:left-[42%] md:animate-panel-swap-out-right motion-reduce:animate-none"
-                : "md:left-0 md:animate-panel-swap-in-right motion-reduce:animate-none"
-            }`}
-          >
-            <div className="hidden md:hidden" aria-hidden />
-
-            <header className="flex flex-col gap-4">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.28em] text-indigo-600">
-                  Account
-                </p>
-                <h2 className="mt-2 text-2xl font-semibold text-slate-900">
-                  {activeTab === "login" ? "로그인" : "회원가입"}
-                </h2>
-                <p className="mt-1 text-sm text-slate-500">
-                  {activeTab === "login"
-                    ? "등록된 이메일과 비밀번호로 로그인하세요."
-                    : "필수 정보를 입력하고 가입을 완료하세요."}
-                </p>
-              </div>
-              <div className="relative mt-2 flex overflow-hidden rounded-2xl bg-slate-900/90 p-1 text-sm shadow-lg shadow-slate-900/40">
-                <span
-                  aria-hidden
-                  className={`pointer-events-none absolute inset-y-1 left-1 w-[calc((100%-0.5rem)/2)] rounded-2xl bg-slate-50/95 shadow-lg shadow-slate-900/30 transition-transform duration-500 ease-out will-change-transform ${
-                    activeTab === "login" ? "translate-x-0" : "translate-x-full"
-                  }`}
-                />
-                <button
-                  className={`${tabSwitchClass.base} ${
-                    activeTab === "login" ? tabSwitchClass.active : tabSwitchClass.inactive
-                  }`}
-                  onClick={() => {
-                    handleTabSwitch("login");
-                  }}
-                  type="button"
-                >
-                  로그인
-                </button>
-                <button
-                  className={`${tabSwitchClass.base} ${
-                    activeTab === "register" ? tabSwitchClass.active : tabSwitchClass.inactive
-                  }`}
-                  onClick={() => {
-                    handleTabSwitch("register");
-                  }}
-                  type="button"
-                >
-                  회원가입
-                </button>
-              </div>
-            </header>
-
-            <div className="mt-8">
-              <div
-                key={`${activeTab}-${transitionKey}`}
-                className={`rounded-2xl border border-slate-100 bg-white/90 p-6 shadow-inner shadow-slate-200 backdrop-blur ${
-                  activeTab === "login"
-                    ? "md:animate-panel-from-left"
-                    : "md:animate-panel-from-right"
-                } md:animate-panel-crossfade motion-reduce:animate-none`}
+      {/* Mobile Layout (Tabs) */}
+      <div className="block md:hidden w-full max-w-md">
+        <Paper radius="lg" p="xl" shadow="md" bg="white">
+          <Center mb="xl">
+            <Group gap="xs">
+              <Image
+                alt="Guardian 로고"
+                height={50}
+                src="/image/logo.png"
+                width={50}
+              />
+              <Text
+                size={rem(28)}
+                fw={900}
+                tt="uppercase"
+                c="indigo"
+                style={{ letterSpacing: "4px" }}
               >
-                <div className="md:animate-content-fade-in-out motion-reduce:animate-none">
-                  {activeTab === "login" ? (
-                    <form className="grid gap-5" onSubmit={handleLoginSubmit}>
-                      <label className={labelClassName}>
-                        <span>이메일</span>
-                        <input
-                          aria-label="이메일"
-                          autoComplete="email"
-                          className={inputClassName}
-                          onChange={(event) => setLoginEmail(event.target.value)}
-                          placeholder="you@example.com"
-                          required
-                          type="email"
-                          value={loginEmail}
-                        />
-                      </label>
-                      <label className={labelClassName}>
-                        <span>비밀번호</span>
-                        <input
-                          aria-label="비밀번호"
-                          autoComplete="current-password"
-                          className={inputClassName}
-                          onChange={(event) => setLoginPassword(event.target.value)}
-                          placeholder="비밀번호를 입력하세요"
-                          required
-                          type="password"
-                          value={loginPassword}
-                        />
-                      </label>
-                      <button
-                        className="mt-1 w-full rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-slate-900/15 transition hover:-translate-y-0.5 hover:bg-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
-                        disabled={loginLoading}
-                        type="submit"
-                      >
-                        {loginLoading ? "로그인 중..." : "로그인"}
-                      </button>
-                      {loginMessage && (
-                        <p className={statusClassName.success}>{loginMessage}</p>
-                      )}
-                      {loginError && <p className={statusClassName.error}>{loginError}</p>}
-                    </form>
-                  ) : (
-                    <form className="space-y-6" onSubmit={handleRegisterSubmit}>
-                      <div className="rounded-2xl bg-white/80 p-4 shadow-sm sm:p-5">
-                        <div className="space-y-6 divide-y divide-slate-200">
-                          <section className="space-y-4">
-                            <div className="flex items-center justify-between gap-2">
-                              <p className="text-sm font-semibold text-slate-800">기본 정보</p>
-                              <span className="text-xs text-slate-500">필수 입력</span>
-                            </div>
-                            <div className="grid gap-4 md:grid-cols-2">
-                              <label className={labelClassName}>
-                                <span>이름</span>
-                                <input
-                                  aria-label="이름"
-                                  autoComplete="name"
-                                  className={inputClassName}
-                                  onChange={(event) => setRegisterName(event.target.value)}
-                                  placeholder="홍길동"
-                                  required
-                                  type="text"
-                                  value={registerName}
-                                />
-                              </label>
-                              <label className={labelClassName}>
-                                <span>생년월일</span>
-                                <input
-                                  aria-label="생년월일"
-                                  className={`${inputClassName} ${
-                                    registerBirthDate ? "text-slate-900" : "text-slate-400"
-                                  }`}
-                                  onChange={(event) => setRegisterBirthDate(event.target.value)}
-                                  placeholder="YYYY-MM-DD"
-                                  required
-                                  type="date"
-                                  value={registerBirthDate}
-                                />
-                              </label>
-                              <label className={`${labelClassName} md:col-span-2`}>
-                                <span>성별</span>
-                                <select
-                                  aria-label="성별"
-                                  className={`${inputClassName} ${
-                                    registerGender ? "text-slate-900" : "text-slate-400"
-                                  }`}
-                                  value={registerGender}
-                                  onChange={(event) => setRegisterGender(event.target.value)}
-                                  required
-                                >
-                                  <option value="" className="text-slate-400">
-                                    선택해주세요
-                                  </option>
-                                  <option value="MALE" className="text-slate-900">
-                                    남성
-                                  </option>
-                                  <option value="FEMALE" className="text-slate-900">
-                                    여성
-                                  </option>
-                                </select>
-                              </label>
-                              <label className={`${labelClassName} md:col-span-2`}>
-                                <span>연락처</span>
-                                <PhoneNumberInput
-                                  ariaLabels={{
-                                    first: "전화번호 앞자리",
-                                    middle: "전화번호 중간자리",
-                                    last: "전화번호 마지막자리",
-                                  }}
-                                  inputClassName={inputClassName}
-                                  maxLengths={{ first: 3, middle: 4, last: 4 }}
-                                  onChange={({ first, middle, last }) => {
-                                    setRegisterPhone1(first);
-                                    setRegisterPhone2(middle);
-                                    setRegisterPhone3(last);
-                                  }}
-                                  parts={{
-                                    first: registerPhone1,
-                                    middle: registerPhone2,
-                                    last: registerPhone3,
-                                  }}
-                                  placeholders={{ first: "010", middle: "0000", last: "0000" }}
-                                  required
-                                />
-                              </label>
-                            </div>
-                          </section>
+                GUARDIAN
+              </Text>
+            </Group>
+          </Center>
 
-                          <section className="space-y-4 pt-6">
-                            <div className="flex items-center justify-between gap-2">
-                              <p className="text-sm font-semibold text-slate-800">계정 정보</p>
-                              <span className="text-xs text-slate-500">필수 입력</span>
-                            </div>
-                            <div className="grid gap-4">
-                              <label className={labelClassName}>
-                                <span>이메일</span>
-                                <div className="flex flex-col gap-3 sm:flex-row">
-                                  <input
-                                    aria-label="회원가입 이메일"
-                                    autoComplete="email"
-                                    className={`${inputClassName} sm:flex-1`}
-                                    onChange={(event) => {
-                                      const value = event.target.value;
-                                      setRegisterEmail(value);
-                                      if (value !== checkedEmail) {
-                                        setEmailCheckStatus("idle");
-                                        setEmailCheckMessage("");
-                                      }
-                                    }}
-                                    placeholder="you@example.com"
-                                    required
-                                    type="email"
-                                    value={registerEmail}
-                                  />
-                                  <button
-                                    className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 transition hover:border-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-100 disabled:cursor-not-allowed disabled:opacity-60"
-                                    disabled={emailCheckStatus === "checking" || !registerEmail}
-                                    onClick={handleEmailCheck}
-                                    type="button"
-                                  >
-                                    {emailCheckStatus === "checking" ? "확인 중..." : "중복 확인"}
-                                  </button>
-                                </div>
-                                {emailCheckMessage && (
-                                  <p
-                                    className={`text-sm ${
-                                      emailCheckStatus === "available"
-                                        ? "text-emerald-700"
-                                        : "text-rose-700"
-                                    }`}
-                                  >
-                                    {emailCheckMessage}
-                                  </p>
-                                )}
-                              </label>
+          <Tabs value={activeTab} onChange={handleMobileTabChange} variant="pills" radius="xl" defaultValue="login">
+            <Tabs.List grow mb="xl" bg="gray.1" p={4} style={{ borderRadius: 'var(--mantine-radius-xl)' }}>
+              <Tabs.Tab value="login" style={{ fontWeight: 600 }}>로그인</Tabs.Tab>
+              <Tabs.Tab value="register" style={{ fontWeight: 600 }}>회원가입</Tabs.Tab>
+            </Tabs.List>
 
-                              <div className="grid gap-4 md:grid-cols-2">
-                                <label className={labelClassName}>
-                                  <span>비밀번호</span>
-                                  <input
-                                    aria-label="회원가입 비밀번호"
-                                    autoComplete="new-password"
-                                    className={inputClassName}
-                                    onChange={(event) => {
-                                      const value = event.target.value;
-                                      setRegisterPassword(value);
-                                      const result = validatePassword(value);
-                                      setPasswordStatus(result.valid ? "valid" : "invalid");
-                                      setPasswordMessage(result.message);
-                                      if (registerConfirmPassword) {
-                                        const confirmResult = validateConfirmPassword(
-                                          registerConfirmPassword,
-                                          value
-                                        );
-                                        setConfirmStatus(confirmResult.valid ? "valid" : "invalid");
-                                        setConfirmMessage(confirmResult.message);
-                                      }
-                                    }}
-                                    placeholder="영문, 숫자 포함 8자 이상"
-                                    required
-                                    type="password"
-                                    value={registerPassword}
-                                  />
-                                  {passwordMessage && (
-                                    <p
-                                      className={`text-sm ${
-                                        passwordStatus === "valid"
-                                          ? "text-emerald-700"
-                                          : "text-rose-700"
-                                      }`}
-                                    >
-                                      {passwordMessage}
-                                    </p>
-                                  )}
-                                </label>
-                                <label className={labelClassName}>
-                                  <span>비밀번호 확인</span>
-                                  <input
-                                    aria-label="비밀번호 확인"
-                                    autoComplete="new-password"
-                                    className={inputClassName}
-                                    onChange={(event) => {
-                                      const value = event.target.value;
-                                      setRegisterConfirmPassword(value);
-                                      const result = validateConfirmPassword(value, registerPassword);
-                                      setConfirmStatus(result.valid ? "valid" : "invalid");
-                                      setConfirmMessage(result.message);
-                                    }}
-                                    placeholder="비밀번호를 다시 입력하세요"
-                                    required
-                                    type="password"
-                                    value={registerConfirmPassword}
-                                  />
-                                  {confirmMessage && (
-                                    <p
-                                      className={`text-sm ${
-                                        confirmStatus === "valid"
-                                          ? "text-emerald-700"
-                                          : "text-rose-700"
-                                      }`}
-                                    >
-                                      {confirmMessage}
-                                    </p>
-                                  )}
-                                </label>
-                              </div>
+            <Tabs.Panel value="login">
+              {renderLoginContent(false)}
+            </Tabs.Panel>
 
-                              <label className={labelClassName}>
-                                <span>가입 유형</span>
-                                <select
-                                  aria-label="가입 유형"
-                                  className={`${inputClassName} ${
-                                    registerRole ? "text-slate-900" : "text-slate-400"
-                                  }`}
-                                  onChange={(event) =>
-                                    setRegisterRole(event.target.value as RegisterRoleValue)
-                                  }
-                                  value={registerRole}
-                                >
-                                  <option disabled value="" className="text-slate-400">
-                                    회원 유형을 선택하세요
-                                  </option>
-                                  {Object.entries(roleLabels).map(([value, label]) => (
-                                    <option key={value} value={value} className="text-slate-900">
-                                      {label}
-                                    </option>
-                                  ))}
-                                </select>
-                              </label>
-                            </div>
-                          </section>
+            <Tabs.Panel value="register">
+              {renderRegisterContent(false)}
+            </Tabs.Panel>
+          </Tabs>
+        </Paper>
+      </div>
 
-                          <section className="space-y-4 pt-6">
-                            <div className="flex items-center justify-between gap-2">
-                              <p className="text-sm font-semibold text-slate-800">주소</p>
-                              <span className="text-xs text-slate-500">필수 입력</span>
-                            </div>
-                            <div className="grid gap-3">
-                              <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
-                                <input
-                                  aria-label="우편번호"
-                                  className={inputClassName}
-                                  placeholder="우편번호"
-                                  readOnly
-                                  required
-                                  value={registerZipCode}
-                                />
-                                <button
-                                  className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 transition hover:border-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-100"
-                                  onClick={handleAddressSearch}
-                                  type="button"
-                                >
-                                  주소 검색
-                                </button>
-                              </div>
-                              <input
-                                aria-label="기본 주소"
-                                className={inputClassName}
-                                placeholder="기본 주소"
-                                readOnly
-                                required
-                                value={registerAddress}
-                              />
-                              <input
-                                aria-label="상세 주소"
-                                className={inputClassName}
-                                onChange={(event) => setRegisterDetailAddress(event.target.value)}
-                                placeholder="상세 주소를 입력하세요"
-                                value={registerDetailAddress}
-                              />
-                            </div>
-                          </section>
-
-                          <section className="space-y-4 pt-6">
-                            <div className="flex items-center justify-between gap-2">
-                              <p className="text-sm font-semibold text-slate-800">약관 동의</p>
-                              <span className="text-xs text-slate-500">필수 입력</span>
-                            </div>
-                            <div className="grid gap-3">
-                              <label className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 shadow-inner shadow-slate-50">
-                                <input
-                                  checked={registerTermsAgreed}
-                                  className="mt-1 h-4 w-4 accent-slate-900"
-                                  onChange={(event) => setRegisterTermsAgreed(event.target.checked)}
-                                  type="checkbox"
-                                />
-                                <span>이용약관(필수)을 확인하고 동의합니다.</span>
-                              </label>
-                              <label className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 shadow-inner shadow-slate-50">
-                                <input
-                                  checked={registerPrivacyAgreed}
-                                  className="mt-1 h-4 w-4 accent-slate-900"
-                                  onChange={(event) =>
-                                    setRegisterPrivacyAgreed(event.target.checked)
-                                  }
-                                  type="checkbox"
-                                />
-                                <span>개인정보 처리방침(필수)에 동의합니다.</span>
-                              </label>
-                            </div>
-                          </section>
-                        </div>
-                      </div>
-
-                      <div className="space-y-3">
-                        <button
-                          className="w-full rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-slate-900/15 transition hover:-translate-y-0.5 hover:bg-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
-                          disabled={registerLoading}
-                          type="submit"
-                        >
-                          {registerLoading ? "가입 중..." : "회원가입"}
-                        </button>
-
-                        {registerMessage && (
-                          <p className={statusClassName.success}>{registerMessage}</p>
-                        )}
-                        {registerError && <p className={statusClassName.error}>{registerError}</p>}
-                      </div>
-                    </form>
-                  )}
-                </div>
-              </div>
-            </div>
-          </section>
-        </div>
-      </main>
+      {/* Styles for scrollbar hiding if needed */}
+      <style jsx global>{`
+        .no-scrollbar::-webkit-scrollbar {
+          display: none;
+        }
+        .no-scrollbar {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
+        }
+      `}</style>
     </div>
   );
 }

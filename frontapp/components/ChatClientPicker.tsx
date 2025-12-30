@@ -1,7 +1,9 @@
 "use client";
 import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { resolveProfileImageUrl } from "@/lib/image";
+import { resolveProfileImageUrl } from "../lib/image";
+import { fetchWithAuth } from "../lib/auth";
+
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "";
@@ -67,7 +69,7 @@ export function ChatClientPicker({
     setLoading(true);
     setError("");
     try {
-      const res = await fetch(
+      const res = await fetchWithAuth(
         `${API_BASE_URL}/api/managers/${managerId}/clients/search?keyword=${encodeURIComponent(
           trimmed,
         )}&size=10`,
@@ -94,7 +96,7 @@ export function ChatClientPicker({
       setCreating(clientId);
       setError("");
       try {
-        const res = await fetch(`${API_BASE_URL}/api/chat/rooms`, {
+        const res = await fetchWithAuth(`${API_BASE_URL}/api/chat/rooms`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ clientId, managerId }),

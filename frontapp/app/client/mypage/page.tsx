@@ -1,9 +1,10 @@
 "use client";
-import MyChatRooms from "@/components/MyChatRooms";
-import { InlineDrugSearch } from "@/components/InlineDrugSearch";
-import { resolveProfileImageUrl } from "@/lib/image";
+import MyChatRooms from "../../../components/MyChatRooms";
+import { InlineDrugSearch } from "../../../components/InlineDrugSearch";
+import { resolveProfileImageUrl } from "../../../lib/image";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
+import { clearAuthCookie, fetchWithAuth, readAuth } from "../../../lib/auth";
+import Image, { type ImageLoader } from "next/image";
 import {
   useCallback,
   useEffect,
@@ -18,6 +19,8 @@ import type { ReactNode } from "react";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "";
+
+const externalImageLoader: ImageLoader = ({ src }) => src;
 
 const PillIcon = ({ className = "h-6 w-6" }: { className?: string }) => (
   <Image
@@ -51,6 +54,9 @@ type MedicationPlan = {
   managerId?: number | null;
   managerName?: string | null;
   managerEmail?: string | null;
+  assignedManagerIds?: number[];
+  assignedManagerNames?: string[];
+  assignedManagerEmails?: string[];
   managerPhone?: string | null;
   managerOrganization?: string | null;
 };
@@ -150,24 +156,24 @@ const clientQuickActions: Array<{
     value: "schedule",
     label: "복약 일정 확인",
     description: "오늘 일정과 주간 현황",
-    accent: "bg-amber-400",
+    accent: "bg-indigo-600",
     icon: <PillIcon className="h-4 w-4" />,
   },
-  {
-    value: "drug",
-    label: "약 검색",
-    description: "e약은요 기반 조회",
-    accent: "bg-emerald-500",
-    icon: <FontAwesomeIcon icon={faMagnifyingGlass} className="h-4 w-4" />,
-  },
-  {
-    value: "chat",
-    label: "채팅",
-    description: "매니저와 실시간 대화",
-    accent: "bg-sky-500",
-    icon: <FontAwesomeIcon icon={faComment} className="h-4 w-4" />,
-  },
-];
+    {
+      value: "drug",
+      label: "약 검색",
+      description: "e약은요 기반 조회",
+      accent: "bg-emerald-500",
+      icon: <FontAwesomeIcon icon={faMagnifyingGlass} className="h-4 w-4" />,
+    },
+    {
+      value: "chat",
+      label: "채팅",
+      description: "매니저와 실시간 대화",
+      accent: "bg-sky-500",
+      icon: <FontAwesomeIcon icon={faComment} className="h-4 w-4" />,
+    },
+  ];
 
 const primaryActionButton =
   "inline-flex items-center justify-center gap-2 rounded-full bg-amber-500 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-[1px] hover:bg-amber-600 disabled:cursor-not-allowed disabled:bg-amber-300";
@@ -233,9 +239,9 @@ export default function ClientMyPage() {
   const clientIndicatorStyle: CSSProperties =
     clientActiveIndex >= 0
       ? {
-          width: `${100 / clientActionCount}%`,
-          transform: `translateX(${clientActiveIndex * 100}%)`,
-        }
+        width: `${100 / clientActionCount}%`,
+        transform: `translateX(${clientActiveIndex * 100}%)`,
+      }
       : {};
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [avatarError, setAvatarError] = useState("");
@@ -253,6 +259,7 @@ export default function ClientMyPage() {
   const logoImage = resolveProfileImageUrl("/image/logo.png") || "/image/logo.png";
   const [managerProfiles, setManagerProfiles] = useState<Record<number, string>>({});
   const [managerPhones, setManagerPhones] = useState<Record<number, string>>({});
+  const [managerAccordion, setManagerAccordion] = useState<Record<string, boolean>>({});
 
 
 
@@ -266,17 +273,17 @@ export default function ClientMyPage() {
       return;
     }
 
-    const accessToken = window.localStorage.getItem("accessToken");
-    const role = window.localStorage.getItem("userRole");
+    const auth = readAuth();
+    const accessToken = auth?.accessToken;
+    const role = auth?.role;
 
     if (!accessToken || role !== "CLIENT") {
       router.replace("/");
       return;
     }
 
-    const storedEmail = window.localStorage.getItem("userEmail") ?? "";
-    const storedUserId = window.localStorage.getItem("userId");
-    const userId = storedUserId ? Number(storedUserId) : null;
+    const storedEmail = auth?.email ?? window.localStorage.getItem("userEmail") ?? "";
+    const userId = typeof auth?.userId === "number" ? auth.userId : null;
     setClient({
       email: storedEmail,
       userId,
@@ -511,7 +518,11 @@ export default function ClientMyPage() {
       const ids = Array.from(
         new Set(
           plans
-            .map((p) => p.managerId)
+            .flatMap((p) =>
+              (p.assignedManagerIds && p.assignedManagerIds.length > 0)
+                ? p.assignedManagerIds
+                : (typeof p.managerId === "number" ? [p.managerId] : []),
+            )
             .filter((id): id is number => typeof id === "number" && Number.isFinite(id)),
         ),
       ).filter((id) => !managerProfiles[id]);
@@ -758,6 +769,108 @@ export default function ClientMyPage() {
       .map((plan) => ({ label: `${plan.medicineName} / ${plan.alarmTime.slice(0, 5)}`, planId: plan.id }));
   }, [plans, todayToken]);
 
+  type ManagerPlanGroup = {
+    key: string;
+    name: string;
+    managerId?: number | null;
+    managerNameRaw?: string | null;
+    managerEmail?: string | null;
+    phone: string;
+    meta: string;
+    avatar: string;
+    plans: MedicationPlan[];
+  };
+
+  const groupedPlans = useMemo<ManagerPlanGroup[]>(() => {
+    const groups = new Map<string, ManagerPlanGroup>();
+    plans.forEach((plan) => {
+      const assignedIds =
+        plan.assignedManagerIds && plan.assignedManagerIds.length > 0
+          ? plan.assignedManagerIds
+          : (typeof plan.managerId === "number" ? [plan.managerId] : []);
+      const assignedNames = plan.assignedManagerNames ?? [];
+      const assignedEmails = plan.assignedManagerEmails ?? [];
+
+      if (assignedIds.length === 0) {
+        const fallbackName = "담당 매니저 정보 없음";
+        const key = "unassigned";
+        const phone = "";
+        const meta = "";
+        const avatar = defaultProfileImage;
+        if (!groups.has(key)) {
+          groups.set(key, {
+            key,
+            name: fallbackName,
+            managerId: null,
+            managerNameRaw: null,
+            managerEmail: null,
+            phone,
+            meta,
+            avatar,
+            plans: [],
+          });
+        }
+        groups.get(key)!.plans.push(plan);
+        return;
+      }
+
+      assignedIds.forEach((managerId, idx) => {
+        const nameRaw =
+          assignedNames[idx] ??
+          assignedNames[0] ??
+          plan.managerName?.trim() ??
+          null;
+        const email =
+          assignedEmails[idx] ??
+          assignedEmails[0] ??
+          plan.managerEmail?.trim() ??
+          null;
+        const displayName =
+          nameRaw && nameRaw.length > 0
+            ? `${nameRaw} 매니저`
+            : email || "담당 매니저 정보 없음";
+        const phone = managerId ? managerPhones[managerId] ?? "" : "";
+        const meta = email ?? "";
+        const avatar = managerId ? (managerProfiles[managerId] ?? defaultProfileImage) : defaultProfileImage;
+        const key = `id-${managerId}`;
+        if (!groups.has(key)) {
+          groups.set(key, {
+            key,
+            name: displayName,
+            managerId,
+            managerNameRaw: nameRaw,
+            managerEmail: email,
+            phone,
+            meta,
+            avatar,
+            plans: [],
+          });
+        }
+        groups.get(key)!.plans.push(plan);
+      });
+    });
+    return Array.from(groups.values());
+  }, [plans, managerProfiles, defaultProfileImage, managerPhones]);
+
+  useEffect(() => {
+    if (groupedPlans.length === 0) return;
+    setManagerAccordion((prev) => {
+      const next = { ...prev };
+      let changed = false;
+      groupedPlans.forEach((group) => {
+        if (typeof prev[group.key] === "undefined") {
+          next[group.key] = true;
+          changed = true;
+        }
+      });
+      return changed ? next : prev;
+    });
+  }, [groupedPlans]);
+
+  const toggleManagerGroup = (key: string) => {
+    setManagerAccordion((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
   type AlertTab = "overdue" | "chat";
   const [alertTab, setAlertTab] = useState<AlertTab>("overdue");
   const [alertPage, setAlertPage] = useState<Record<AlertTab, number>>({
@@ -775,9 +888,10 @@ export default function ClientMyPage() {
     async (roomId: number) => {
       if (!client.userId) return;
       try {
-        await fetch(`${API_BASE_URL}/api/chat/rooms/${roomId}/read?userId=${client.userId}`, {
-          method: "POST",
-        });
+        await fetchWithAuth(
+          `${API_BASE_URL}/api/chat/rooms/${roomId}/read?userId=${client.userId}`,
+          { method: "POST" },
+        );
       } catch {
         // ignore sync errors
       }
@@ -804,18 +918,30 @@ export default function ClientMyPage() {
     [emergencyAckKey, markChatAsRead, router],
   );
   const findChatRoomForPlan = useCallback(
-    (plan: MedicationPlan) => {
+    (plan: MedicationPlan, managerIdOverride?: number | null, managerNameOverride?: string | null) => {
       if (!chatThreads.length) return null;
-      if (plan.managerId) {
-        const byId = chatThreads.find((t) => t.managerId === plan.managerId);
+      const targetManagerId =
+        typeof managerIdOverride === "number"
+          ? managerIdOverride
+          : typeof plan.managerId === "number"
+            ? plan.managerId
+            : null;
+      if (targetManagerId != null) {
+        const byId = chatThreads.find((t) => t.managerId === targetManagerId);
         if (byId?.roomId) return byId.roomId;
       }
-      const managerName = plan.managerName?.trim().toLowerCase() ?? "";
+      const managerName =
+        (managerNameOverride ?? plan.managerName)?.trim().toLowerCase() ?? "";
       if (managerName.length > 0) {
         const byName = chatThreads.find(
           (t) => (t.managerName ?? "").trim().toLowerCase() === managerName,
         );
         if (byName?.roomId) return byName.roomId;
+      }
+      const assignedIds = plan.assignedManagerIds ?? [];
+      for (const managerId of assignedIds) {
+        const byId = chatThreads.find((t) => t.managerId === managerId);
+        if (byId?.roomId) return byId.roomId;
       }
       return chatThreads[0]?.roomId ?? null;
     },
@@ -823,8 +949,8 @@ export default function ClientMyPage() {
   );
 
   const handleChatWithManager = useCallback(
-    (plan: MedicationPlan) => {
-      const roomId = findChatRoomForPlan(plan);
+    (plan: MedicationPlan, managerIdOverride?: number | null, managerNameOverride?: string | null) => {
+      const roomId = findChatRoomForPlan(plan, managerIdOverride, managerNameOverride);
       if (roomId) {
         goToChatRoom(roomId);
         return;
@@ -857,7 +983,9 @@ export default function ClientMyPage() {
     const loadUnread = async () => {
       if (!client.userId) return;
       try {
-        const res = await fetch(`${API_BASE_URL}/api/chat/threads?userId=${client.userId}`);
+        const res = await fetchWithAuth(
+          `${API_BASE_URL}/api/chat/threads`,
+        );
         if (!res.ok) return;
         const data: ChatThread[] = await res.json();
         setChatThreads(data);
@@ -902,35 +1030,35 @@ export default function ClientMyPage() {
               : "호출 내역을 불러오는 중입니다.",
           accent: "bg-rose-100 text-rose-700",
           badge: "SOS",
-        detail: emergencyError
-          ? "비상 호출 내역을 불러오는 중 문제가 발생했습니다."
-          : emergencyAlerts.length > 0
-            ? "최근 비상 호출 기록을 확인하고, 필요 시 담당 매니저에게 연락하세요."
-            : "아직 비상 호출 기록이 없습니다.",
+          detail: emergencyError
+            ? "비상 호출 내역을 불러오는 중 문제가 발생했습니다."
+            : emergencyAlerts.length > 0
+              ? "최근 비상 호출 기록을 확인하고, 필요 시 담당 매니저에게 연락하세요."
+              : "아직 비상 호출 기록이 없습니다.",
           items: emergencyAlerts.slice(0, 5).map((label) => ({
             label,
             roomId: chatThreads[0]?.roomId,
           })),
         },
-      {
-        key: "confirm",
-        label: "오늘 복약 확인",
-        value:
-          planLoading || plans.length === 0
-            ? "-"
-            : `${todayConfirmCount}/${plans.length}`,
-        hint:
-          plans.length === 0
-            ? "일정을 먼저 등록해주세요."
-            : "오늘 복용한 약을 확인해 주세요.",
-        accent: "bg-emerald-100 text-emerald-700",
-        badge: "TODAY",
-        detail:
-          plans.length === 0
-            ? "등록된 일정이 없어서 오늘 확인 건수가 없습니다."
-            : todayConfirmCount === plans.length
-              ? "오늘 모든 복약을 확인했습니다. 훌륭해요!"
-              : `오늘 ${plans.length - todayConfirmCount}건이 남아 있습니다. 복용 후 '복용 완료' 버튼으로 기록하세요.`,
+        {
+          key: "confirm",
+          label: "오늘 복약 확인",
+          value:
+            planLoading || plans.length === 0
+              ? "-"
+              : `${todayConfirmCount}/${plans.length}`,
+          hint:
+            plans.length === 0
+              ? "일정을 먼저 등록해주세요."
+              : "오늘 복용한 약을 확인해 주세요.",
+          accent: "bg-emerald-100 text-emerald-700",
+          badge: "TODAY",
+          detail:
+            plans.length === 0
+              ? "등록된 일정이 없어서 오늘 확인 건수가 없습니다."
+              : todayConfirmCount === plans.length
+                ? "오늘 모든 복약을 확인했습니다. 훌륭해요!"
+                : `오늘 ${plans.length - todayConfirmCount}건이 남아 있습니다. 복용 후 '복용 완료' 버튼으로 기록하세요.`,
           items: todayDuePlans.length > 0 ? todayDuePlans : undefined,
         },
         {
@@ -944,9 +1072,9 @@ export default function ClientMyPage() {
             totalPendingAlerts > 0
               ? "미처리 알림이 있습니다. 확인 후 '전부 확인'으로 정리해 주세요."
               : "알림이 없습니다. 문제가 있으면 담당 매니저에게 문의하세요.",
-          actionLabel: pushButtonDisabled ? "푸시 활성화 중" : "푸시 알림 설정",
-          actionDisabled: pushButtonDisabled,
-          onAction: handleEnablePush,
+          actionLabel: undefined,
+          actionDisabled: true,
+          onAction: undefined,
         },
       ] as ServiceStat[],
     [
@@ -1051,13 +1179,21 @@ export default function ClientMyPage() {
     if (!value) {
       return "미확인";
     }
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) {
+    try {
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) {
+        return "미확인";
+      }
+
+      return new Intl.DateTimeFormat("en-GB", {
+        timeZone: "Asia/Seoul",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      }).format(date);
+    } catch (e) {
       return "미확인";
     }
-    const hour = String(date.getHours()).padStart(2, "0");
-    const minute = String(date.getMinutes()).padStart(2, "0");
-    return `${hour}:${minute}`;
   };
 
   const canConfirmNow = useCallback(
@@ -1135,8 +1271,8 @@ export default function ClientMyPage() {
           {day.scheduledCount > 0
             ? `확인 ${effectiveTaken}/${day.scheduledCount}`
             : day.manualLogCount > 0
-            ? `기록 ${day.manualLogCount}건`
-            : "일정 없음"}
+              ? `기록 ${day.manualLogCount}건`
+              : "일정 없음"}
         </p>
         {day.manualLogCount > 0 && day.scheduledCount > 0 && (
           <p className="mt-0.5 text-xs text-amber-600">
@@ -1232,11 +1368,21 @@ export default function ClientMyPage() {
     setEmergencySending((prev) => ({ ...prev, [plan.id]: true }));
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/emergency/alerts`, {
+      const targetManagerId =
+        plan.managerId ??
+        (plan.assignedManagerIds && plan.assignedManagerIds.length === 1
+          ? plan.assignedManagerIds[0]
+          : null);
+      if (!targetManagerId) {
+        throw new Error("담당 매니저를 선택할 수 없습니다. 매니저에게 문의해주세요.");
+      }
+
+      const response = await fetchWithAuth(`${API_BASE_URL}/api/emergency/alerts`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           clientId: client.userId,
+          managerId: targetManagerId,
           alertType: "CLIENT_EMERGENCY",
           shareLocation: false,
         }),
@@ -1326,6 +1472,8 @@ export default function ClientMyPage() {
     window.localStorage.removeItem("userRole");
     window.localStorage.removeItem("userEmail");
     window.localStorage.removeItem("userId");
+    window.localStorage.removeItem("guardian_auth");
+    clearAuthCookie();
     router.replace("/");
   };
 
@@ -1351,6 +1499,8 @@ export default function ClientMyPage() {
                     <Image
                       src={client.profileImageUrl}
                       alt="프로필 이미지"
+                      loader={externalImageLoader}
+                      unoptimized
                       className="h-full w-full object-cover"
                       width={64}
                       height={64}
@@ -1374,6 +1524,8 @@ export default function ClientMyPage() {
                   <Image
                     src={logoImage}
                     alt="Guardian 로고"
+                    loader={externalImageLoader}
+                    unoptimized
                     className="h-6 w-auto sm:h-7"
                     width={96}
                     height={24}
@@ -1402,18 +1554,17 @@ export default function ClientMyPage() {
           </div>
           {(avatarError || avatarMessage) && (
             <p
-              className={`text-sm ${
-                avatarError ? "text-red-600" : "text-emerald-600"
-              }`}
+              className={`text-sm ${avatarError ? "text-red-600" : "text-emerald-600"
+                }`}
             >
               {avatarError || avatarMessage}
             </p>
           )}
           <div className="flex flex-col gap-3">
-            <div className="relative overflow-hidden rounded-2xl border border-amber-100 bg-white p-1 text-slate-900 shadow-[0_12px_30px_rgba(255,153,51,0.08)]">
+            <div className="relative overflow-hidden rounded-2xl border border-amber-100 bg-white p-1 text-slate-900 shadow-[0_12px_30px_rgba(255,153,51,0.08)] dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 dark:shadow-[0_12px_30px_rgba(0,0,0,0.35)]">
               <span
                 aria-hidden
-                className="pointer-events-none absolute inset-y-1 left-1 w-1/3 rounded-xl bg-gradient-to-r from-amber-300 via-amber-400 to-amber-500 shadow-lg shadow-amber-300/50 transition-transform duration-500 ease-out"
+                className="pointer-events-none absolute inset-y-1 left-1 w-1/3 rounded-xl bg-gradient-to-r from-amber-300 via-amber-400 to-amber-500 shadow-lg shadow-amber-300/50 transition-transform duration-500 ease-out dark:from-slate-700 dark:via-indigo-600 dark:to-slate-800 dark:shadow-none"
                 style={clientIndicatorStyle}
               />
               <div className="relative z-10 grid grid-cols-3 gap-2">
@@ -1424,25 +1575,27 @@ export default function ClientMyPage() {
                       key={action.value}
                       type="button"
                       onClick={() => setActivePanel(action.value)}
-                      className={`group relative z-10 flex flex-col gap-1 rounded-xl border px-3 py-3 text-left transition duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-200 focus-visible:ring-offset-2 focus-visible:ring-offset-white ${
+                      className={`group relative z-10 flex flex-col gap-1 rounded-xl border px-3 py-3 text-left transition duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-200 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-indigo-400 dark:focus-visible:ring-offset-slate-900 ${
                         isActive
-                          ? "border-amber-500 bg-amber-50 text-amber-900 shadow-sm shadow-amber-200"
-                          : "border-transparent bg-white/80 text-slate-800 hover:border-amber-200 hover:bg-white"
+                          ? "border-amber-500 bg-amber-50 text-amber-900 shadow-sm shadow-amber-200 active:bg-amber-100 dark:border-indigo-500 dark:bg-indigo-800/80 dark:text-indigo-50 dark:shadow-[0_10px_22px_rgba(0,0,0,0.4)] dark:active:bg-indigo-700"
+                          : "border-transparent bg-white/80 text-slate-800 hover:border-amber-200 hover:bg-white active:bg-amber-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-indigo-400 dark:hover:bg-slate-800 dark:active:bg-slate-700"
                       }`}
                     >
                       <span
                         className={`inline-flex h-9 w-9 items-center justify-center rounded-full text-[0.7rem] font-semibold text-white shadow-sm shadow-amber-400/40 transition duration-300 ${
                           isActive ? "scale-105" : "scale-100"
-                        } ${isActive ? "bg-amber-500" : action.accent}`}
+                        } ${isActive ? "bg-amber-500 dark:bg-indigo-500" : action.accent}`}
                       >
                         {action.icon ?? action.label.slice(0, 1)}
                       </span>
-                      <span className="text-sm font-semibold text-slate-900">
+                      <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">
                         {action.label}
                       </span>
                       <span
                         className={`text-xs ${
-                          isActive ? "text-amber-700" : "text-slate-500"
+                          isActive
+                            ? "text-amber-700 dark:text-indigo-200"
+                            : "text-slate-500 group-hover:text-slate-600 dark:text-slate-400 dark:group-hover:text-slate-300"
                         }`}
                       >
                         {action.description}
@@ -1457,389 +1610,336 @@ export default function ClientMyPage() {
 
         {activePanel === "schedule" && (
           <>
-        <section className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-amber-50 p-4 sm:p-6 dark:border-slate-700 dark:from-slate-800 dark:via-slate-900 dark:to-slate-800">
-          <div className="flex flex-col gap-2 border-b border-slate-200 pb-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h2 className="text-lg font-semibold text-slate-900 sm:text-xl">서비스 이용 현황</h2>
-              <p className="text-sm text-slate-600">
-                오늘의 복약 진행 상황과 알림 상태를 한눈에 확인하세요.
-              </p>
-            </div>
-              </div>
-          <div className="mt-4 grid gap-3 sm:grid-cols-3">
-            {serviceStats.map((stat) => (
-              <button
-                key={stat.key}
-                type="button"
-              onClick={() => setActiveStat(stat)}
-              className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-white/80 p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow"
-            >
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-semibold text-slate-700">{stat.label}</p>
-                  <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${stat.accent}`}>
-                    {stat.badge}
-                  </span>
+            <section className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-amber-50 p-4 sm:p-6 dark:border-slate-700 dark:from-slate-800 dark:via-slate-900 dark:to-slate-800">
+              <div className="flex flex-col gap-2 border-b border-slate-200 pb-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h2 className="text-lg font-semibold text-slate-900 sm:text-xl">서비스 이용 현황</h2>
+                  <p className="text-sm text-slate-600">
+                    오늘의 복약 진행 상황과 알림 상태를 한눈에 확인하세요.
+                  </p>
                 </div>
-                <p className="text-2xl font-bold text-slate-900">{stat.value}</p>
-                <p className="text-xs text-slate-500 leading-relaxed">{stat.hint}</p>
-              </button>
-            ))}
-          </div>
-
-          {activeStat && (
-            <div className="fixed inset-0 z-50 flex items-start justify-center px-4 py-8 sm:py-10">
-              <div
-                className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
-                onClick={() => setActiveStat(null)}
-                role="presentation"
-              />
-              <div className="relative w-full max-w-2xl rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-800">
-                <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-5 py-4 dark:border-slate-700 sm:px-6">
-                  <div className="space-y-1">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-indigo-600 dark:text-indigo-200">
-                      관리 현황
-                    </p>
-                    <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100 sm:text-2xl">
-                      {activeStat.label}
-                    </h3>
-                    <p className="text-sm text-slate-600 dark:text-slate-300">{activeStat.detail}</p>
-                  </div>
+              </div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                {serviceStats.map((stat) => (
                   <button
-                    className="text-xs font-semibold text-slate-500 transition hover:text-slate-700 dark:text-slate-300"
-                    onClick={() => setActiveStat(null)}
+                    key={stat.key}
                     type="button"
-                    aria-label="상세 닫기"
+                    onClick={() => setActiveStat(stat)}
+                    className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-white/80 p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow"
                   >
-                    닫기 ✕
-                  </button>
-                </div>
-
-                <div className="space-y-3 p-5 sm:p-6">
-                  {activeStat.key === "push" ? (
-                    <>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <div className="flex flex-wrap gap-2">
-                          {[
-                            { key: "overdue", label: "미복약", count: effectiveOverdueCount },
-                            { key: "chat", label: "메세지", count: effectiveChatCount },
-                          ].map((tab) => (
-                            <button
-                              key={tab.key}
-                              type="button"
-                              onClick={() => setAlertTab(tab.key as AlertTab)}
-                              className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
-                                alertTab === tab.key
-                                  ? "border-indigo-500 bg-indigo-50 text-indigo-700"
-                                  : "border-slate-200 bg-white text-slate-600 hover:border-indigo-300"
-                              }`}
-                            >
-                              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-indigo-700">
-                                {tab.count}
-                              </span>
-                              {tab.label}
-                            </button>
-                          ))}
-                        </div>
-                        <button
-                          className="ml-auto inline-flex h-10 items-center justify-center rounded-md border border-slate-200 px-3 text-xs font-semibold text-slate-700 transition hover:border-indigo-300 hover:text-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
-                          type="button"
-                          disabled={alertsAcknowledged || totalPendingAlerts === 0}
-                          onClick={handleAcknowledgeAlerts}
-                        >
-                          전부 확인
-                        </button>
-                      </div>
-              <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3">
-                {hasAlerts ? (
-                  <ul className="space-y-2">
-                    {pagedAlerts.map((item, idx) => (
-                      <li
-                        key={`${alertTab}-item-${idx}`}
-                        className="flex items-start gap-2 rounded-lg bg-white px-3 py-2 text-sm text-slate-800 shadow-sm transition hover:-translate-y-0.5 hover:shadow"
-                        onClick={() => {
-                          if (alertTab !== "chat") return;
-                          const target = chatAlerts[(alertPage[alertTab] ?? 0) * PAGE_SIZE + idx];
-                          if (target?.roomId) {
-                            goToChatRoom(target.roomId);
-                          }
-                        }}
-                        role="button"
-                      >
-                        <span className="mt-0.5 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-indigo-100 px-2 text-[10px] font-bold text-indigo-700">
-                          {(alertPage[alertTab] ?? 0) * PAGE_SIZE + idx + 1}
-                        </span>
-                        <span className="leading-relaxed">{item}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        ) : (
-                          <div className="flex items-center justify-center rounded-lg bg-white px-3 py-3 text-sm text-slate-500">
-                            알림이 없습니다.
-                          </div>
-                        )}
-                      </div>
-                      {hasAlerts && totalPages > 1 && (
-                        <div className="flex items-center justify-between text-xs text-slate-600">
-                          <span>
-                            페이지 { (alertPage[alertTab] ?? 0) + 1 } / {totalPages}
-                          </span>
-                          <div className="flex gap-2">
-                            <button
-                              type="button"
-                              className="rounded-md border border-slate-200 px-3 py-1 transition hover:border-indigo-300 hover:text-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
-                              disabled={(alertPage[alertTab] ?? 0) === 0}
-                              onClick={() =>
-                                setAlertPage((prev) => ({
-                                  ...prev,
-                                  [alertTab]: Math.max(0, (prev[alertTab] ?? 0) - 1),
-                                }))
-                              }
-                            >
-                              이전
-                            </button>
-                            <button
-                              type="button"
-                              className="rounded-md border border-slate-200 px-2 py-1 hover:border-indigo-300"
-                              disabled={(alertPage[alertTab] ?? 0) >= totalPages - 1}
-                              onClick={() =>
-                                setAlertPage((prev) => ({
-                                  ...prev,
-                                  [alertTab]: Math.min(totalPages - 1, (prev[alertTab] ?? 0) + 1),
-                                }))
-                              }
-                            >
-                              다음
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                      {activeStat.actionLabel && (
-                        <div className="flex items-center justify-end pt-1">
-                          <button
-                            className="inline-flex h-11 items-center justify-center rounded-xl bg-indigo-600 px-4 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-400"
-                            disabled={activeStat.actionDisabled}
-                            onClick={() => {
-  // TODO: 통계 카드 클릭 시 동작 구현
-  // 예: 라우팅, 모달 열기 등
-}}
-                            type="button"
-                          >
-                            {activeStat.actionLabel}
-                          </button>
-                        </div>
-                      )}
-                    </>
-                  ) : (
-                    <>
-                      {activeStat.items && activeStat.items.length > 0 && (
-                        <ul className="space-y-2 rounded-xl border border-slate-200 bg-slate-50/80 p-3 text-sm text-slate-700">
-                          {activeStat.items.map((item, idx) => {
-                            const plan = item.planId ? plans.find((p) => p.id === item.planId) : null;
-                            const confirmable = plan ? canConfirmNow(plan) : false;
-                            const alreadyConfirmed = plan ? Boolean(todayLogs[plan.id]) : false;
-                            return (
-                              <li
-                                key={`${activeStat.key}-item-${idx}`}
-                                className={`flex items-center justify-between gap-3 rounded-lg bg-white px-3 py-2 shadow-sm ${
-                                  activeStat.key === "emergency" && item.roomId ? "cursor-pointer hover:-translate-y-0.5 hover:shadow" : ""
-                                }`}
-                                onClick={() => {
-                                  if (activeStat.key !== "emergency") return;
-                                  if (!item.roomId) {
-                                    window.alert("연결된 채팅방을 찾지 못했습니다. 매니저에게 문의해주세요.");
-                                    return;
-                                  }
-                                  goToChatRoom(item.roomId);
-                                }}
-                              >
-                                <div className="flex items-start gap-2">
-                                  <span className="mt-0.5 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-indigo-100 px-2 text-[10px] font-bold text-indigo-700">
-                                    {idx + 1}
-                                  </span>
-                                  <span className="leading-relaxed">{item.label}</span>
-                                </div>
-                                {plan && activeStat.key === "confirm" && (
-                                  <button
-                                    className={`${primaryActionButton} w-auto`}
-                                    disabled={
-                                      confirmationState[plan.id] === "confirming" ||
-                                      alreadyConfirmed ||
-                                      !confirmable ||
-                                      alertsAcknowledged
-                                    }
-                                    onClick={() => handleMedicationConfirm(plan)}
-                                    type="button"
-                                  >
-                                    {confirmationState[plan.id] === "confirming"
-                                      ? "저장 중..."
-                                      : alreadyConfirmed
-                                      ? "완료됨"
-                                      : "복용 완료"}
-                                  </button>
-                                )}
-                              </li>
-                            );
-                          })}
-                        </ul>
-                      )}
-                      {activeStat.actionLabel && (
-                        <button
-                          className={`${primaryActionButton} mt-2`}
-                          disabled={activeStat.actionDisabled}
-                          onClick={() => {
-  // TODO: 통계 카드 클릭 시 동작 구현
-  // 예: 라우팅, 모달 열기 등
-}}
-                          type="button"
-                        >
-                          {activeStat.actionLabel}
-                        </button>
-                      )}
-                    </>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-        </section>
-
-        <section className="rounded-2xl border border-slate-200 p-4 sm:p-6">
-          <div className="flex flex-col gap-2 border-b border-slate-200 pb-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h2 className="text-lg font-semibold text-slate-900 sm:text-xl">복약 확인</h2>
-              <p className="text-sm text-slate-500">
-                오늘 예정된 복약 일정을 확인하고 복약 여부를 기록하세요.
-              </p>
-            </div>
-            <button
-              className={subtleActionButton}
-              disabled={planLoading}
-              onClick={loadMedicationData}
-              type="button"
-            >
-              {planLoading ? "불러오는 중..." : "새로고침"}
-            </button>
-          </div>
-
-          <div className="mt-4 space-y-3 sm:space-y-4">
-            {planLoading ? (
-              <div className="rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-600">
-                복약 정보를 불러오는 중입니다...
-              </div>
-            ) : planError ? (
-              <div className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-600">
-                {planError}
-              </div>
-            ) : plans.length === 0 ? (
-              <div className="rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-600">
-                등록된 복약 일정이 없습니다. 담당자에게 일정을 요청해주세요.
-              </div>
-            ) : (
-              plans.map((plan) => {
-                const log = todayLogs[plan.id];
-                const alreadyConfirmed = Boolean(log);
-                const now = new Date();
-                const planTime = new Date();
-                const [hour, minute] = plan.alarmTime.split(":").map(Number);
-                planTime.setHours(hour ?? 0, minute ?? 0, 0, 0);
-                const diffMs = Math.abs(now.getTime() - planTime.getTime());
-                const currentDayToken = ["SUNDAY","MONDAY","TUESDAY","WEDNESDAY","THURSDAY","FRIDAY","SATURDAY"][now.getDay()];
-                const normalizedDays = plan.daysOfWeek.map((d) => d.toUpperCase());
-                const isSameDay = normalizedDays.includes("ALL") || normalizedDays.includes(currentDayToken);
-                const daySummary =
-                  plan.daysOfWeek.length > 0
-                    ? plan.daysOfWeek.map(mapDayToLabel).join(", ")
-                    : "요일 정보 없음";
-                const withinWindow =
-                  isSameDay
-                  && diffMs <= 60 * 60 * 1000
-                  && plan.daysOfWeek.length > 0;
-                const message = confirmationMessage[plan.id];
-                const statusLabel = alreadyConfirmed
-                  ? `${formatLogTime(log?.logTimestamp)} 확인`
-                  : "미확인";
-                const managerRaw = plan.managerName?.trim();
-                const managerFallback =
-                  plan.managerEmail?.trim() ||
-                  plan.managerOrganization?.trim() ||
-                  plan.managerPhone?.trim() ||
-                  "";
-                const managerName =
-                  managerRaw && managerRaw.length > 0
-                    ? `${managerRaw} 매니저`
-                    : managerFallback || "담당 매니저 정보 없음";
-                const managerPhone =
-                  plan.managerPhone?.trim() ||
-                  (plan.managerId ? managerPhones[plan.managerId] : "") ||
-                  "";
-                const managerMeta = [plan.managerOrganization?.trim(), plan.managerEmail?.trim()]
-                  .filter((value) => value && value.length > 0)
-                  .join(" · ");
-                const managerAvatar =
-                  (plan.managerId && managerProfiles[plan.managerId]) || defaultProfileImage;
-
-                const emergencyMsg = emergencyMessage[plan.id];
-                return (
-                  <article
-                    key={plan.id}
-                    className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4 shadow-sm sm:p-5"
-                  >
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                      <div>
-                        <h3 className="text-base font-semibold text-slate-900 sm:text-lg">
-                          {plan.medicineName}
-                        </h3>
-                        <p className="text-sm text-slate-600">
-                          {`용량: ${plan.dosageAmount}${plan.dosageUnit} / 알람: ${formatAlarmTime(
-                            plan.alarmTime
-                          )} / 요일: ${daySummary}`}
-                        </p>
-                      </div>
-                      <span
-                        className={`inline-flex h-7 items-center rounded-full px-3 text-xs font-medium ${
-                          alreadyConfirmed
-                            ? "bg-emerald-100 text-emerald-700"
-                            : "bg-amber-100 text-amber-700"
-                        }`}
-                      >
-                        {statusLabel}
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-semibold text-slate-700">{stat.label}</p>
+                      <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${stat.accent}`}>
+                        {stat.badge}
                       </span>
                     </div>
-                    <div className="mt-3 rounded-xl border border-slate-200 bg-white px-3 py-2">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-3">
+                    <p className="text-2xl font-bold text-slate-900">{stat.value}</p>
+                    <p className="text-xs text-slate-500 leading-relaxed">{stat.hint}</p>
+                  </button>
+                ))}
+              </div>
+
+              {activeStat && (
+                <div className="fixed inset-0 z-50 flex items-start justify-center px-4 py-8 sm:py-10">
+                  <div
+                    className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+                    onClick={() => setActiveStat(null)}
+                    role="presentation"
+                  />
+                  <div className="relative w-full max-w-2xl rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-800">
+                    <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-5 py-4 dark:border-slate-700 sm:px-6">
+                      <div className="space-y-1">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-indigo-600 dark:text-indigo-200">
+                          관리 현황
+                        </p>
+                        <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100 sm:text-2xl">
+                          {activeStat.label}
+                        </h3>
+                        <p className="text-sm text-slate-600 dark:text-slate-300">{activeStat.detail}</p>
+                      </div>
+                      <button
+                        className="text-xs font-semibold text-slate-500 transition hover:text-slate-700 dark:text-slate-300"
+                        onClick={() => setActiveStat(null)}
+                        type="button"
+                        aria-label="상세 닫기"
+                      >
+                        닫기 ✕
+                      </button>
+                    </div>
+
+                    <div className="space-y-3 p-5 sm:p-6">
+                      {activeStat.key === "push" ? (
+                        <>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <div className="flex flex-wrap gap-2">
+                              {[
+                                { key: "overdue", label: "미복약", count: effectiveOverdueCount },
+                                { key: "chat", label: "메세지", count: effectiveChatCount },
+                              ].map((tab) => (
+                                <button
+                                  key={tab.key}
+                                  type="button"
+                                  onClick={() => setAlertTab(tab.key as AlertTab)}
+                                  className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${alertTab === tab.key
+                                    ? "border-indigo-500 bg-indigo-50 text-indigo-700"
+                                    : "border-slate-200 bg-white text-slate-600 hover:border-indigo-300"
+                                    }`}
+                                >
+                                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-indigo-700">
+                                    {tab.count}
+                                  </span>
+                                  {tab.label}
+                                </button>
+                              ))}
+                            </div>
+                            <button
+                              className="ml-auto inline-flex h-10 items-center justify-center rounded-md border border-slate-200 px-3 text-xs font-semibold text-slate-700 transition hover:border-indigo-300 hover:text-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+                              type="button"
+                              disabled={alertsAcknowledged || totalPendingAlerts === 0}
+                              onClick={handleAcknowledgeAlerts}
+                            >
+                              전부 확인
+                            </button>
+                          </div>
+                          <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3">
+                            {hasAlerts ? (
+                              <ul className="space-y-2">
+                                {pagedAlerts.map((item, idx) => (
+                                  <li
+                                    key={`${alertTab}-item-${idx}`}
+                                    className="flex items-start gap-2 rounded-lg bg-white px-3 py-2 text-sm text-slate-800 shadow-sm transition hover:-translate-y-0.5 hover:shadow"
+                                    onClick={() => {
+                                      if (alertTab !== "chat") return;
+                                      const target = chatAlerts[(alertPage[alertTab] ?? 0) * PAGE_SIZE + idx];
+                                      if (target?.roomId) {
+                                        goToChatRoom(target.roomId);
+                                      }
+                                    }}
+                                    role="button"
+                                  >
+                                    <span className="mt-0.5 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-indigo-100 px-2 text-[10px] font-bold text-indigo-700">
+                                      {(alertPage[alertTab] ?? 0) * PAGE_SIZE + idx + 1}
+                                    </span>
+                                    <span className="leading-relaxed">{item}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <div className="flex items-center justify-center rounded-lg bg-white px-3 py-3 text-sm text-slate-500">
+                                알림이 없습니다.
+                              </div>
+                            )}
+                          </div>
+                          {hasAlerts && totalPages > 1 && (
+                            <div className="flex items-center justify-between text-xs text-slate-600">
+                              <span>
+                                페이지 {(alertPage[alertTab] ?? 0) + 1} / {totalPages}
+                              </span>
+                              <div className="flex gap-2">
+                                <button
+                                  type="button"
+                                  className="rounded-md border border-slate-200 px-3 py-1 transition hover:border-indigo-300 hover:text-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                  disabled={(alertPage[alertTab] ?? 0) === 0}
+                                  onClick={() =>
+                                    setAlertPage((prev) => ({
+                                      ...prev,
+                                      [alertTab]: Math.max(0, (prev[alertTab] ?? 0) - 1),
+                                    }))
+                                  }
+                                >
+                                  이전
+                                </button>
+                                <button
+                                  type="button"
+                                  className="rounded-md border border-slate-200 px-2 py-1 hover:border-indigo-300"
+                                  disabled={(alertPage[alertTab] ?? 0) >= totalPages - 1}
+                                  onClick={() =>
+                                    setAlertPage((prev) => ({
+                                      ...prev,
+                                      [alertTab]: Math.min(totalPages - 1, (prev[alertTab] ?? 0) + 1),
+                                    }))
+                                  }
+                                >
+                                  다음
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                          {activeStat.actionLabel && (
+                            <div className="flex items-center justify-end pt-1">
+                              <button
+                                className="inline-flex h-11 items-center justify-center rounded-xl bg-indigo-600 px-4 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-400"
+                                disabled={activeStat.actionDisabled}
+                                onClick={() => {
+                                  // TODO: 통계 카드 클릭 시 동작 구현
+                                  // 예: 라우팅, 모달 열기 등
+                                }}
+                                type="button"
+                              >
+                                {activeStat.actionLabel}
+                              </button>
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          {activeStat.items && activeStat.items.length > 0 && (
+                            <ul className="space-y-2 rounded-xl border border-slate-200 bg-slate-50/80 p-3 text-sm text-slate-700">
+                              {activeStat.items.map((item, idx) => {
+                                const plan = item.planId ? plans.find((p) => p.id === item.planId) : null;
+                                const confirmable = plan ? canConfirmNow(plan) : false;
+                                const alreadyConfirmed = plan ? Boolean(todayLogs[plan.id]) : false;
+                                return (
+                                  <li
+                                    key={`${activeStat.key}-item-${idx}`}
+                                    className={`flex items-center justify-between gap-3 rounded-lg bg-white px-3 py-2 shadow-sm ${activeStat.key === "emergency" && item.roomId ? "cursor-pointer hover:-translate-y-0.5 hover:shadow" : ""
+                                      }`}
+                                    onClick={() => {
+                                      if (activeStat.key !== "emergency") return;
+                                      if (!item.roomId) {
+                                        window.alert("연결된 채팅방을 찾지 못했습니다. 매니저에게 문의해주세요.");
+                                        return;
+                                      }
+                                      goToChatRoom(item.roomId);
+                                    }}
+                                  >
+                                    <div className="flex items-start gap-2">
+                                      <span className="mt-0.5 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-indigo-100 px-2 text-[10px] font-bold text-indigo-700">
+                                        {idx + 1}
+                                      </span>
+                                      <span className="leading-relaxed">{item.label}</span>
+                                    </div>
+                                    {plan && activeStat.key === "confirm" && (
+                                      <button
+                                        className={`${primaryActionButton} w-auto`}
+                                        disabled={
+                                          confirmationState[plan.id] === "confirming" ||
+                                          alreadyConfirmed ||
+                                          !confirmable ||
+                                          alertsAcknowledged
+                                        }
+                                        onClick={() => handleMedicationConfirm(plan)}
+                                        type="button"
+                                      >
+                                        {confirmationState[plan.id] === "confirming"
+                                          ? "저장 중..."
+                                          : alreadyConfirmed
+                                            ? "완료됨"
+                                            : "복용 완료"}
+                                      </button>
+                                    )}
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          )}
+                          {activeStat.actionLabel && (
+                            <button
+                              className={`${primaryActionButton} mt-2`}
+                              disabled={activeStat.actionDisabled}
+                              onClick={() => {
+                                // TODO: 통계 카드 클릭 시 동작 구현
+                                // 예: 라우팅, 모달 열기 등
+                              }}
+                              type="button"
+                            >
+                              {activeStat.actionLabel}
+                            </button>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </section>
+
+            <section className="rounded-2xl border border-slate-200 p-4 sm:p-6">
+              <div className="flex flex-col gap-2 border-b border-slate-200 pb-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h2 className="text-lg font-semibold text-slate-900 sm:text-xl">복약 확인</h2>
+                  <p className="text-sm text-slate-500">
+                    오늘 예정된 복약 일정을 확인하고 복약 여부를 기록하세요.
+                  </p>
+                </div>
+                <button
+                  className={subtleActionButton}
+                  disabled={planLoading}
+                  onClick={loadMedicationData}
+                  type="button"
+                >
+                  {planLoading ? "불러오는 중..." : "새로고침"}
+                </button>
+              </div>
+
+              <div className="mt-4 space-y-3 sm:space-y-4">
+                {planLoading ? (
+                  <div className="rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                    복약 정보를 불러오는 중입니다...
+                  </div>
+                ) : planError ? (
+                  <div className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-600">
+                    {planError}
+                  </div>
+                ) : plans.length === 0 ? (
+                  <div className="rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                    등록된 복약 일정이 없습니다. 담당자에게 일정을 요청해주세요.
+                  </div>
+                ) : (
+                  groupedPlans.map((group) => (
+                    <article
+                      key={group.key}
+                      className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
+                    >
+                      {/*
+                    헤더 영역: 담당자 정보 + 공통 액션 + 별도 토글 버튼
+                  */}
+                      <div
+                        className="flex flex-col gap-3 border-b border-slate-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5"
+                        onClick={() => toggleManagerGroup(group.key)}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            toggleManagerGroup(group.key);
+                          }
+                        }}
+                      >
+                        <div className="flex w-full items-center gap-3">
                           <span className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-600">
-                            {managerAvatar ? (
+                            {group.avatar ? (
                               <Image
-                                src={managerAvatar}
-                                alt={`${managerName} 프로필`}
+                                src={group.avatar}
+                                alt={`${group.name} 프로필`}
+                                loader={externalImageLoader}
+                                unoptimized
                                 className="absolute inset-0 h-full w-full object-cover object-center"
                                 width={48}
                                 height={48}
                               />
                             ) : (
-                              <span>{managerName.slice(0, 1)}</span>
+                              <span>{group.name.slice(0, 1)}</span>
                             )}
                           </span>
-                          <div>
+                          <div className="flex flex-1 flex-col text-sm">
                             <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                               담당 매니저
                             </p>
-                            <p className="text-sm font-semibold text-slate-900">
-                              {managerName}
+                            <p className="text-sm font-semibold text-slate-900">{group.name}</p>
+                            <p className="text-xs text-slate-500">
+                              {group.meta || "연락처 정보 없음"}
                             </p>
                             <p className="text-xs text-slate-500">
-                              {managerMeta || "연락처 정보 없음"}
-                            </p>
-                            <p className="text-xs text-slate-500">
-                              {managerPhone ? (
+                              {group.phone ? (
                                 <>
                                   전화번호{" "}
                                   <a
                                     className="font-semibold text-slate-700 underline decoration-dotted underline-offset-2"
-                                    href={`tel:${managerPhone.replace(/[^0-9+]/g, "")}`}
+                                    href={`tel:${group.phone.replace(/[^0-9+]/g, "")}`}
+                                    onClick={(e) => e.stopPropagation()}
                                   >
-                                    {managerPhone}
+                                    {group.phone}
                                   </a>
                                 </>
                               ) : (
@@ -1847,189 +1947,281 @@ export default function ClientMyPage() {
                               )}
                             </p>
                           </div>
-                        </div>
-                        <div className="flex flex-col items-end gap-2 sm:flex-row sm:items-center">
-                          <button
-                            className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-2 text-[13px] font-semibold text-sky-700 transition hover:-translate-y-0.5 hover:border-sky-300 hover:bg-sky-100"
-                            onClick={() => handleChatWithManager(plan)}
-                            type="button"
-                            aria-label="담당 매니저와 채팅"
+                          <div
+                            className="flex items-center gap-2"
+                            onClick={(e) => e.stopPropagation()}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" || e.key === " ") {
+                                e.preventDefault();
+                                e.stopPropagation();
+                              }
+                            }}
+                            role="group"
+                            tabIndex={-1}
                           >
-                            <FontAwesomeIcon icon={faComment} className="h-4 w-4" aria-hidden />
-                            채팅하기
-                          </button>
-                          <button
-                            className="inline-flex items-center gap-2 rounded-full border border-rose-300 bg-rose-50 px-3 py-2 text-[13px] font-semibold text-rose-600 transition hover:-translate-y-0.5 hover:border-rose-400 hover:bg-rose-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
-                            disabled={
-                              emergencySending[plan.id] ||
-                              managerName === "담당 매니저 정보 없음"
-                            }
-                            onClick={() => handleEmergencyCall(plan)}
-                            type="button"
-                            aria-label="담당 매니저에게 비상 호출"
-                          >
-                            <svg
-                              aria-hidden="true"
-                              className="h-4 w-4"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth={2}
-                              viewBox="0 0 24 24"
+                            <button
+                              className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-1.5 text-[12px] font-semibold text-sky-700 transition hover:-translate-y-0.5 hover:border-sky-300 hover:bg-sky-100"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const firstPlan = group.plans[0];
+                                if (firstPlan) handleChatWithManager(firstPlan, group.managerId ?? null, group.managerNameRaw ?? null);
+                              }}
+                              type="button"
+                              aria-label="담당 매니저와 채팅"
                             >
-                              <path
-                                d="M6.5 12h11l-.9-5.4a1 1 0 0 0-.99-.83H8.39a1 1 0 0 0-.99.83L6.5 12Z"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              />
-                              <path
-                                d="M5 14h14v2H5z"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              />
-                              <path
-                                d="M8 18a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-2H8v2Z"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              />
-                              <path d="M12 4V2" strokeLinecap="round" strokeLinejoin="round" />
-                              <path d="M5.5 6.5 4 5" strokeLinecap="round" strokeLinejoin="round" />
-                              <path d="M18.5 6.5 20 5" strokeLinecap="round" strokeLinejoin="round" />
-                            </svg>
-                            {emergencySending[plan.id] ? "전송 중..." : "비상 호출"}
-                          </button>
+                              <FontAwesomeIcon icon={faComment} className="h-4 w-4" aria-hidden />
+                              <span className="hidden sm:inline">채팅하기</span>
+                            </button>
+                            <button
+                              className="inline-flex items-center gap-2 rounded-full border border-rose-300 bg-rose-50 px-3 py-1.5 text-[12px] font-semibold text-rose-600 transition hover:-translate-y-0.5 hover:border-rose-400 hover:bg-rose-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+                              disabled={group.plans.some((p) => emergencySending[p.id])}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const firstPlan = group.plans[0];
+                                if (firstPlan) handleEmergencyCall(firstPlan);
+                              }}
+                              type="button"
+                              aria-label="담당 매니저에게 비상 호출"
+                            >
+                              <svg
+                                aria-hidden="true"
+                                className="h-4 w-4"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth={2}
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  d="M6.5 12h11l-.9-5.4a1 1 0 0 0-.99-.83H8.39a1 1 0 0 0-.99.83L6.5 12Z"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                />
+                                <path d="M5 14h14v2H5z" strokeLinecap="round" strokeLinejoin="round" />
+                                <path
+                                  d="M8 18a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-2H8v2Z"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                />
+                                <path d="M12 4V2" strokeLinecap="round" strokeLinejoin="round" />
+                                <path d="M5.5 6.5 4 5" strokeLinecap="round" strokeLinejoin="round" />
+                                <path d="M18.5 6.5 20 5" strokeLinecap="round" strokeLinejoin="round" />
+                              </svg>
+                              <span className="hidden sm:inline">비상 호출</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleManagerGroup(group.key);
+                              }}
+                              className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-slate-600 transition hover:-translate-y-0.5 hover:border-slate-300 hover:bg-white"
+                              aria-label="복약 일정 접기/펼치기"
+                            >
+                              <svg
+                                className={`h-4 w-4 transition ${managerAccordion[group.key] ? "rotate-180" : ""}`}
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth={2}
+                                viewBox="0 0 24 24"
+                                aria-hidden="true"
+                              >
+                                <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+                              </svg>
+                            </button>
+                          </div>
                         </div>
                       </div>
-                      {emergencyMsg && (
-                        <p
-                          className={`mt-2 text-xs ${
-                            emergencyMsg.type === "success"
-                              ? "text-emerald-700"
-                              : "text-rose-600"
+
+                      {/*
+                    본문 영역: 부드러운 토글 애니메이션을 위해 max-height 트랜지션 사용
+                  */}
+                      <div
+                        className={`overflow-hidden transition-[max-height] duration-300 ease-in-out ${managerAccordion[group.key] ? "opacity-100" : "opacity-0"
                           }`}
-                        >
-                          {emergencyMsg.text}
-                        </p>
-                      )}
-                    </div>
-                    <div className="mt-4 space-y-2">
-                      {withinWindow ? (
-                        <div className="flex w-full items-center justify-between gap-3">
-                          <div className="flex items-center gap-2 text-sm">
-                            <span className="font-semibold text-slate-700">
-                              {alreadyConfirmed ? "복용 완료" : "복용 확인 대기"}
-                            </span>
-                            {message && (
-                              <span
-                                className={`text-sm ${
-                                  message.type === "success"
-                                    ? "text-emerald-600"
-                                    : "text-red-600"
-                                }`}
-                              >
-                                {message.text}
-                              </span>
-                            )}
+                        style={{
+                          maxHeight:
+                            managerAccordion[group.key] && group.plans.length > 0
+                              ? `${220 + group.plans.length * 260}px`
+                              : "0px",
+                        }}
+                      >
+                        <div className="border-t border-slate-100 bg-slate-50/70 px-4 py-4 sm:px-5 sm:py-5">
+                          <div className="space-y-3">
+                            {group.plans.map((plan) => {
+                              const log = todayLogs[plan.id];
+                              const alreadyConfirmed = Boolean(log);
+                              const now = new Date();
+                              const planTime = new Date();
+                              const [hour, minute] = plan.alarmTime.split(":").map(Number);
+                              planTime.setHours(hour ?? 0, minute ?? 0, 0, 0);
+                              const diffMs = Math.abs(now.getTime() - planTime.getTime());
+                              const currentDayToken = ["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"][now.getDay()];
+                              const normalizedDays = plan.daysOfWeek.map((d) => d.toUpperCase());
+                              const isSameDay = normalizedDays.includes("ALL") || normalizedDays.includes(currentDayToken);
+                              const daySummary =
+                                plan.daysOfWeek.length > 0
+                                  ? plan.daysOfWeek.map(mapDayToLabel).join(", ")
+                                  : "요일 정보 없음";
+                              const withinWindow =
+                                isSameDay && diffMs <= 60 * 60 * 1000 && plan.daysOfWeek.length > 0;
+                              const message = confirmationMessage[plan.id];
+                              const statusLabel = alreadyConfirmed
+                                ? `${formatLogTime(log?.logTimestamp)} 확인`
+                                : "미확인";
+                              const emergencyMsg = emergencyMessage[plan.id];
+
+                              return (
+                                <div
+                                  key={plan.id}
+                                  className="rounded-xl border border-slate-200 bg-white px-3 py-3 shadow-sm sm:px-4"
+                                >
+                                  <div className="flex items-start justify-between gap-3">
+                                    <div>
+                                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                        {plan.alarmTime.slice(0, 5)} / {daySummary}
+                                      </p>
+                                      <h3 className="text-base font-semibold text-slate-900">
+                                        {plan.medicineName}
+                                      </h3>
+                                      <p className="text-sm text-slate-600">
+                                        용량: {plan.dosageAmount}
+                                        {plan.dosageUnit}
+                                      </p>
+                                    </div>
+                                    <span
+                                      className={`inline-flex h-7 items-center rounded-full px-3 text-xs font-medium ${alreadyConfirmed
+                                        ? "bg-emerald-100 text-emerald-700"
+                                        : "bg-amber-100 text-amber-700"
+                                        }`}
+                                    >
+                                      {statusLabel}
+                                    </span>
+                                  </div>
+
+                                  <div className="mt-3 space-y-2 rounded-lg bg-slate-50 px-3 py-2">
+                                    {withinWindow ? (
+                                      <div className="flex flex-wrap items-center justify-between gap-3">
+                                        <div className="flex items-center gap-2 text-sm">
+                                          <span className="font-semibold text-slate-700">
+                                            {alreadyConfirmed ? "복용 완료" : "복용 확인 대기"}
+                                          </span>
+                                          {message && (
+                                            <span
+                                              className={`text-sm ${message.type === "success"
+                                                ? "text-emerald-600"
+                                                : "text-red-600"
+                                                }`}
+                                            >
+                                              {message.text}
+                                            </span>
+                                          )}
+                                        </div>
+                                        <button
+                                          className={`${primaryActionButton} w-auto`}
+                                          disabled={
+                                            confirmationState[plan.id] === "confirming" || alreadyConfirmed
+                                          }
+                                          onClick={() => handleMedicationConfirm(plan)}
+                                          type="button"
+                                        >
+                                          {confirmationState[plan.id] === "confirming"
+                                            ? "저장 중..."
+                                            : "복용 완료"}
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <p className="text-sm text-slate-500">
+                                        복용 예정 시각 ±1시간 안에서 확인할 수 있습니다.
+                                      </p>
+                                    )}
+                                    {!withinWindow && message && (
+                                      <p
+                                        className={`text-sm ${message.type === "success"
+                                          ? "text-emerald-600"
+                                          : "text-red-600"
+                                          }`}
+                                      >
+                                        {message.text}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
                           </div>
-                          <button
-                            className={`${primaryActionButton} w-auto`}
-                            disabled={confirmationState[plan.id] === "confirming" || alreadyConfirmed}
-                            onClick={() => handleMedicationConfirm(plan)}
-                            type="button"
-                          >
-                            {confirmationState[plan.id] === "confirming"
-                              ? "저장 중..."
-                              : "복용 완료"}
-                          </button>
                         </div>
-                      ) : (
-                        <p className="text-sm text-slate-500">
-                          복용 예정 시각 ±1시간 안에서 확인할 수 있습니다.
-                        </p>
-                      )}
-                      {!withinWindow && message && (
-                        <p
-                          className={`text-sm ${
-                            message.type === "success"
-                              ? "text-emerald-600"
-                              : "text-red-600"
-                          }`}
-                        >
-                          {message.text}
-                        </p>
-                      )}
-                    </div>
-                  </article>
-                );
-              })
-            )}
-          </div>
-        </section>
-
-        <section className="rounded-2xl border border-amber-100 bg-amber-50 p-4 sm:p-6">
-          <div className="flex flex-col gap-2 border-b border-amber-200 pb-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h2 className="text-lg font-semibold text-amber-900 sm:text-xl">주간 복약 현황</h2>
-              <p className="text-sm text-amber-700">
-                최근 7일 동안의 복약 기록을 요일별 아이콘으로 확인할 수 있습니다.
-              </p>
-            </div>
-            <div className="flex gap-2">
-              <button
-                className={subtleActionButton}
-                disabled={weeklySummaryLoading}
-                onClick={loadWeeklySummary}
-                type="button"
-              >
-                {weeklySummaryLoading ? "갱신 중..." : "주간 새로고침"}
-              </button>
-            </div>
-          </div>
-          {!planLoading && plansInitialized && planError.trim().length === 0 && plans.length === 0 ? (
-            <div className="mt-4 rounded-xl bg-white px-3 py-2 text-sm text-amber-800">
-              아직 복약 일정이 없습니다. 담당자에게 일정을 등록해 달라고 요청해주세요.
-            </div>
-          ) : weeklySummaryLoading && !weeklySummary ? (
-            <div className="mt-4 rounded-xl bg-white/70 px-3 py-2 text-sm text-amber-800">
-              주간 복약 현황을 불러오는 중입니다...
-            </div>
-          ) : weeklySummaryError ? (
-            <div className="mt-4 rounded-xl bg-white px-3 py-2 text-sm text-red-600">
-              {weeklySummaryError}
-            </div>
-          ) : weeklySummary && weeklySummary.days.length > 0 ? (
-            <div className="mt-4">
-              <div className="grid grid-cols-7 gap-1 sm:hidden">
-                {weeklySummary.days.map((day) => (
-                  <WeeklyDayCompact key={`mobile-weekly-${day.date}`} day={day} />
-                ))}
+                      </div>
+                    </article>
+                  ))
+                )}
               </div>
-              <div className="hidden gap-3 sm:grid sm:grid-cols-3 lg:grid-cols-7">
-                {weeklySummary.days.map((day) => (
-                  <WeeklyDayCard key={`desktop-weekly-${day.date}`} day={day} />
-                ))}
+            </section>
+
+            <section className="rounded-2xl border border-amber-100 bg-amber-50 p-4 sm:p-6 dark:border-slate-700 dark:bg-slate-900">
+              <div className="flex flex-col gap-2 border-b border-amber-200 pb-4 sm:flex-row sm:items-center sm:justify-between dark:border-slate-700">
+                <div>
+                  <h2 className="text-lg font-semibold text-slate-900 sm:text-xl dark:text-slate-100">주간 복약 현황</h2>
+                  <p className="text-sm text-slate-600 dark:text-slate-300">
+                    최근 7일 동안의 복약 기록을 요일별 아이콘으로 확인할 수 있습니다.
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    className={subtleActionButton}
+                    disabled={weeklySummaryLoading}
+                    onClick={loadWeeklySummary}
+                    type="button"
+                  >
+                    {weeklySummaryLoading ? "갱신 중..." : "주간 새로고침"}
+                  </button>
+                </div>
               </div>
-            </div>
-          ) : (
-            <div className="mt-4 rounded-xl bg-white px-3 py-2 text-sm text-amber-800">
-              아직 복약 기록이 없습니다. 복약 확인을 기록해 주세요.
-            </div>
-          )}
-        </section>
+              {!planLoading && plansInitialized && planError.trim().length === 0 && plans.length === 0 ? (
+                <div className="mt-4 rounded-xl bg-white px-3 py-2 text-sm text-slate-800 dark:bg-slate-800 dark:text-slate-200">
+                  아직 복약 일정이 없습니다. 담당자에게 일정을 등록해 달라고 요청해주세요.
+                </div>
+              ) : weeklySummaryLoading && !weeklySummary ? (
+                <div className="mt-4 rounded-xl bg-white/70 px-3 py-2 text-sm text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                  주간 복약 현황을 불러오는 중입니다...
+                </div>
+              ) : weeklySummaryError ? (
+                <div className="mt-4 rounded-xl bg-white px-3 py-2 text-sm text-red-600 dark:bg-slate-800 dark:text-red-300">
+                  {weeklySummaryError}
+                </div>
+              ) : weeklySummary && weeklySummary.days.length > 0 ? (
+                <div className="mt-4">
+                  <div className="grid grid-cols-7 gap-1 sm:hidden">
+                    {weeklySummary.days.map((day) => (
+                      <WeeklyDayCompact key={`mobile-weekly-${day.date}`} day={day} />
+                    ))}
+                  </div>
+                  <div className="hidden gap-3 sm:grid sm:grid-cols-3 lg:grid-cols-7">
+                    {weeklySummary.days.map((day) => (
+                      <WeeklyDayCard key={`desktop-weekly-${day.date}`} day={day} />
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-4 rounded-xl bg-white px-3 py-2 text-sm text-slate-800 dark:bg-slate-800 dark:text-slate-200">
+                  아직 복약 기록이 없습니다. 복약 확인을 기록해 주세요.
+                </div>
+              )}
+            </section>
 
-        </>
-      )}
+          </>
+        )}
 
-      {activePanel === "drug" && (
-        <section>
-          <InlineDrugSearch />
-        </section>
-      )}
+        {activePanel === "drug" && (
+          <section>
+            <InlineDrugSearch />
+          </section>
+        )}
 
-      {activePanel === "chat" && (
-        <section>
-          <MyChatRooms role="CLIENT" userId={client.userId} />
-        </section>
-      )}
+        {activePanel === "chat" && (
+          <section>
+            <MyChatRooms role="CLIENT" userId={client.userId} />
+          </section>
+        )}
       </main>
     </div>
   );

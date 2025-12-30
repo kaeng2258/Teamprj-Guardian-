@@ -12,6 +12,10 @@ public record AdminUserSummaryResponse(
         String email,
         UserRole role,
         UserStatus status,
+        String phone,
+        String address,
+        String detailAddress,
+        String zipCode,
         LocalDateTime createdAt
 ) {
 
@@ -22,6 +26,10 @@ public record AdminUserSummaryResponse(
                 user.getEmail(),
                 user.getRole(),
                 user.getStatus(),
+                user.getPhone(),
+                user.getAddress(),
+                user.getDetailAddress(),
+                user.getZipCode(),
                 user.getCreatedAt()
         );
     }

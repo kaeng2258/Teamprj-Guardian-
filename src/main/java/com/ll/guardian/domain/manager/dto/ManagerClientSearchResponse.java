@@ -1,5 +1,7 @@
 package com.ll.guardian.domain.manager.dto;
 
+import java.util.List;
+
 public record ManagerClientSearchResponse(
         Long clientId,
         String name,
@@ -12,4 +14,7 @@ public record ManagerClientSearchResponse(
         Long assignedManagerId,
         String assignedManagerName,
         String assignedManagerEmail,
+        List<Long> assignedManagerIds,
+        List<String> assignedManagerNames,
+        List<String> assignedManagerEmails,
         boolean assignable) {}

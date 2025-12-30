@@ -48,10 +48,10 @@ public class ManagerClientService {
             return Collections.emptyList();
         }
 
-        Map<Long, CareMatch> currentMatches = careMatchRepository
+        Map<Long, List<CareMatch>> currentMatches = careMatchRepository
                 .findByClientIdInAndCurrentTrue(clients.stream().map(User::getId).toList())
                 .stream()
-                .collect(Collectors.toMap(match -> match.getClient().getId(), match -> match));
+                .collect(Collectors.groupingBy(match -> match.getClient().getId()));
 
         return clients.stream()
                 .map(client -> toResponse(manager, client, currentMatches.get(client.getId())))
@@ -64,19 +64,34 @@ public class ManagerClientService {
                 .findByIdAndRole(clientId, UserRole.CLIENT)
                 .orElseThrow(() -> new GuardianException(HttpStatus.NOT_FOUND, "클라이언트를 찾을 수 없습니다."));
 
-        CareMatch match = careMatchRepository.findFirstByClientIdAndCurrentTrue(client.getId()).orElse(null);
-        return toResponse(manager, client, match);
+        List<CareMatch> matches = careMatchRepository.findByClientIdInAndCurrentTrue(List.of(client.getId()));
+        return toResponse(manager, client, matches);
     }
 
-    private ManagerClientSearchResponse toResponse(User manager, User client, CareMatch match) {
+    private ManagerClientSearchResponse toResponse(User manager, User client, List<CareMatch> matches) {
         String address = client.getClientProfile() != null ? client.getClientProfile().getAddress() : null;
         Integer age = client.getClientProfile() != null ? client.getClientProfile().getAge() : null;
         String medicationCycle = client.getClientProfile() != null ? client.getClientProfile().getMedicationCycle() : null;
 
-        boolean currentlyAssigned = match != null && match.isCurrent();
-        Long assignedManagerId = currentlyAssigned ? match.getManager().getId() : null;
-        String assignedManagerName = currentlyAssigned ? match.getManager().getName() : null;
-        String assignedManagerEmail = currentlyAssigned ? match.getManager().getEmail() : null;
+        List<CareMatch> safeMatches = matches == null ? List.of() : matches;
+        boolean currentlyAssigned = !safeMatches.isEmpty();
+        Long assignedManagerId = currentlyAssigned ? safeMatches.get(0).getManager().getId() : null;
+        String assignedManagerName = currentlyAssigned ? safeMatches.get(0).getManager().getName() : null;
+        String assignedManagerEmail = currentlyAssigned ? safeMatches.get(0).getManager().getEmail() : null;
+        List<Long> assignedManagerIds = safeMatches.stream()
+                .map(match -> match.getManager().getId())
+                .distinct()
+                .toList();
+        List<String> assignedManagerNames = safeMatches.stream()
+                .map(match -> match.getManager().getName())
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        List<String> assignedManagerEmails = safeMatches.stream()
+                .map(match -> match.getManager().getEmail())
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
         // M:N 지원: 다른 매니저가 배정되어 있어도 추가 배정 가능
         boolean assignable = true;
 
@@ -92,6 +107,9 @@ public class ManagerClientService {
                 assignedManagerId,
                 assignedManagerName,
                 assignedManagerEmail,
+                assignedManagerIds,
+                assignedManagerNames,
+                assignedManagerEmails,
                 assignable);
     }
 

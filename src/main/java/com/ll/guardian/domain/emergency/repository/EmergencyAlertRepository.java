@@ -10,4 +10,7 @@ public interface EmergencyAlertRepository extends JpaRepository<EmergencyAlert, 
     List<EmergencyAlert> findByClientId(Long clientId);
 
     List<EmergencyAlert> findByStatus(EmergencyAlertStatus status);
+
+    List<EmergencyAlert> findByResolvedBy_Id(Long userId);
+    void deleteByClient_IdOrResolvedBy_Id(Long userId1, Long userId2);
 }

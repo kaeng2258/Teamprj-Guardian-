@@ -7,6 +7,7 @@ import com.ll.guardian.global.config.properties.WebPushProperties;
 import java.io.IOException;
 import java.security.GeneralSecurityException;
 import java.security.Security;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import lombok.extern.slf4j.Slf4j;
@@ -42,6 +43,15 @@ public class WebPushSender {
         return enabled;
     }
 
+    public void sendToUser(Long userId, Map<String, Object> payload) {
+        if (!enabled) {
+            log.debug("Web push disabled. Skipping notification for user {}", userId);
+            return;
+        }
+        List<WebPushSubscription> subscriptions = subscriptionRepository.findByUser_Id(userId);
+        subscriptions.forEach(subscription -> send(subscription, payload));
+    }
+
     public void send(WebPushSubscription subscription, Map<String, Object> payload) {
         if (!enabled) {
             log.debug("Web push disabled. Skipping notification for user {}", subscription.getUser().getId());
@@ -62,12 +72,13 @@ public class WebPushSender {
             }
 
             handleFailureStatus(subscription, statusCode);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.warn("웹 푸시 발송 실패: endpoint={}, reason={}", subscription.getEndpoint(), e.getMessage());
         } catch (IOException
                 | GeneralSecurityException
                 | org.jose4j.lang.JoseException
-                | ExecutionException
-                | InterruptedException e) {
-            Thread.currentThread().interrupt();
+                | ExecutionException e) {
             log.warn("웹 푸시 발송 실패: endpoint={}, reason={}", subscription.getEndpoint(), e.getMessage());
         }
     }

@@ -1,8 +1,9 @@
 # 8443 쓰고 싶으면 바꾸세요
 spring:
+  config:
+    import: "optional:classpath:application-secret.yml,optional:file:./application-secret.yml"
   profiles:
     active: dev
-    include: secret
   servlet:
     multipart:
       max-file-size: 20MB

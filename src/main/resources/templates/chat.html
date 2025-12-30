@@ -331,10 +331,12 @@
   // ===== STOMP =====
   function connectWS(){
     if (stomp?.connected) return;
-    const sock = new SockJS('/ws');
+    const token = window.localStorage.getItem("accessToken");
+    const sock = new SockJS('/ws-stomp');
     stomp = Stomp.over(sock);
     stomp.debug = null;
-    stomp.connect({}, () => {
+    const headers = token ? { Authorization: `Bearer ${token}` } : {};
+    stomp.connect(headers, () => {
       els.net.textContent = 'WS 연결됨'; els.net.className = 'status ok';
       // 현재 방 본문 재구독
       if (currentRoomId) subscribe(currentRoomId);

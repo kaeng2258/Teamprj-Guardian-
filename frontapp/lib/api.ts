@@ -1,11 +1,13 @@
 // frontapp/lib/api.ts
 
+import { fetchWithAuth } from "./auth";
+
 export const API_BASE =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "";
 
 // 공통 fetch 래퍼
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await fetchWithAuth(`${API_BASE}${path}`, {
     ...init,
     headers: {
       "Content-Type": "application/json",
@@ -16,13 +18,13 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
 
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`API ${path} 실패: ${res.status} ${text}`);
+    throw new Error(`API ${path} 호출 실패: ${res.status} ${text}`);
   }
 
   return (await res.json()) as T;
 }
 
-/* ---------- 타입 정의 ---------- */
+/* ---------- 타입 ---------- */
 
 export type ChatRoomSummary = {
   id: number;
@@ -63,7 +65,7 @@ export type DrugDetail = {
   openDe?: string;             // 공개일자
   updateDe?: string;           // 수정일자
 
-  // 상세 텍스트 (백엔드 DTO 필드명 그대로)
+  // 추가 텍스트 필드(백엔드 DTO 확장 대비)
   efcyQesitm?: string;         // 효능/효과
   useMethodQesitm?: string;    // 복용방법
   atpnWarnQesitm?: string;     // 경고
@@ -77,17 +79,11 @@ export type DrugDetail = {
 
 /**
  * 백엔드 ChatController:
- * GET /api/chat/threads?userId=...
+ * GET /api/chat/threads (토큰 사용자 기준)
  * -> List<ChatThreadResponse>
- * 를 이용해서 프론트에서 쓰기 좋은 RoomSummary 형태로 변환
+ * 프론트에서 바로 쓰기 좋게 RoomSummary 타입으로 변환
  */
-async function listRooms(params: { managerId?: number; clientId?: number }) {
-  const userId = params.managerId ?? params.clientId;
-  if (!userId) {
-    throw new Error("listRooms 호출 시 managerId 또는 clientId 중 하나는 필요합니다.");
-  }
-
-  // 서버에서 내려주는 ThreadResponse 가 이런 모양이라고 가정
+async function listRooms() {
   type ThreadResponse = {
     roomId: number;
     title: string;
@@ -96,7 +92,7 @@ async function listRooms(params: { managerId?: number; clientId?: number }) {
   };
 
   const threads = await req<ThreadResponse[]>(
-    `/api/chat/threads?userId=${userId}`,
+    `/api/chat/threads`,
   );
 
   const rooms: ChatRoomSummary[] = threads.map((t) => ({
@@ -110,9 +106,9 @@ async function listRooms(params: { managerId?: number; clientId?: number }) {
 }
 
 /**
- * 방 이력
- * 백엔드에서 MessagesResponse(record messages: List<ChatMessageResponse>) 로
- * { "messages": [ ... ] } 형태로 내려준다는 가정
+ * 방 히스토리
+ * 백엔드에서 MessagesResponse(record messages: List<ChatMessageResponse>) 반환
+ * { "messages": [ ... ] } 형태로 내려온다고 가정
  */
 function getRoomHistory(roomId: number) {
   return req<{
@@ -120,20 +116,20 @@ function getRoomHistory(roomId: number) {
   }>(`/api/chat/rooms/${roomId}/messages`);
 }
 
-// 클라이언트 본인 방 목록
-function listMyRoomsForClient(clientId: number) {
-  return listRooms({ clientId });
+// 내꺼 방목록 (토큰 기준)
+function listMyRoomsForClient(_clientId: number) {
+  return listRooms();
 }
 
-// 매니저 본인 방 목록
-function listMyRoomsForManager(managerId: number) {
-  return listRooms({ managerId });
+// 매니저 본인 방목록 (토큰 기준)
+function listMyRoomsForManager(_managerId: number) {
+  return listRooms();
 }
 
-/* ---------- e약은요 REST ---------- */
+/* ---------- 의약품 REST ---------- */
 
 /**
- * 검색 (페이지 포함)
+ * 검색(페이지 포함)
  * EasyDrugApiController:
  * GET /api/drugs/search?query=...&page=1&size=10
  * -> { items: DrugSummary[] }
@@ -149,7 +145,7 @@ function drugSearch(query: string, page = 1, size = 10) {
 }
 
 /**
- * 디테일
+ * 상세
  * GET /api/drugs/{itemSeq}
  */
 function drugDetail(itemSeq: string) {
@@ -157,8 +153,7 @@ function drugDetail(itemSeq: string) {
 }
 
 /**
- * 디테일 페이지 위젯용: 간단 검색
- * 첫 페이지 기준으로 size개만 가져오기
+ * 상세 페이지에서 간단 검색 (최대 size개만)
  */
 function drugSearchSimple(query: string, size = 10) {
   return req<{
@@ -179,7 +174,7 @@ export const api = {
   listMyRoomsForClient,
   listMyRoomsForManager,
 
-  // e약은요
+  // 의약품
   drugSearch,
   drugDetail,
   drugSearchSimple,

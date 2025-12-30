@@ -1,24 +1,11 @@
 server:
-  port: 8080
-
+  port: 8081
+  ssl:
+    enabled: false
 spring:
   datasource:
-    driver-class-name: org.h2.Driver
-    url: jdbc:h2:file:./data/guardian;MODE=MySQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
-    username: sa
-    password:
-  jpa:
-    hibernate:
-      ddl-auto: update
-    properties:
-      hibernate:
-        dialect: org.hibernate.dialect.H2Dialect
-  h2:
-    console:
-      enabled: true
-      path: /h2-console
-      settings:
-        web-allow-others: false
+    url: jdbc:mariadb://guardian-database.c78m4a0okhan.ap-northeast-2.rds.amazonaws.com:3306/guardian_database
+
 
 custom:
   fileDirPath: /home/ec2-user/app/file
@@ -30,3 +17,5 @@ webpush:
     subject: "${WEB_PUSH_SUBJECT:mailto:support@guardian.com}"
   scheduler:
     timezone: "${WEB_PUSH_TIMEZONE:Asia/Seoul}"
+
+##test

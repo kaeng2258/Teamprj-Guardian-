@@ -1,7 +1,6 @@
 package com.ll.guardian.global.config;
 
-import java.util.List;
-
+import com.ll.guardian.global.auth.JwtAuthenticationFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -16,6 +15,7 @@ import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -25,35 +25,59 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 @EnableMethodSecurity
 public class SecurityConfig {
 
+    private static final String WS_ENDPOINT = "/ws-stomp";
+    private final JwtAuthenticationFilter jwtAuthenticationFilter;
+
+    public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter) {
+        this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+    }
+
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-                .csrf(csrf -> csrf.disable())
-                .headers(headers -> headers.frameOptions(frame -> frame.disable()))
-                .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(
-                                "/api/chat/**",
-                                "/api/push/**",
-                                "/ws/**",
-                                "/topic/**",
-                                "/h2-console/**",
-                                "/",
-                                "/index.html",
-                                "/favicon.ico",
-                                "/error",
-                                "/templates/**",
-                                "/chat.html",
-                                "/chat",
-                                "/search.html",
-                                "/search"
-                        ).permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
-                        .anyRequest().permitAll()
-                )
-                .formLogin(form -> form.disable())
-                .httpBasic(basic -> basic.disable())
-                .logout(logout -> logout.disable());
+            .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+
+            // ✅ CSRF는 완전 disable 대신, API/WS만 예외 처리
+            .csrf(csrf -> csrf.ignoringRequestMatchers(
+                "/api/**",
+                WS_ENDPOINT + "/**"
+            ))
+
+            .headers(headers -> headers.frameOptions(frame -> frame.disable()))
+
+            .authorizeHttpRequests(auth -> auth
+                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+
+                // ✅ SockJS/STOMP 엔드포인트(하위경로 포함)
+                .requestMatchers(WS_ENDPOINT, WS_ENDPOINT + "/**").permitAll()
+
+                // ✅ 공개 API/정적
+                .requestMatchers(
+                    "/api/auth/**",
+                    "/api/users/check-email",
+                    "/api/users/register",
+                    "/swagger-ui/**",
+                    "/v3/api-docs/**",
+                    "/error",
+                    "/favicon.ico",
+                    "/",
+                    "/index.html",
+                    "/templates/**",
+                    "/h2-console/**",
+                    "/chat",
+                    "/chat.html",
+                    "/search",
+                    "/search.html"
+                ).permitAll()
+
+                .requestMatchers("/api/chat/**").authenticated()
+                .anyRequest().permitAll()
+            )
+            .formLogin(form -> form.disable())
+            .httpBasic(basic -> basic.disable())
+            .logout(logout -> logout.disable());
+
+        http.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
@@ -62,10 +86,10 @@ public class SecurityConfig {
     public UserDetailsService userDetailsService(PasswordEncoder encoder) {
         InMemoryUserDetailsManager manager = new InMemoryUserDetailsManager();
         manager.createUser(
-                User.withUsername("guardian")
-                        .password(encoder.encode("password123"))
-                        .roles("USER")
-                        .build()
+            User.withUsername("guardian")
+                .password(encoder.encode("password123"))
+                .roles("USER")
+                .build()
         );
         return manager;
     }
@@ -82,17 +106,7 @@ public class SecurityConfig {
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
-        CorsConfiguration cfg = new CorsConfiguration();
-        cfg.addAllowedOriginPattern("http://localhost:*");
-        cfg.addAllowedOriginPattern("https://localhost:*");
-        cfg.addAllowedOriginPattern("http://127.0.0.1:*");
-        cfg.addAllowedOriginPattern("https://127.0.0.1:*");
-        cfg.addAllowedOriginPattern("http://192.168.*.*:*");
-        cfg.addAllowedOriginPattern("https://192.168.*.*:*");
-        cfg.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"));
-        cfg.setAllowedHeaders(List.of("*"));
-        cfg.setAllowCredentials(true);
-
+        CorsConfiguration cfg = CorsConfig.defaultConfiguration();
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", cfg);
         return source;

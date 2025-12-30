@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef } from "react";
+import { Group, Input, Text } from "@mantine/core";
 
 export type PhoneNumberParts = {
   first: string;
@@ -11,9 +12,6 @@ export type PhoneNumberParts = {
 type PhoneNumberInputProps = {
   parts: PhoneNumberParts;
   onChange: (next: PhoneNumberParts) => void;
-  inputClassName?: string;
-  containerClassName?: string;
-  dividerClassName?: string;
   required?: boolean;
   placeholders?: {
     first?: string;
@@ -37,9 +35,6 @@ const sanitizeDigits = (value: string) => value.replace(/\D/g, "");
 export default function PhoneNumberInput({
   parts,
   onChange,
-  inputClassName = "",
-  containerClassName = "grid grid-cols-[1fr_auto_1fr_auto_1fr] items-center gap-2 sm:gap-3",
-  dividerClassName = "text-lg font-semibold text-slate-400",
   required = false,
   placeholders = {
     first: "010",
@@ -57,80 +52,82 @@ export default function PhoneNumberInput({
     last: "전화번호 마지막자리",
   },
 }: PhoneNumberInputProps) {
-  const firstRef = useRef<HTMLInputElement | null>(null);
-  const middleRef = useRef<HTMLInputElement | null>(null);
-  const lastRef = useRef<HTMLInputElement | null>(null);
+  const firstRef = useRef<HTMLInputElement>(null);
+  const middleRef = useRef<HTMLInputElement>(null);
+  const lastRef = useRef<HTMLInputElement>(null);
 
-  const baseInputClass = ["w-full text-center", inputClassName].filter(Boolean).join(" ");
   const nextMaxFirst = maxLengths.first ?? 3;
   const nextMaxMiddle = maxLengths.middle ?? 4;
 
+  const handleChange = (
+    field: keyof PhoneNumberParts,
+    value: string,
+    nextRef?: React.RefObject<HTMLInputElement | null>
+  ) => {
+    const sanitized = sanitizeDigits(value);
+    const newParts = { ...parts, [field]: sanitized };
+    onChange(newParts);
+
+    if (
+      sanitized.length === (maxLengths[field] ?? (field === "first" ? 3 : 4)) &&
+      nextRef?.current
+    ) {
+      nextRef.current.focus();
+    }
+  };
+
+  const handleKeyDown = (
+    e: React.KeyboardEvent<HTMLInputElement>,
+    currentValue: string,
+    prevRef?: React.RefObject<HTMLInputElement | null>
+  ) => {
+    if (e.key === "Backspace" && currentValue.length === 0 && prevRef?.current) {
+      prevRef.current.focus();
+    }
+  };
+
   return (
-    <div className={containerClassName}>
-      <input
+    <Group gap={6} wrap="nowrap" align="center" w="100%">
+      <Input
         ref={firstRef}
-        aria-label={ariaLabels.first}
-        className={baseInputClass}
-        inputMode="numeric"
-        maxLength={maxLengths.first ?? 3}
-        onChange={(event) => {
-          const sanitized = sanitizeDigits(event.target.value);
-          onChange({ ...parts, first: sanitized });
-          if (sanitized.length === nextMaxFirst) {
-            middleRef.current?.focus();
-          }
-        }}
         placeholder={placeholders.first}
-        required={required}
         value={parts.first}
+        onChange={(e) => handleChange("first", e.target.value, middleRef)}
+        required={required}
+        aria-label={ariaLabels.first}
+        maxLength={maxLengths.first}
+        inputMode="numeric"
+        style={{ flex: 1, textAlign: 'center' }}
+        styles={{ input: { textAlign: 'center', padding: '0 4px' } }}
       />
-      <span className={dividerClassName} aria-hidden>
-        -
-      </span>
-      <input
+      <Text c="dimmed">-</Text>
+      <Input
         ref={middleRef}
-        aria-label={ariaLabels.middle}
-        className={baseInputClass}
-        inputMode="numeric"
-        maxLength={maxLengths.middle ?? 4}
-        onChange={(event) => {
-          const sanitized = sanitizeDigits(event.target.value);
-          onChange({ ...parts, middle: sanitized });
-          if (sanitized.length === nextMaxMiddle) {
-            lastRef.current?.focus();
-          }
-        }}
-        onKeyDown={(event) => {
-          if (event.key === "Backspace" && parts.middle.length === 0) {
-            firstRef.current?.focus();
-          }
-        }}
         placeholder={placeholders.middle}
-        required={required}
         value={parts.middle}
-      />
-      <span className={dividerClassName} aria-hidden>
-        -
-      </span>
-      <input
-        ref={lastRef}
-        aria-label={ariaLabels.last}
-        className={baseInputClass}
-        inputMode="numeric"
-        maxLength={maxLengths.last ?? 4}
-        onChange={(event) => {
-          const sanitized = sanitizeDigits(event.target.value);
-          onChange({ ...parts, last: sanitized });
-        }}
-        onKeyDown={(event) => {
-          if (event.key === "Backspace" && parts.last.length === 0) {
-            middleRef.current?.focus();
-          }
-        }}
-        placeholder={placeholders.last}
+        onChange={(e) => handleChange("middle", e.target.value, lastRef)}
+        onKeyDown={(e) => handleKeyDown(e, parts.middle, firstRef)}
         required={required}
-        value={parts.last}
+        aria-label={ariaLabels.middle}
+        maxLength={maxLengths.middle}
+        inputMode="numeric"
+        style={{ flex: 1, textAlign: 'center' }}
+        styles={{ input: { textAlign: 'center', padding: '0 4px' } }}
       />
-    </div>
+      <Text c="dimmed">-</Text>
+      <Input
+        ref={lastRef}
+        placeholder={placeholders.last}
+        value={parts.last}
+        onChange={(e) => handleChange("last", e.target.value)}
+        onKeyDown={(e) => handleKeyDown(e, parts.last, middleRef)}
+        required={required}
+        aria-label={ariaLabels.last}
+        maxLength={maxLengths.last}
+        inputMode="numeric"
+        style={{ flex: 1, textAlign: 'center' }}
+        styles={{ input: { textAlign: 'center', padding: '0 4px' } }}
+      />
+    </Group>
   );
 }

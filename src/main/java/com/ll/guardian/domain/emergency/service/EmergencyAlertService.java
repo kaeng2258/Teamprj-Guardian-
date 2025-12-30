@@ -16,6 +16,8 @@ import com.ll.guardian.domain.matching.repository.CareMatchRepository;
 import com.ll.guardian.domain.user.entity.User;
 import com.ll.guardian.domain.user.repository.UserRepository;
 import com.ll.guardian.global.exception.GuardianException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -27,6 +29,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @Transactional
 public class EmergencyAlertService {
+
+    private static final Logger log = LoggerFactory.getLogger(EmergencyAlertService.class);
 
     private final EmergencyAlertRepository emergencyAlertRepository;
     private final UserRepository userRepository;
@@ -47,7 +51,7 @@ public class EmergencyAlertService {
         this.messagingTemplate = messagingTemplate;
     }
 
-    public EmergencyAlertResponse triggerAlert(EmergencyAlertRequest request) {
+    public EmergencyAlertResponse triggerAlert(EmergencyAlertRequest request, String requesterEmail) {
         User client = getUser(request.clientId());
         EmergencyAlert alert = EmergencyAlert.builder()
                 .client(client)
@@ -58,7 +62,10 @@ public class EmergencyAlertService {
                 .longitude(request.shareLocation() ? request.longitude() : null)
                 .build();
         EmergencyAlert saved = emergencyAlertRepository.save(alert);
-        notifyManagerViaChat(client, request.alertType());
+        Long requesterId = resolveRequesterId(requesterEmail);
+        Long managerIdForAlert =
+                resolveManagerForAlert(client.getId(), request.alertType(), request.managerId(), requesterId);
+        notifyViaChat(client, request.alertType(), managerIdForAlert);
         return EmergencyAlertResponse.from(saved);
     }
 
@@ -106,29 +113,73 @@ public class EmergencyAlertService {
                 .orElseThrow(() -> new GuardianException(HttpStatus.NOT_FOUND, "사용자를 찾을 수 없습니다."));
     }
 
-    private void notifyManagerViaChat(User client, EmergencyAlertType alertType) {
-        careMatchRepository.findFirstByClientIdAndCurrentTrue(client.getId())
-                .or(() -> careMatchRepository.findFirstByClientIdOrderByIdDesc(client.getId()))
-                .ifPresent(match -> {
-                    Long managerId = match.getManager().getId();
-                    Long senderId = alertType == EmergencyAlertType.MANAGER_REQUEST ? managerId : client.getId();
-                    String content = alertType == EmergencyAlertType.MANAGER_REQUEST
-                            ? "매니저가 긴급 호출을 전송했습니다. 즉시 확인해주세요."
-                            : "긴급 호출이 접수되었습니다. 즉시 확인해주세요.";
-                    try {
-                        ChatRoom room = chatService.openOrGetRoom(client.getId(), managerId);
-                        ChatMessageRequest req = new ChatMessageRequest(
-                                room.getId(),
-                                senderId,
-                                content,
-                                MessageType.NOTICE,
-                                null
-                        );
-                        ChatMessageResponse msg = chatService.sendMessage(req);
-                        messagingTemplate.convertAndSend("/topic/room/" + room.getId(), msg);
-                    } catch (Exception e) {
-                        // 알림 실패는 전체 트랜잭션을 막지 않음
-                    }
-                });
+    private void notifyViaChat(User client, EmergencyAlertType alertType, Long managerId) {
+        if (managerId == null) {
+            log.warn("Emergency chat notify skipped. No manager found for clientId={}", client.getId());
+            return;
+        }
+
+        Long senderId = alertType == EmergencyAlertType.MANAGER_REQUEST ? managerId : client.getId();
+        String content = alertType == EmergencyAlertType.MANAGER_REQUEST
+                ? "매니저가 긴급 호출을 전송했습니다. 즉시 확인해주세요."
+                : "긴급 호출이 접수되었습니다. 즉시 확인해주세요.";
+
+        try {
+            ChatRoom room = chatService.openOrGetRoom(client.getId(), managerId);
+            ChatMessageRequest req = new ChatMessageRequest(
+                    room.getId(),
+                    senderId,
+                    content,
+                    MessageType.NOTICE,
+                    null
+            );
+            ChatMessageResponse msg = chatService.sendMessage(req);
+            messagingTemplate.convertAndSend("/topic/room/" + room.getId(), msg);
+        } catch (Exception e) {
+            log.warn("Emergency chat notify failed. clientId={}, managerId={}", client.getId(), managerId, e);
+        }
+    }
+
+    private Long resolveRequesterId(String requesterEmail) {
+        if (requesterEmail == null || requesterEmail.isBlank()) {
+            return null;
+        }
+        return userRepository.findByEmail(requesterEmail).map(User::getId).orElse(null);
+    }
+
+    private Long resolveManagerForAlert(
+            Long clientId,
+            EmergencyAlertType alertType,
+            Long managerId,
+            Long requesterId) {
+        if (alertType == EmergencyAlertType.MANAGER_REQUEST) {
+            if (requesterId == null) {
+                throw new GuardianException(HttpStatus.FORBIDDEN, "매니저 인증 정보가 없습니다.");
+            }
+            return careMatchRepository
+                    .findFirstByClientIdAndManagerIdAndCurrentTrue(clientId, requesterId)
+                    .map(match -> match.getManager().getId())
+                    .orElseThrow(() -> new GuardianException(
+                            HttpStatus.FORBIDDEN,
+                            "해당 클라이언트에 대한 매칭 권한이 없습니다."));
+        }
+
+        if (managerId != null) {
+            return careMatchRepository
+                    .findFirstByClientIdAndManagerIdAndCurrentTrue(clientId, managerId)
+                    .map(match -> match.getManager().getId())
+                    .orElseThrow(() -> new GuardianException(
+                            HttpStatus.FORBIDDEN,
+                            "해당 매니저와 현재 매칭되어 있지 않습니다."));
+        }
+
+        var matches = careMatchRepository.findByClientIdAndCurrentTrue(clientId);
+        if (matches.isEmpty()) {
+            throw new GuardianException(HttpStatus.FORBIDDEN, "현재 매칭된 매니저가 없습니다.");
+        }
+        if (matches.size() > 1) {
+            throw new GuardianException(HttpStatus.FORBIDDEN, "담당 매니저를 선택해주세요.");
+        }
+        return matches.get(0).getManager().getId();
     }
 }

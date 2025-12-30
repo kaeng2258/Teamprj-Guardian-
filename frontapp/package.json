@@ -15,9 +15,13 @@
   "@fortawesome/free-regular-svg-icons": "^7.1.0",
   "@fortawesome/free-solid-svg-icons": "^7.1.0",
   "@fortawesome/react-fontawesome": "^3.1.1",
+  "@mantine/core": "^8.3.10",
+  "@mantine/hooks": "^8.3.10",
   "@stomp/stompjs": "^7.0.0",
   "@tailwindcss/postcss": "^4.1.17",
   "next": "14.2.15",
+  "postcss-preset-mantine": "^1.18.0",
+  "postcss-simple-vars": "^7.0.1",
   "react": "18.3.1",
   "react-dom": "18.3.1",
   "sockjs-client": "^1.6.1"

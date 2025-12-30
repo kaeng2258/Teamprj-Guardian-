@@ -17,9 +17,14 @@ public interface CareMatchRepository extends JpaRepository<CareMatch, Long> {
 
     List<CareMatch> findByClientIdInAndCurrentTrue(Collection<Long> clientIds);
 
+    List<CareMatch> findByClientIdAndCurrentTrue(Long clientId);
+
     Optional<CareMatch> findFirstByClientIdAndCurrentTrue(Long clientId);
 
     Optional<CareMatch> findFirstByClientIdAndManagerIdAndCurrentTrue(Long clientId, Long managerId);
 
     Optional<CareMatch> findFirstByClientIdOrderByIdDesc(Long clientId);
+
+    List<CareMatch> findByClient_IdOrManager_Id(Long userId1, Long userId2);
+
 }

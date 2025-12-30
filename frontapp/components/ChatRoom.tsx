@@ -6,19 +6,49 @@ import { Client } from "@stomp/stompjs";
 import SockJS from "sockjs-client";
 import { useRouter } from "next/navigation";
 import { resolveProfileImageUrl } from "@/lib/image";
+import { ensureAccessToken, fetchWithAuth } from "@/lib/auth";
+import { buildRtcConfig } from "@/lib/rtc";
+import {
+  ActionIcon,
+  Avatar,
+  Box,
+  Button,
+  Card,
+  Center,
+  Container,
+  Flex,
+  Grid,
+  Group,
+  Paper,
+  ScrollArea,
+  Stack,
+  Text,
+  TextInput,
+  ThemeIcon,
+  Title,
+  Tooltip,
+  Badge,
+  Loader,
+  Indicator,
+} from "@mantine/core";
+import { useMediaQuery } from "@mantine/hooks";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faVideo, faVideoSlash, faMicrophone, faMicrophoneSlash, faPaperPlane, faRightFromBracket } from "@fortawesome/free-solid-svg-icons";
+
+// ... existing logic code imports ...
+// I will keep the imports and logic, but replace JSX.
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "";
 
-// RTC용 STOMP 엔드포인트 (SockJS는 http/https 스킴만 허용)
 const WS_ENDPOINT = (() => {
   const env = process.env.NEXT_PUBLIC_WS_URL;
   if (env) {
-    return env.startsWith("http") ? env : env.replace(/^ws/, "http"); // ws → http, wss → https
+    return env.startsWith("http") ? env : env.replace(/^ws/, "http");
   }
-  if (typeof window === "undefined") return "/ws";
+  if (typeof window === "undefined") return "/ws-stomp";
   const protocol = window.location.protocol === "https:" ? "https" : "http";
-  return `${protocol}://${window.location.host}/ws`;
+  return `${protocol}://${window.location.host}/ws-stomp`;
 })();
 
 type Props = {
@@ -47,7 +77,6 @@ const buildKey = (m: ChatMessage) => {
   return `${m.roomId}:${m.senderId}:${ts}:${m.content}:${m.messageType ?? ""}`;
 };
 
-
 type RtcMessageType = "candidate" | "offer" | "answer" | "video-off";
 
 interface RtcOfferAnswerMessage {
@@ -74,11 +103,9 @@ interface RtcPayload {
   candidate?: RTCIceCandidateInit;
 }
 
-// --------- 컴포넌트 ---------
 export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
   const router = useRouter();
   const [resolvedMe, setResolvedMe] = useState(me);
-  // ===== 채팅 관련 =====
   const [thread, setThread] = useState<ThreadInfo | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
   const [input, setInput] = useState("");
@@ -92,6 +119,9 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
   const [participantProfiles, setParticipantProfiles] = useState<Record<number, string>>({});
   const defaultProfileImage =
     resolveProfileImageUrl("/image/픽토그램.png") || "/image/픽토그램.png";
+
+  const isMobile = useMediaQuery("(max-width: 50em)");
+
   const getProfileImage = useCallback(
     (url?: string | null) => {
       if (url && typeof url === "string" && url.trim().length > 0) {
@@ -102,7 +132,6 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
     [defaultProfileImage]
   );
 
-  // 초기 메시지 + seen 초기화
   useEffect(() => {
     setMessages(initialMessages);
     const s = new Set<string>();
@@ -110,27 +139,26 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
     seen.current = s;
   }, [initialMessages]);
 
-  // me prop이 변경되면 내부 상태도 동기화
   useEffect(() => {
     setResolvedMe(me);
   }, [me]);
 
-  // 채팅방 정보 로딩 (클라이언트/매니저 이름 포함)
   useEffect(() => {
     if (!roomId) return;
     (async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/api/chat/rooms/${roomId}`);
+        const res = await fetchWithAuth(
+          `${API_BASE_URL}/api/chat/rooms/${roomId}`,
+        );
         if (!res.ok) return;
         const data: ThreadInfo = await res.json();
         setThread(data);
       } catch {
-        // 무시
+        // ignore
       }
     })();
   }, [roomId]);
 
-  // 내 정보 보정: 로그인 정보나 스레드 정보로 id/name을 확보해 버튼이 비활성화되지 않도록 함
   useEffect(() => {
     if (!thread) return;
     const storedId =
@@ -156,19 +184,18 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
         candidateId === thread.managerId
           ? thread.managerName
           : candidateId === thread.clientId
-          ? thread.clientName
-          : null;
+            ? thread.clientName
+            : null;
       const nextName =
         nameFromThread && nameFromThread.trim().length > 0
           ? nameFromThread
           : storedName && storedName.trim().length > 0
-          ? storedName
-          : resolvedMe.name || `사용자#${candidateId}`;
+            ? storedName
+            : resolvedMe.name || `사용자#${candidateId}`;
       setResolvedMe({ id: candidateId, name: nextName });
     }
   }, [thread, resolvedMe.id, resolvedMe.name]);
 
-  // 프로필 이미지 보강 로딩
   useEffect(() => {
     const loadProfiles = async () => {
       if (!thread) return;
@@ -179,7 +206,7 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
 
       for (const id of targets) {
         try {
-          const res = await fetch(`${API_BASE_URL}/api/users/${id}`);
+          const res = await fetchWithAuth(`${API_BASE_URL}/api/users/${id}`);
           if (!res.ok) continue;
           const detail: { profileImageUrl?: string | null } = await res.json();
           setParticipantProfiles((prev) => ({
@@ -194,7 +221,6 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
     void loadProfiles();
   }, [thread, participantProfiles, getProfileImage]);
 
-  // STOMP 채팅 연결
   const onMessageHandler = useCallback((msg: ChatMessage) => {
     const key = buildKey(msg);
     if (seen.current.has(key)) return;
@@ -208,48 +234,46 @@ export default function ChatRoom({ roomId, me, initialMessages = [] }: Props) {
     onMessage: onMessageHandler,
   });
 
-// 2초 폴링 (백업용)
-useEffect(() => {
-  if (!roomId) return;
+  const POLL_INTERVAL_MS = 800;
 
-  // ✅ STOMP 가 정상 연결된 상태라면 폴링 사용 안 함
-  if (connected) return;
+  useEffect(() => {
+    if (!roomId) return;
+    if (connected) return;
 
-  let cancelled = false;
+    let cancelled = false;
 
-  const fetchOnce = async () => {
-    try {
-      const res = await fetch(
-        `${API_BASE_URL}/api/chat/rooms/${roomId}/messages`
-      );
-      if (!res.ok) return;
-      const data = await res.json();
-      const list: ChatMessage[] = data.messages ?? [];
+    const fetchOnce = async () => {
+      try {
+        const res = await fetchWithAuth(
+          `${API_BASE_URL}/api/chat/rooms/${roomId}/messages`,
+        );
+        if (!res.ok) return;
+        const data = await res.json();
+        const list: ChatMessage[] = data.messages ?? [];
 
-      const added: ChatMessage[] = [];
-      for (const m of list) {
-        const key = buildKey(m);
-        if (!seen.current.has(key)) {
-          seen.current.add(key);
-          added.push(m);
+        const added: ChatMessage[] = [];
+        for (const m of list) {
+          const key = buildKey(m);
+          if (!seen.current.has(key)) {
+            seen.current.add(key);
+            added.push(m);
+          }
         }
+        if (!cancelled && added.length > 0) {
+          setMessages((prev) => [...prev, ...added]);
+        }
+      } catch {
+        // ignore
       }
-      if (!cancelled && added.length > 0) {
-        setMessages((prev) => [...prev, ...added]);
-      }
-    } catch {
-      // 무시
-    }
-  };
+    };
 
-  void fetchOnce();
-  const timer = setInterval(fetchOnce, 2000);
-  return () => {
-    cancelled = true;
-    clearInterval(timer);
-  };
-}, [roomId, connected]); // ✅ connected를 deps에 추가
-
+    void fetchOnce();
+    const timer = setInterval(fetchOnce, POLL_INTERVAL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [roomId, connected]);
 
   const resolveName = (senderId: number, fallback?: string) => {
     if (thread) {
@@ -283,16 +307,44 @@ useEffect(() => {
     [thread, getProfileImage, participantProfiles]
   );
 
-  const handleSend = (e: React.FormEvent) => {
+  const sendViaHttp = async (text: string) => {
+    try {
+      const res = await fetchWithAuth(
+        `${API_BASE_URL}/api/chat/rooms/${roomId}/messages`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            roomId,
+            senderId: resolvedMe.id,
+            content: text,
+          }),
+        },
+      );
+      if (!res.ok) return;
+      const saved = (await res.json()) as ChatMessage;
+      const key = buildKey(saved);
+      if (!seen.current.has(key)) {
+        seen.current.add(key);
+        setMessages((prev) => [...prev, saved]);
+      }
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
     const text = input.trim();
     if (!text || !resolvedMe.id) return;
     setInput("");
-    // 실제 메시지 추가는 STOMP/폴링에서만 처리 (중복 방지)
-    sendMessage(text);
+    if (connected) {
+      const ok = await sendMessage(text);
+      if (ok) return;
+    }
+    void sendViaHttp(text);
   };
 
-  // 스크롤 맨 아래
   useEffect(() => {
     const box = logRef.current;
     if (!box) return;
@@ -312,36 +364,78 @@ useEffect(() => {
     return /긴급호출|비상호출|긴급|비상/.test(content);
   };
 
-  const title = useMemo(
-    () =>
-      thread
-        ? `실시간 채팅방 #${thread.roomId}`
-        : `실시간 채팅방 #${roomId}`,
-    [thread, roomId]
-  );
-
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
+  const [remoteVideoOn, setRemoteVideoOn] = useState(false);
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
+  const remoteStreamRef = useRef<MediaStream | null>(null);
   const rtcClientRef = useRef<Client | null>(null);
+  const pendingCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
+  const makingOfferRef = useRef(false);
+  const ignoreOfferRef = useRef(false);
+  const politeRef = useRef(true);
+
+  const remoteParticipantId = useMemo(() => {
+    if (!thread) return null;
+    if (resolvedMe.id === thread.clientId) return thread.managerId;
+    if (resolvedMe.id === thread.managerId) return thread.clientId;
+    return null;
+  }, [thread, resolvedMe.id]);
+
+  useEffect(() => {
+    if (!remoteParticipantId) {
+      politeRef.current = true;
+      return;
+    }
+    // Higher user id yields to avoid offer collisions.
+    politeRef.current = resolvedMe.id > remoteParticipantId;
+  }, [remoteParticipantId, resolvedMe.id]);
+
+  useEffect(() => {
+    if (!camOn) return;
+    const video = localVideoRef.current;
+    const stream = localStreamRef.current;
+    if (!video || !stream) return;
+
+    video.muted = true;
+    video.srcObject = stream;
+
+    const play = async () => {
+      try {
+        await video.play();
+      } catch {
+        // ignore
+      }
+    };
+
+    if (video.readyState >= 1) {
+      void play();
+    } else {
+      video.onloadedmetadata = () => {
+        void play();
+      };
+    }
+
+    return () => {
+      video.onloadedmetadata = null;
+    };
+  }, [camOn]);
 
   const sendRtc = useCallback((type: RtcMessageType, payload: RtcPayload = {}) => {
     const client = rtcClientRef.current;
-    if (!client || !client.connected || !roomId || !me.id) return;
-    const body = { type, from: me.id, ...payload };
+    if (!client || !client.connected || !roomId || !resolvedMe.id) return;
+    const body = { type, from: resolvedMe.id, ...payload };
     client.publish({
       destination: `/app/rtc/${roomId}`,
       body: JSON.stringify(body),
     });
-  }, [roomId, me.id]);
+  }, [roomId, resolvedMe.id]);
 
   const ensurePc = useCallback(() => {
     if (pcRef.current) return pcRef.current;
 
-    const pc = new RTCPeerConnection({
-      iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
-    });
+    const pc = new RTCPeerConnection(buildRtcConfig());
 
     pc.onicecandidate = (e) => {
       if (e.candidate) {
@@ -350,14 +444,66 @@ useEffect(() => {
     };
 
     pc.ontrack = (e) => {
-      const stream = e.streams[0];
+      const stream = e.streams[0] ?? remoteStreamRef.current ?? new MediaStream();
+      if (!remoteStreamRef.current || remoteStreamRef.current !== stream) {
+        remoteStreamRef.current = stream;
+      }
+      if (!stream.getTracks().includes(e.track)) {
+        stream.addTrack(e.track);
+      }
+      const updateRemoteVideoState = () => {
+        const videoEl = remoteVideoRef.current;
+        const currentStream = videoEl?.srcObject as MediaStream | null;
+        const hasLiveVideo =
+          currentStream?.getVideoTracks().some((t) => t.readyState === "live" && !t.muted) ??
+          false;
+        const hasFrame = Boolean(videoEl && videoEl.videoWidth > 0 && videoEl.videoHeight > 0);
+        setRemoteVideoOn(hasLiveVideo || hasFrame);
+      };
+
       if (remoteVideoRef.current) {
         remoteVideoRef.current.srcObject = stream;
+        remoteVideoRef.current.onloadeddata = updateRemoteVideoState;
+        remoteVideoRef.current.onloadedmetadata = updateRemoteVideoState;
+        const play = async () => {
+          try {
+            await remoteVideoRef.current?.play();
+          } catch {
+            // ignore autoplay errors
+          }
+        };
+        void play();
+      }
+
+      if (e.track?.kind === "video") {
+        updateRemoteVideoState();
+        const markOff = () => {
+          updateRemoteVideoState();
+          setRemoteVideoOn(false);
+        };
+        const markOn = () => {
+          updateRemoteVideoState();
+          setRemoteVideoOn(true);
+        };
+        e.track.addEventListener("ended", markOff);
+        e.track.addEventListener("mute", markOff);
+        e.track.addEventListener("unmute", markOn);
       }
     };
 
-    pc.onconnectionstatechange = () => {
-      // console.log("pc state", pc.connectionState);
+    pc.onnegotiationneeded = async () => {
+      try {
+        makingOfferRef.current = true;
+        const offer = await pc.createOffer();
+        if (pc.signalingState !== "stable") return;
+        await pc.setLocalDescription(offer);
+        const sdp = pc.localDescription?.sdp;
+        if (sdp) sendRtc("offer", { sdp });
+      } catch (e) {
+        console.error("WebRTC negotiation failed", e);
+      } finally {
+        makingOfferRef.current = false;
+      }
     };
 
     pcRef.current = pc;
@@ -366,24 +512,59 @@ useEffect(() => {
 
   const handleRtcSignal = useCallback(async (msg: RTCSignalMessage) => {
     const pc = ensurePc();
+    const offerCollision =
+      msg.type === "offer" && (makingOfferRef.current || pc.signalingState !== "stable");
+    ignoreOfferRef.current = !politeRef.current && offerCollision;
+    if (ignoreOfferRef.current) return;
 
     if (msg.type === "offer" && "sdp" in msg) {
+      if (offerCollision) {
+        await pc.setLocalDescription({ type: "rollback" } as RTCSessionDescriptionInit);
+      }
       await pc.setRemoteDescription({ type: "offer", sdp: msg.sdp });
+      if (pendingCandidatesRef.current.length > 0) {
+        const pending = pendingCandidatesRef.current;
+        pendingCandidatesRef.current = [];
+        for (const candidate of pending) {
+          try {
+            await pc.addIceCandidate(new RTCIceCandidate(candidate));
+          } catch (e) {
+            console.error("ICE 추가 실패", e);
+          }
+        }
+      }
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
-      sendRtc("answer", { sdp: answer.sdp });
+      if (pc.localDescription?.sdp) {
+        sendRtc("answer", { sdp: pc.localDescription.sdp });
+      }
     } else if (msg.type === "answer" && "sdp" in msg) {
       await pc.setRemoteDescription({ type: "answer", sdp: msg.sdp });
+      if (pendingCandidatesRef.current.length > 0) {
+        const pending = pendingCandidatesRef.current;
+        pendingCandidatesRef.current = [];
+        for (const candidate of pending) {
+          try {
+            await pc.addIceCandidate(new RTCIceCandidate(candidate));
+          } catch (e) {
+            console.error("ICE 추가 실패", e);
+          }
+        }
+      }
     } else if (msg.type === "candidate" && "candidate" in msg) {
+      if (ignoreOfferRef.current) return;
+      if (!pc.remoteDescription || !pc.remoteDescription.type) {
+        pendingCandidatesRef.current.push(msg.candidate);
+        return;
+      }
       try {
         await pc.addIceCandidate(new RTCIceCandidate(msg.candidate));
       } catch (e) {
         console.error("ICE 추가 실패", e);
       }
     } else if (msg.type === "video-off") {
-      if (remoteVideoRef.current) {
-        remoteVideoRef.current.srcObject = null;
-      }
+      if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
+      setRemoteVideoOn(false);
     }
   }, [ensurePc, sendRtc]);
 
@@ -392,36 +573,67 @@ useEffect(() => {
     handleRtcSignalRef.current = handleRtcSignal;
   }, [handleRtcSignal]);
 
-  // STOMP 연결 + 시그널 구독
   useEffect(() => {
-    if (!roomId || !me.id) return;
-
-    const socketFactory = () => new SockJS(WS_ENDPOINT);
-
+    if (!roomId || !resolvedMe.id) return;
+    const socketFactory = () =>
+      new SockJS(
+        WS_ENDPOINT,
+        undefined,
+        {
+          transportOptions: {
+            "xhr-streaming": { withCredentials: true },
+            "xhr-polling": { withCredentials: true },
+          },
+        } as any,
+      );
     const client = new Client({
       webSocketFactory: socketFactory,
       reconnectDelay: 5000,
       onConnect: () => {
         setRtcStatus("connected");
-        client.subscribe(`/topic/rtc/${roomId}`, async (frame) => {
+        void (async () => {
+          const token = await ensureAccessToken();
+          client.subscribe(
+            `/topic/rtc/${roomId}`,
+            async (frame) => {
+              try {
+                const msg = JSON.parse(frame.body) as RTCSignalMessage;
+                if (!msg || msg.from === resolvedMe.id) return;
+                await handleRtcSignalRef.current(msg);
+              } catch (e) {
+                console.error("RTC Parse Error", e);
+              }
+            },
+            token ? { Authorization: `Bearer ${token}` } : {},
+          );
+        })();
+
+        void (async () => {
+          const pc = pcRef.current;
+          if (!pc || !localStreamRef.current) return;
+          if (pc.signalingState !== "stable") return;
           try {
-            const msg = JSON.parse(frame.body) as RTCSignalMessage;
-            if (!msg || msg.from === me.id) return;
-            await handleRtcSignalRef.current(msg);
+            makingOfferRef.current = true;
+            const offer = await pc.createOffer();
+            if (pc.signalingState !== "stable") return;
+            await pc.setLocalDescription(offer);
+            const sdp = pc.localDescription?.sdp;
+            if (sdp) sendRtc("offer", { sdp });
           } catch (e) {
-            console.error("RTC 메시지 파싱 실패", e);
+            console.error("WebRTC negotiation failed", e);
+          } finally {
+            makingOfferRef.current = false;
           }
-        });
+        })();
       },
-      onStompError: (f) => {
-        console.error("RTC STOMP error", f);
-        setRtcStatus("disconnected");
-      },
-      onWebSocketError: (e) => {
-        console.error("RTC WebSocket error", e);
-        setRtcStatus("disconnected");
-      },
+      onStompError: () => setRtcStatus("disconnected"),
+      onWebSocketError: () => setRtcStatus("disconnected"),
     });
+
+    client.beforeConnect = async () => {
+      const token = await ensureAccessToken();
+      client.connectHeaders = token ? { Authorization: `Bearer ${token}` } : {};
+    };
 
     setRtcStatus("connecting");
     client.activate();
@@ -431,59 +643,85 @@ useEffect(() => {
       client.deactivate();
       rtcClientRef.current = null;
       setRtcStatus("disconnected");
+      setRemoteVideoOn(false);
     };
-  }, [roomId, me.id]);
+  }, [roomId, resolvedMe.id]);
 
-  const startCamera = async () => {
-    if (camOn) return;
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: true,
-        audio: true,
-      });
-      localStreamRef.current = stream;
-      if (localVideoRef.current) {
-        localVideoRef.current.srcObject = stream;
-      }
-      setCamOn(true);
-      setMicOn(true);
+const startCamera = async () => {
+  if (camOn) return;
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: true,
+      audio: true,
+    });
 
-      const pc = ensurePc();
-      stream.getTracks().forEach((t) => pc.addTrack(t, stream));
+    localStreamRef.current = stream;
 
-      // 네고시에이션
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-      sendRtc("offer", { sdp: offer.sdp });
-    } catch (e: unknown) {
-      const message = e instanceof Error ? e.message : String(e);
-      alert("카메라 접근 실패: " + message);
+    if (localVideoRef.current) {
+      // 로컬 미리보기 안정화(일부 브라우저에서 play 트리거 필요)
+      localVideoRef.current.muted = true;
+      localVideoRef.current.srcObject = stream;
+
+      const play = async () => {
+        try {
+          await localVideoRef.current?.play();
+        } catch {
+          /* ignore */
+        }
+      };
+
+      localVideoRef.current.onloadedmetadata = () => {
+        void play();
+      };
+      void play();
     }
-  };
+
+    setCamOn(true);
+    setMicOn(true);
+
+    const pc = ensurePc();
+
+    // 재시작 시 기존 sender가 있으면 replaceTrack으로 갱신
+    const senders = pc.getSenders();
+    for (const t of stream.getTracks()) {
+      const sender = senders.find((s) => s.track && s.track.kind === t.kind);
+      if (sender) {
+        await sender.replaceTrack(t);
+      } else {
+        pc.addTrack(t, stream);
+      }
+    }
+  } catch (e) {
+    alert("카메라 접근 실패: " + String(e));
+  }
+};
+
 
   const stopCamera = async () => {
     if (!camOn) return;
     localStreamRef.current?.getTracks().forEach((t) => t.stop());
     localStreamRef.current = null;
-    if (localVideoRef.current) {
-      localVideoRef.current.srcObject = null;
+    if (localVideoRef.current) localVideoRef.current.srcObject = null;
+    const pc = pcRef.current;
+    if (pc) {
+      pc.getSenders().forEach((s) => {
+        if (s.track) {
+          s.replaceTrack(null).catch(() => {});
+        }
+      });
     }
     setCamOn(false);
     setMicOn(false);
-
     sendRtc("video-off", {});
   };
 
   const toggleMic = () => {
     if (!localStreamRef.current) return;
     const enabled = !micOn;
-    localStreamRef.current
-      .getAudioTracks()
-      .forEach((t) => (t.enabled = enabled));
+    localStreamRef.current.getAudioTracks().forEach((t) => (t.enabled = enabled));
     setMicOn(enabled);
   };
 
-  // 컴포넌트 언마운트 시 정리
   useEffect(() => {
     return () => {
       localStreamRef.current?.getTracks().forEach((t) => t.stop());
@@ -494,218 +732,318 @@ useEffect(() => {
     };
   }, []);
 
-const rtcLabel = connected ? "WS 연결됨" : "WS 연결 대기";
-const rtcDotClass = connected ? "bg-emerald-500" : "bg-slate-400";
-const rtcTextClass = connected ? "text-emerald-700" : "text-slate-500";
-
-  // --------- 렌더 ---------
-  return (
-    <section className="flex flex-col gap-4">
-      {/* 상단 헤더 */}
-<header className="flex flex-col gap-2 border-b border-slate-200 pb-4 md:flex-row md:items-center md:justify-between">
-          <div className="flex items-center gap-3"> {/* Added a flex container for button and title */}
-            <button
-              type="button"
-              onClick={() => router.back()}
-              className="rounded-full bg-slate-100 p-2 text-slate-600 hover:bg-slate-200 transition-colors"
-              aria-label="뒤로가기"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
-              </svg>
-            </button>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-600">
-                GUARDIAN CHAT
-              </p>
-              <h1 className="text-2xl font-bold text-slate-900">
-                실시간 채팅방 #{roomId}
-              </h1>
-              <p className="text-xs text-slate-500">
-                담당자와 클라이언트가 실시간으로 소통합니다.
-              </p>
-            </div>
-          </div>
-  {/* 🔽 여기 상태 뱃지 영역 */}
-  <div className="mt-2 flex items-center gap-3 text-xs md:mt-0">
-    <span className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1">
-      <span className={`h-2 w-2 rounded-full ${rtcDotClass}`} />
-      <span className={`font-medium ${rtcTextClass}`}>
-        {connected ? "실시간 채팅 연결됨" : "채팅 연결 대기중"}
-      </span>
-    </span>
-
-    <span className="text-slate-500">WS 상태: {rtcLabel}</span>
-  </div>
-</header>
-
-      {/* 가운데: 좌측 영상 / 우측 채팅 */}
-      <div className="grid gap-4 lg:grid-cols-[3fr_2fr]">
-        {/* ===== 왼쪽: WebRTC 영상 영역 ===== */}
-        {/* ===== 왼쪽: WebRTC 영상 영역 (밝은 UI) ===== */}
-{/* ===== 왼쪽: WebRTC 영상 영역 (세로 배치, 큰 화면) ===== */}
-{/* ===== 왼쪽: WebRTC 영상 영역 (적당 크기 + 한 화면에 들어오는 레이아웃) ===== */}
-{/* ===== 왼쪽: WebRTC 영상 영역 (FaceTime 스타일) ===== */}
-<section className="flex h-full flex-col gap-3 rounded-2xl border border-emerald-200 bg-white p-4">
-  {/* 상단 컨트롤 바 */}
-  <div className="flex flex-wrap items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2">
-    <button
-      type="button"
-      onClick={camOn ? stopCamera : startCamera}
-      className="rounded-lg bg-emerald-500 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-600"
+  const renderVideoPanel = (extraStyle?: React.CSSProperties) => (
+    <Paper
+      withBorder
+      radius="md"
+      p="0"
+      bg="gray.9"
+      style={{
+        flex: 1,
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
+        overflow: "hidden",
+        minHeight: 0,
+        ...extraStyle,
+      }}
     >
-      {camOn ? "카메라 끄기" : "카메라 켜기"}
-    </button>
-
-    <button
-      type="button"
-      onClick={toggleMic}
-      disabled={!camOn}
-      className="rounded-lg border border-emerald-300 bg-white px-3 py-1.5 text-sm font-semibold text-emerald-700 shadow-sm hover:bg-emerald-50 disabled:bg-slate-200 disabled:text-slate-400"
-    >
-      {micOn ? "마이크 끄기" : "마이크 켜기"}
-    </button>
-
-    <span className="ml-1 text-xs text-emerald-700">
-      카메라를 켜면 상대와 자동으로 연결됩니다.
-    </span>
-  </div>
-
-  {/* 아래: 상대 영상 꽉 채우기 + 내 영상 PiP */}
-  <div className="relative flex-1 rounded-xl border border-emerald-200 bg-slate-100 overflow-hidden">
-    {/* 상대 영상: 섹션을 거의 꽉 채움 */}
-    <video
-      ref={remoteVideoRef}
-      autoPlay
-      playsInline
-      className="h-full w-full object-cover"
-    />
-
-    {/* 살짝 그라데이션/테두리 느낌 (선택사항) */}
-    <div className="pointer-events-none absolute inset-0 rounded-xl ring-1 ring-black/5 bg-gradient-to-t from-black/10 via-transparent" />
-
-    {/* 내 영상: 우측 상단 미니 PiP */}
-    <div className="pointer-events-auto absolute right-3 top-3 h-24 w-32 md:h-28 md:w-40 rounded-lg border border-white/70 bg-slate-900/80 shadow-lg overflow-hidden">
-      <video
-        ref={localVideoRef}
-        autoPlay
-        muted
-        playsInline
-        className="h-full w-full object-cover"
-      />
-      <div className="pointer-events-none absolute left-1 top-1 rounded-full bg-black/40 px-2 py-[2px] text-[10px] font-medium text-slate-100">
-        나
-      </div>
-    </div>
-
-    {/* 아래쪽에 상대 정보 라벨 (원하면) */}
-    <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-end justify-between px-4 pb-3">
-      <div className="rounded-full bg-black/35 px-3 py-1 text-xs font-medium text-slate-50">
-        상대 영상
-      </div>
-    </div>
-  </div>
-</section>
-
-
-
-
-        {/* ===== 오른쪽: 채팅 영역 ===== */}
-        <section className="flex h-[420px] min-h-[320px] flex-col rounded-2xl border border-slate-100 bg-white lg:h-[calc(100dvh-220px)]">
-          <div
-            ref={logRef}
-            className="flex-1 overflow-y-auto rounded-2xl bg-slate-50/70 px-5 py-4"
+      <Box style={{ flex: 1, position: 'relative', width: '100%', overflow: 'hidden' }}>
+        <video
+          ref={remoteVideoRef}
+          autoPlay
+          playsInline
+          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+        />
+        {rtcStatus !== "connected" && (
+          <Center
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%',
+              background: 'rgba(0,0,0,0.6)',
+              zIndex: 1,
+              flexDirection: 'column'
+            }}
           >
-            {messages.length === 0 ? (
-              <p className="mt-10 text-center text-sm text-slate-500">
-                아직 메시지가 없습니다. 첫 메시지를 보내보세요.
-              </p>
-            ) : (
-              <ul className="flex flex-col gap-3 text-sm">
-                {messages.map((m, idx) => {
-                  const emergency = isEmergencyNotice(m);
-                  const mine = m.senderId === resolvedMe.id;
-                  const name = resolveName(m.senderId, m.senderName);
-                  const alertOwner = name;
-                  const avatar = resolveAvatar(m.senderId);
-                  const bubbleBase = emergency
-                    ? "bg-red-50 text-red-900 border border-red-200"
-                    : mine
-                    ? "bg-emerald-500 text-white"
-                    : "bg-white text-slate-900";
-                  const metaText = emergency
-                    ? "text-red-500"
-                    : mine
-                    ? "text-emerald-50/80"
-                    : "text-slate-400";
-                  return (
-                    <li
-                      key={idx}
-                      className={`flex ${
-                        mine ? "justify-end" : "justify-start"
-                      }`}
-                    >
-                      <div
-                        className={`max-w-[70%] rounded-2xl px-3.5 py-2.5 shadow-sm ${bubbleBase}`}
-                      >
-                        {!mine && (
-                          <div className="mb-0.5 flex items-center gap-2">
-                            <span className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-slate-100 text-[11px] font-semibold text-emerald-700">
-                              {avatar && (
-                                <img
-                                  src={avatar}
-                                  alt={`${name} 프로필`}
-                                  className="h-full w-full object-cover"
-                                />
-                              )}
-                            </span>
-                            <span className="text-xs font-semibold text-emerald-700">
-                              {name}
-                            </span>
-                          </div>
-                        )}
-                        {emergency && (
-                          <div className="mb-1 inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-semibold text-red-700">
-                            <span className="h-2 w-2 rounded-full bg-red-500" />
-                            {alertOwner}님의 비상 호출입니다
-                          </div>
-                        )}
-                        <div className="whitespace-pre-wrap break-words">
-                          {m.content}
-                        </div>
-                        <div
-                          className={`mt-1 text-[10px] ${metaText}`}
-                        >
-                          {fmt(m.sentAt ?? m.createdAt)}
-                        </div>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </div>
-
-          <form
-            className="flex items-center gap-3 border-t border-slate-100 px-5 py-3.5"
-            onSubmit={handleSend}
+            <Loader color="white" type="dots" />
+            <Text c="white" mt="sm">
+              {rtcStatus === "connecting" ? "화상 연결 중..." : "화상채팅이 연결되지 않았습니다."}
+            </Text>
+          </Center>
+        )}
+        {rtcStatus === "connected" && !remoteVideoOn && (
+          <Center
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%',
+              background: 'rgba(0,0,0,0.55)',
+              zIndex: 1,
+              flexDirection: 'column'
+            }}
           >
-            <input
-              className="flex-1 rounded-full border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-900 outline-none ring-0 transition focus:border-emerald-400 focus:bg-white focus:ring-2 focus:ring-emerald-100"
-              placeholder="메시지를 입력하세요"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
+            <Text c="white" fw={600}>상대방 카메라가 꺼져 있습니다.</Text>
+          </Center>
+        )}
+
+        {/* Local Video Overlay */}
+        {camOn && (
+          <Paper
+            shadow="xl"
+            radius="md"
+            withBorder
+            style={{
+              position: 'absolute',
+              right: 20,
+              top: 20,
+              width: 180,
+              aspectRatio: '4/3',
+              zIndex: 10,
+              overflow: 'hidden',
+              borderColor: 'rgba(255,255,255,0.2)'
+            }}
+          >
+            <video
+              ref={localVideoRef}
+              autoPlay
+              muted
+              playsInline
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
             />
-            <button
+          </Paper>
+        )}
+      </Box>
+
+      {/* Controls Bar */}
+      <Paper p="md" bg="rgba(0,0,0,0.8)" radius={0} style={{ zIndex: 2 }}>
+        <Group justify="center" gap="xl">
+          <ActionIcon
+            variant={camOn ? "filled" : "light"}
+            color={camOn ? "gray" : "red"}
+            size="xl"
+            radius="xl"
+            onClick={camOn ? stopCamera : startCamera}
+          >
+            <FontAwesomeIcon icon={camOn ? faVideoSlash : faVideo} />
+          </ActionIcon>
+
+          <ActionIcon
+            variant={micOn ? "filled" : "light"}
+            color={micOn ? "gray" : "red"}
+            size="xl"
+            radius="xl"
+            disabled={!camOn}
+            onClick={toggleMic}
+          >
+            <FontAwesomeIcon icon={micOn ? faMicrophoneSlash : faMicrophone} />
+          </ActionIcon>
+
+        </Group>
+      </Paper>
+    </Paper>
+  );
+
+  const renderChatPanel = (extraStyle?: React.CSSProperties) => (
+    <Paper
+      withBorder
+      radius="md"
+      h="100%"
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        minHeight: 0,
+        height: "100%",
+        position: "relative",
+        ...extraStyle,
+      }}
+    >
+      {/* Chat Header */}
+      <Box p="md" style={{ borderBottom: '1px solid var(--mantine-color-gray-3)' }}>
+        <Group justify="space-between">
+          <Stack gap={0}>
+            <Group gap={8} align="center">
+              <Indicator
+                color={connected ? "teal" : "gray"}
+                size={10}
+                processing={connected}
+                withBorder
+                position="middle-start"
+                styles={{ indicator: { transform: "translate(-50%, calc(-50% + 0px))" } }}
+              >
+                <Text size="xs" c={connected ? "teal" : "dimmed"} ml={10}>
+                  {connected ? "상담원 연결됨" : "연결 대기중"}
+                </Text>
+              </Indicator>
+            </Group>
+            <Text fw={700} size="lg">채팅방 #{roomId}</Text>
+          </Stack>
+        </Group>
+      </Box>
+
+      {/* Messages List - Container with min-height: 0 is CRITICAL for nested flex scrolling */}
+      <Box style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+        <ScrollArea
+          p="md"
+          type="auto"
+          scrollHideDelay={0}
+          viewportRef={logRef}
+          style={{ flex: 1, height: "100%", maxHeight: "100%" }}
+          styles={{ viewport: { height: "100%", maxHeight: "100%" } }}
+        >
+          <Stack gap="md">
+            {messages.length === 0 ? (
+              <Center h={200}>
+                <Stack align="center" gap="xs">
+                  <ThemeIcon color="gray" variant="light" size={40} radius="xl">
+                    <FontAwesomeIcon icon={faPaperPlane} />
+                  </ThemeIcon>
+                  <Text c="dimmed" size="sm">대화를 시작해보세요.</Text>
+                </Stack>
+              </Center>
+            ) : (
+              messages.map((m, idx) => {
+                const mine = m.senderId === resolvedMe.id;
+                const name = resolveName(m.senderId, m.senderName);
+                const avatar = resolveAvatar(m.senderId);
+                const isNotice = isEmergencyNotice(m);
+
+                return (
+                  <Group key={idx} align="flex-start" justify={mine ? "flex-end" : "flex-start"} wrap="nowrap">
+                    {!mine && (
+                      <Avatar src={avatar} radius="xl" size="md" />
+                    )}
+                    <Stack gap={4} style={{ maxWidth: '75%' }}>
+                      {!mine && <Text size="xs" c="dimmed" ml={4}>{name}</Text>}
+                      <Paper
+                        p="sm"
+                        px="md"
+                        radius="xl"
+                        style={{
+                          borderTopLeftRadius: !mine ? 0 : undefined,
+                          borderTopRightRadius: mine ? 0 : undefined
+                        }}
+                        bg={isNotice ? "red.1" : mine ? "indigo.6" : "gray.1"}
+                        c={isNotice ? "red.9" : mine ? "white" : "black"}
+                      >
+                        <Text size="sm" style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>{m.content}</Text>
+                      </Paper>
+                      <Text size="xs" c="dimmed" ta={mine ? "right" : "left"} mr={mine ? 4 : 0} ml={!mine ? 4 : 0}>
+                        {fmt(m.sentAt ?? m.createdAt)}
+                      </Text>
+                    </Stack>
+                  </Group>
+                );
+              })
+            )}
+          </Stack>
+        </ScrollArea>
+      </Box>
+
+      {/* Input Area */}
+      <Box
+        p="md"
+        style={{
+          borderTop: '1px solid var(--mantine-color-gray-3)',
+          position: 'sticky',
+          bottom: 0,
+          background: 'white',
+          zIndex: 5,
+        }}
+        bg="white"
+      >
+        <form onSubmit={handleSend}>
+          <Group gap="xs" align="flex-end">
+            <TextInput
+              placeholder="메시지를 입력하세요..."
+              value={input}
+              onChange={(e) => setInput(e.currentTarget.value)}
+              style={{ flex: 1 }}
+              variant="filled"
+              radius="md"
+              size="md"
+              autoComplete="off"
+            />
+            <ActionIcon
               type="submit"
-              className="rounded-full bg-emerald-500 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-600 disabled:cursor-not-allowed disabled:bg-slate-300"
-              disabled={!input.trim() || !resolvedMe.id}
+              disabled={!input.trim()}
+              variant="filled"
+              color="indigo"
+              size="lg"
+              radius="md"
+              h={42} w={42}
             >
-              전송
-            </button>
-          </form>
-        </section>
-      </div>
-    </section>
+              <FontAwesomeIcon icon={faPaperPlane} />
+            </ActionIcon>
+          </Group>
+        </form>
+      </Box>
+    </Paper>
+  );
+
+  const layoutCols = isMobile ? "1fr" : "2fr 1fr";
+  const layoutRows = isMobile ? "40vh 1fr" : "1fr";
+
+  const handleExit = () => {
+    if (typeof window !== "undefined") {
+      window.close();
+      // Fallback in case window.close() is blocked
+      setTimeout(() => router.back(), 150);
+    } else {
+      router.back();
+    }
+  };
+
+  return (
+    <Box
+      style={{
+        position: "fixed",
+        inset: 0,
+        height: "100vh",
+        width: "100vw",
+        overflow: "hidden",
+        padding: 12,
+        boxSizing: "border-box",
+      }}
+    >
+      <Box
+        style={{
+          position: "absolute",
+          top: isMobile ? 5 : 31, // 모바일(상단 영역) vs 데스크톱 헤더 높이 근처
+          right: 20,
+          zIndex: 100,
+        }}
+      >
+        <Button
+          variant="outline"
+          color="gray"
+          radius="md"
+          size="sm"
+          onClick={handleExit}
+          style={{ paddingInline: 14, borderWidth: 1.2 }}
+        >
+          나가기
+        </Button>
+      </Box>
+      <Box
+        style={{
+          display: "grid",
+          gridTemplateColumns: layoutCols,
+          gridTemplateRows: layoutRows,
+          gap: 12,
+          height: "100%",
+          width: "100%",
+          minHeight: 0,
+          minWidth: 0,
+        }}
+      >
+        <Box style={{ minHeight: 0, minWidth: 0 }}>{renderVideoPanel()}</Box>
+        <Box style={{ minHeight: 0, minWidth: 0 }}>{renderChatPanel()}</Box>
+      </Box>
+    </Box>
   );
 }

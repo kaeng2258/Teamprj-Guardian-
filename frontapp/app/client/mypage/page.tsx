@@ -859,7 +859,7 @@ export default function ClientMyPage() {
       let changed = false;
       groupedPlans.forEach((group) => {
         if (typeof prev[group.key] === "undefined") {
-          next[group.key] = true;
+          next[group.key] = false;
           changed = true;
         }
       });

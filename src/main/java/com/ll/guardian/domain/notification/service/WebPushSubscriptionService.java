@@ -38,6 +38,13 @@ public class WebPushSubscriptionService {
         return WebPushSubscriptionResponse.from(saved);
     }
 
+    @Transactional(readOnly = true)
+    public List<WebPushSubscriptionResponse> listSubscriptions(Long userId) {
+        return subscriptionRepository.findByUser_Id(userId).stream()
+                .map(WebPushSubscriptionResponse::from)
+                .toList();
+    }
+
     public void unsubscribe(Long userId, Long subscriptionId) {
         WebPushSubscription subscription = subscriptionRepository
                 .findById(subscriptionId)

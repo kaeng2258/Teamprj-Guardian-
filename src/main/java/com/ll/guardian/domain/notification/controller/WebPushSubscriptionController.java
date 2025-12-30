@@ -4,7 +4,9 @@ import com.ll.guardian.domain.notification.dto.WebPushSubscriptionRequest;
 import com.ll.guardian.domain.notification.dto.WebPushSubscriptionResponse;
 import com.ll.guardian.domain.notification.service.WebPushSubscriptionService;
 import jakarta.validation.Valid;
+import java.util.List;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -27,6 +29,11 @@ public class WebPushSubscriptionController {
             @PathVariable Long userId, @Valid @RequestBody WebPushSubscriptionRequest request) {
         WebPushSubscriptionResponse response = subscriptionService.subscribe(userId, request);
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping
+    public ResponseEntity<List<WebPushSubscriptionResponse>> list(@PathVariable Long userId) {
+        return ResponseEntity.ok(subscriptionService.listSubscriptions(userId));
     }
 
     @DeleteMapping("/{subscriptionId}")

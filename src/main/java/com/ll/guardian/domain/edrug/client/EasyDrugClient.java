@@ -10,6 +10,7 @@ import com.ll.guardian.domain.edrug.repository.DrugInfoRepository;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Repository;
 import org.springframework.util.LinkedMultiValueMap;
@@ -20,11 +21,13 @@ import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.util.UriComponentsBuilder;
 import reactor.netty.http.client.HttpClient;
 import reactor.netty.tcp.TcpClient;
+import reactor.util.retry.Retry;
 
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.*;
+import java.util.concurrent.TimeoutException;
 
 @Slf4j
 @Repository
@@ -86,7 +89,8 @@ public class EasyDrugClient implements DrugInfoRepository {
                             resp -> resp.bodyToMono(String.class).map(b ->
                                     new IllegalStateException("MFDS HTTP " + resp.statusCode() + " body=" + b)))
                     .bodyToMono(String.class)
-                    .timeout(Duration.ofMillis(props.readTimeoutMs() != null ? props.readTimeoutMs() : 5000))
+                    .timeout(readTimeout())
+                    .retryWhen(retrySpec())
                     .block();
 
             if (body == null) return List.of();
@@ -112,8 +116,7 @@ public class EasyDrugClient implements DrugInfoRepository {
             if (log.isDebugEnabled()) log.debug("MFDS search '{}' -> {} rows", query, list.size());
             return list;
         } catch (Exception e) {
-            log.warn("search API 실패: {} (url={})", e.toString(), url);
-            return List.of();
+            throw externalFailure("search", url, e);
         }
     }
 
@@ -184,7 +187,8 @@ public class EasyDrugClient implements DrugInfoRepository {
                             resp -> resp.bodyToMono(String.class).map(b ->
                                     new IllegalStateException("MFDS HTTP " + resp.statusCode() + " body=" + b)))
                     .bodyToMono(String.class)
-                    .timeout(Duration.ofSeconds(5))
+                    .timeout(readTimeout())
+                    .retryWhen(retrySpec())
                     .block();
             if (body == null) return Optional.empty();
 
@@ -206,8 +210,7 @@ public class EasyDrugClient implements DrugInfoRepository {
             }
             return Optional.empty();
         } catch (Exception e) {
-            if (log.isDebugEnabled()) log.debug("findItemNameByItemSeq 실패(url={}): {}", url, e.toString());
-            return Optional.empty();
+            throw externalFailure("findItemNameByItemSeq", url, e);
         }
     }
 
@@ -228,7 +231,8 @@ public class EasyDrugClient implements DrugInfoRepository {
                     .accept(MediaType.APPLICATION_JSON)
                     .retrieve()
                     .bodyToMono(String.class)
-                    .timeout(Duration.ofMillis(props.readTimeoutMs() != null ? props.readTimeoutMs() : 5000))
+                    .timeout(readTimeout())
+                    .retryWhen(retrySpec())
                     .block();
 
             if (body == null || body.isBlank()) return Optional.empty();
@@ -240,8 +244,7 @@ public class EasyDrugClient implements DrugInfoRepository {
 
             return Optional.of(mapDetail(nodes.get(0)));
         } catch (Exception e) {
-            log.warn("detail API 실패({}='{}'): {}", key, value, e.toString());
-            return Optional.empty();
+            throw externalFailure("detail", url, e);
         }
     }
 
@@ -330,5 +333,36 @@ public class EasyDrugClient implements DrugInfoRepository {
             } catch (Exception ignore) { /* 그냥 원본 사용 */ }
         }
         return key.trim();
+    }
+
+    private Duration readTimeout() {
+        return Duration.ofMillis(props.readTimeoutMs() != null ? props.readTimeoutMs() : 8000);
+    }
+
+    private Retry retrySpec() {
+        return Retry.backoff(2, Duration.ofMillis(250))
+                .maxBackoff(Duration.ofSeconds(2))
+                .filter(this::isRetriable)
+                .onRetryExhaustedThrow((spec, signal) -> signal.failure());
+    }
+
+    private boolean isRetriable(Throwable t) {
+        return isTimeout(t) || t instanceof java.io.IOException;
+    }
+
+    private boolean isTimeout(Throwable t) {
+        Throwable cur = t;
+        while (cur != null) {
+            if (cur instanceof TimeoutException) return true;
+            if (cur instanceof io.netty.handler.timeout.ReadTimeoutException) return true;
+            cur = cur.getCause();
+        }
+        return false;
+    }
+
+    private ExternalDrugApiException externalFailure(String action, String url, Exception e) {
+        HttpStatus status = isTimeout(e) ? HttpStatus.GATEWAY_TIMEOUT : HttpStatus.BAD_GATEWAY;
+        String message = String.format("MFDS %s API 실패", action);
+        return new ExternalDrugApiException(status, message, url, e);
     }
 }

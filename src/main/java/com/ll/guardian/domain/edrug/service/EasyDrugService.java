@@ -5,6 +5,7 @@ import com.ll.guardian.domain.edrug.dto.DrugDetail;
 import com.ll.guardian.domain.edrug.dto.DrugSummary;
 import com.ll.guardian.domain.edrug.repository.DrugInfoRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
@@ -24,16 +25,21 @@ public class EasyDrugService {
     }
 
     /** 상세(품목코드): Optional -> Mono로 래핑 */
+    @Cacheable(cacheNames = "drugDetail", key = "#itemSeq")
     public Mono<DrugDetail> findDetail(String itemSeq) {
         return Mono.fromCallable(() -> repository.findDetailByItemSeq(itemSeq))
-                .map(opt -> opt.orElse(null))
+                .flatMap(this::toMono)
                 .subscribeOn(Schedulers.boundedElastic());
     }
 
     /** 상세(품목코드 + 이름): 이름 우선/폴백 로직은 리포지토리 구현에 있음 */
     public Mono<DrugDetail> findDetail(String itemSeq, String itemName) {
         return Mono.fromCallable(() -> repository.findDetail(itemSeq, itemName))
-                .map(opt -> opt.orElse(null))
+                .flatMap(this::toMono)
                 .subscribeOn(Schedulers.boundedElastic());
+    }
+
+    private <T> Mono<T> toMono(Optional<T> opt) {
+        return opt.map(Mono::just).orElseGet(Mono::empty);
     }
 }

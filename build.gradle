@@ -47,6 +47,8 @@ dependencies {
 	runtimeOnly 'org.mariadb.jdbc:mariadb-java-client:3.4.1'
 	implementation 'com.h2database:h2'
 	implementation 'org.springframework.boot:spring-boot-starter-webflux' // WebClient
+	implementation 'org.springframework.boot:spring-boot-starter-cache'
+	implementation 'com.github.ben-manes.caffeine:caffeine:3.1.8'
 	annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
 	// Ensure Netty can load the native macOS DNS resolver (prevents fallback warning on Mac)
 	runtimeOnly "io.netty:netty-resolver-dns-native-macos:${nettyNativeResolverVersion}:osx-aarch_64"

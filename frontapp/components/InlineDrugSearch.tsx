@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../lib/api";
 import { DrugDetailModal } from "../components/DrugDetailModal";
 
@@ -16,28 +16,70 @@ export function InlineDrugSearch() {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [items, setItems] = useState<InlineDrugItem[]>([]);
+  const requestId = useRef(0);
+  const debounceTimer = useRef<NodeJS.Timeout | null>(null);
 
-  // 🔥 선택된 약품 코드 → 모달 띄우기
+  // 약 선택시 품목 코드 모달 호출
   const [selectedSeq, setSelectedSeq] = useState<string | null>(null);
 
   const getInitials = (name: string) =>
     name.trim().slice(0, 2).toUpperCase() || "??";
 
-  const onSearch = async (e: React.FormEvent) => {
+  const runSearch = useCallback(
+    async (keyword: string) => {
+      if (!keyword.trim()) {
+        setItems([]);
+        setErr(null);
+        return;
+      }
+      const id = ++requestId.current;
+      setLoading(true);
+      setErr(null);
+      try {
+        const data = await api.drugSearchSimple(keyword.trim(), 10);
+        // 중복 호출 방지: 최신 요청만 반영
+        if (requestId.current === id) {
+          setItems(data.items);
+        }
+      } catch (e: unknown) {
+        if (requestId.current !== id) return; // 이미 최신 요청이 있음
+        const raw = e instanceof Error ? e.message : "검색에 실패했습니다.";
+        const friendly =
+          raw.includes("502") || raw.includes("504")
+            ? "약 정보 서버가 잠시 지연 중입니다. 잠시 후 다시 시도해주세요."
+            : raw;
+        setErr(friendly);
+        setItems([]);
+      } finally {
+        if (requestId.current === id) {
+          setLoading(false);
+        }
+      }
+    },
+    [],
+  );
+
+  const scheduleSearch = useCallback(
+    (next: string) => {
+      if (debounceTimer.current) {
+        clearTimeout(debounceTimer.current);
+      }
+      debounceTimer.current = setTimeout(() => {
+        runSearch(next);
+      }, 350);
+    },
+    [runSearch],
+  );
+
+  useEffect(() => {
+    return () => {
+      if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    };
+  }, []);
+
+  const onSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!q.trim()) return;
-    setLoading(true);
-    setErr(null);
-    try {
-      const data = await api.drugSearchSimple(q.trim(), 10);
-      setItems(data.items);
-    } catch (e: unknown) {
-      const message = e instanceof Error ? e.message : "검색 중 오류가 발생했습니다.";
-      setErr(message);
-      setItems([]);
-    } finally {
-      setLoading(false);
-    }
+    scheduleSearch(q);
   };
 
   return (
@@ -46,7 +88,7 @@ export function InlineDrugSearch() {
         <div>
           <p className="text-xl font-bold text-slate-900">e약은요 검색</p>
           <p className="mt-1 text-sm text-slate-600">
-            약품명·성분명을 입력하면 상세 정보를 빠르게 확인할 수 있습니다.
+            품목명·성분명 등을 입력하면 상세 정보를 빠르게 볼 수 있어요.
           </p>
         </div>
       </div>
@@ -58,8 +100,12 @@ export function InlineDrugSearch() {
       >
         <input
           value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="약품명 · 성분명"
+          onChange={(e) => {
+            const next = e.target.value;
+            setQ(next);
+            scheduleSearch(next);
+          }}
+          placeholder="상품명· 성분명 입력"
           className="flex-1 rounded-lg border border-emerald-100 bg-white/90 px-3 py-3 text-sm text-slate-900 placeholder:text-slate-400 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-100"
         />
         <button
@@ -67,11 +113,11 @@ export function InlineDrugSearch() {
           type="submit"
           disabled={loading}
         >
-          {loading ? "검색 중..." : "검색"}
+          {loading ? "검색중.." : "검색"}
         </button>
       </form>
 
-      {loading && <p className="text-sm text-emerald-700">검색 중…</p>}
+      {loading && <p className="text-sm text-emerald-700">검색 중...</p>}
       {err && <p className="text-sm text-red-600">{err}</p>}
       {!loading && !err && items.length === 0 && q.trim().length > 0 && (
         <p className="text-sm text-slate-600">검색 결과가 없습니다.</p>
@@ -119,7 +165,7 @@ export function InlineDrugSearch() {
         </ul>
       )}
 
-      {/* 🔥 모달 출력 */}
+      {/* 상세 모달 출력 */}
       {selectedSeq && (
         <DrugDetailModal
           itemSeq={selectedSeq}
@@ -129,3 +175,4 @@ export function InlineDrugSearch() {
     </section>
   );
 }
+

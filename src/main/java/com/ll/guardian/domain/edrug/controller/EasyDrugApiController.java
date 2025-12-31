@@ -75,13 +75,17 @@ public class EasyDrugApiController {
     public record SearchResponse(List<DrugSummary> items) {}
 
     private Throwable mapExternalError(Throwable e) {
-        if (e instanceof ExternalDrugApiException ex) {
-            return new ResponseStatusException(ex.getStatus(), ex.getMessage(), e);
+        try {
+            if (e instanceof ExternalDrugApiException ex) {
+                return new ResponseStatusException(ex.getStatus(), ex.getMessage(), e);
+            }
+            if (isTimeout(e)) {
+                return new ResponseStatusException(HttpStatus.GATEWAY_TIMEOUT, "외부 약 정보 서버 응답 지연", e);
+            }
+            return new ResponseStatusException(HttpStatus.BAD_GATEWAY, "외부 약 정보 서버 오류", e);
+        } catch (Exception ex) {
+            return new ResponseStatusException(HttpStatus.BAD_GATEWAY, "외부 약 정보 서버 오류", e);
         }
-        if (isTimeout(e)) {
-            return new ResponseStatusException(HttpStatus.GATEWAY_TIMEOUT, "외부 약 정보 서버 응답 지연", e);
-        }
-        return new ResponseStatusException(HttpStatus.BAD_GATEWAY, "외부 약 정보 서버 오류", e);
     }
 
     private boolean isTimeout(Throwable e) {
@@ -94,4 +98,3 @@ public class EasyDrugApiController {
         return false;
     }
 }
-

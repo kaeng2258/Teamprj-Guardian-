@@ -18,11 +18,15 @@ import java.util.Optional;
 public class EasyDrugService {
     private final DrugInfoRepository repository;
 
-    /** 검색: Optional 캐시 키(query/page/size)로 동일 검색어 재사용 */
-    @Cacheable(cacheNames = "drugSearch", key = "#query + ':' + #page + ':' + #size")
+    /** 검색: 동기 호출을 캐싱 후 Mono로 감쌈 */
     public Mono<List<DrugSummary>> search(String query, int page, int size) {
-        return Mono.fromCallable(() -> repository.search(query, page, size))
+        return Mono.fromCallable(() -> searchSync(query, page, size))
                 .subscribeOn(Schedulers.boundedElastic());
+    }
+
+    @Cacheable(cacheNames = "drugSearch", key = "#query + ':' + #page + ':' + #size")
+    public List<DrugSummary> searchSync(String query, int page, int size) {
+        return repository.search(query, page, size);
     }
 
     /** 상세(품목코드): Optional -> Mono 변환 + 캐시 */
@@ -44,4 +48,3 @@ public class EasyDrugService {
         return opt.map(Mono::just).orElseGet(Mono::empty);
     }
 }
-

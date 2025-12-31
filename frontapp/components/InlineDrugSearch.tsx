@@ -18,6 +18,7 @@ export function InlineDrugSearch() {
   const [items, setItems] = useState<InlineDrugItem[]>([]);
   const requestId = useRef(0);
   const debounceTimer = useRef<NodeJS.Timeout | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   // 약 선택시 품목 코드 모달 호출
   const [selectedSeq, setSelectedSeq] = useState<string | null>(null);
@@ -35,13 +36,19 @@ export function InlineDrugSearch() {
       const id = ++requestId.current;
       setLoading(true);
       setErr(null);
+      if (abortRef.current) {
+        abortRef.current.abort();
+      }
+      const controller = new AbortController();
+      abortRef.current = controller;
       try {
-        const data = await api.drugSearchSimple(keyword.trim(), 10);
+        const data = await api.drugSearchSimple(keyword.trim(), 10, controller.signal);
         // 중복 호출 방지: 최신 요청만 반영
         if (requestId.current === id) {
           setItems(data.items);
         }
       } catch (e: unknown) {
+        if (e instanceof DOMException && e.name === "AbortError") return;
         if (requestId.current !== id) return; // 이미 최신 요청이 있음
         const raw = e instanceof Error ? e.message : "검색에 실패했습니다.";
         const friendly =
@@ -74,6 +81,7 @@ export function InlineDrugSearch() {
   useEffect(() => {
     return () => {
       if (debounceTimer.current) clearTimeout(debounceTimer.current);
+      if (abortRef.current) abortRef.current.abort();
     };
   }, []);
 
@@ -175,4 +183,3 @@ export function InlineDrugSearch() {
     </section>
   );
 }
-

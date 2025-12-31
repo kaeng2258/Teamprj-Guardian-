@@ -13,7 +13,7 @@ public class CacheConfig {
 
     @Bean
     public CacheManager cacheManager() {
-        CaffeineCacheManager manager = new CaffeineCacheManager("drugDetail");
+        CaffeineCacheManager manager = new CaffeineCacheManager("drugDetail", "drugSearch");
         manager.setCaffeine(
                 Caffeine.newBuilder()
                         .expireAfterWrite(10, TimeUnit.MINUTES)
@@ -22,4 +22,3 @@ public class CacheConfig {
         return manager;
     }
 }
-

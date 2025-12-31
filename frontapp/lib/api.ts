@@ -155,13 +155,14 @@ function drugDetail(itemSeq: string) {
 /**
  * 상세 페이지에서 간단 검색 (최대 size개만)
  */
-function drugSearchSimple(query: string, size = 10) {
+function drugSearchSimple(query: string, size = 10, signal?: AbortSignal) {
   return req<{
     items: DrugSummaryItem[];
   }>(
     `/api/drugs/search?query=${encodeURIComponent(
       query,
     )}&size=${size}`,
+    { signal },
   );
 }
 

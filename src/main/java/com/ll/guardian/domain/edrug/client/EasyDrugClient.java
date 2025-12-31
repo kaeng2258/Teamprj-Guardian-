@@ -41,7 +41,7 @@ public class EasyDrugClient implements DrugInfoRepository {
     @PostConstruct
     void init() {
         int connectTimeoutMs = props.connectTimeoutMs() != null ? props.connectTimeoutMs() : 2000;
-        int readTimeoutMs    = props.readTimeoutMs()    != null ? props.readTimeoutMs()    : 5000;
+        int readTimeoutMs    = props.readTimeoutMs()    != null ? props.readTimeoutMs()    : 4000;
 
         TcpClient tcp = TcpClient.create()
                 .option(io.netty.channel.ChannelOption.CONNECT_TIMEOUT_MILLIS, connectTimeoutMs)
@@ -336,7 +336,7 @@ public class EasyDrugClient implements DrugInfoRepository {
     }
 
     private Duration readTimeout() {
-        return Duration.ofMillis(props.readTimeoutMs() != null ? props.readTimeoutMs() : 8000);
+        return Duration.ofMillis(props.readTimeoutMs() != null ? props.readTimeoutMs() : 4000);
     }
 
     private Retry retrySpec() {

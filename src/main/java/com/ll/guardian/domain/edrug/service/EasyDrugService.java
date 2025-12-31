@@ -18,13 +18,14 @@ import java.util.Optional;
 public class EasyDrugService {
     private final DrugInfoRepository repository;
 
-    /** 검색: 블로킹 리포지토리 호출을 리액터 스레드풀로 오프로드 */
+    /** 검색: Optional 캐시 키(query/page/size)로 동일 검색어 재사용 */
+    @Cacheable(cacheNames = "drugSearch", key = "#query + ':' + #page + ':' + #size")
     public Mono<List<DrugSummary>> search(String query, int page, int size) {
         return Mono.fromCallable(() -> repository.search(query, page, size))
                 .subscribeOn(Schedulers.boundedElastic());
     }
 
-    /** 상세(품목코드): Optional -> Mono로 래핑 */
+    /** 상세(품목코드): Optional -> Mono 변환 + 캐시 */
     @Cacheable(cacheNames = "drugDetail", key = "#itemSeq")
     public Mono<DrugDetail> findDetail(String itemSeq) {
         return Mono.fromCallable(() -> repository.findDetailByItemSeq(itemSeq))
@@ -32,7 +33,7 @@ public class EasyDrugService {
                 .subscribeOn(Schedulers.boundedElastic());
     }
 
-    /** 상세(품목코드 + 이름): 이름 우선/폴백 로직은 리포지토리 구현에 있음 */
+    /** 상세(품목코드 + 이름): 이름 우선/품번 백업 로직까지 리포지토리 구현에 위임 */
     public Mono<DrugDetail> findDetail(String itemSeq, String itemName) {
         return Mono.fromCallable(() -> repository.findDetail(itemSeq, itemName))
                 .flatMap(this::toMono)
@@ -43,3 +44,4 @@ public class EasyDrugService {
         return opt.map(Mono::just).orElseGet(Mono::empty);
     }
 }
+

@@ -2,6 +2,7 @@
 "use client";
 import React from "react";
 import Link from "next/link";
+import { formatKstDateTime } from "@/lib/date";
 
 type Room = {
   id: number;
@@ -29,7 +30,7 @@ export default function ChatList({ rooms }: { rooms: Room[] }) {
               </span>
               {r.updatedAt && (
                 <small className="text-xs text-slate-500">
-                  {new Date(r.updatedAt).toLocaleString()}
+                  {formatKstDateTime(r.updatedAt)}
                 </small>
               )}
             </div>

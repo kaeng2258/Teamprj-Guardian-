@@ -16,6 +16,7 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faPen, faMagnifyingGlass } from "@fortawesome/free-solid-svg-icons";
 import { faComment } from "@fortawesome/free-regular-svg-icons";
 import type { ReactNode } from "react";
+import { formatKstDateTime, formatKstTime, getServerTimeMs } from "../../../lib/date";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "";
@@ -476,8 +477,8 @@ export default function ClientMyPage() {
           targetMap.set(key, log);
           return;
         }
-        const currentTime = new Date(log.logTimestamp).getTime();
-        const existingTime = new Date(existing.logTimestamp).getTime();
+        const currentTime = getServerTimeMs(log.logTimestamp);
+        const existingTime = getServerTimeMs(existing.logTimestamp);
         if (Number.isFinite(currentTime) && currentTime > existingTime) {
           targetMap.set(key, log);
         }
@@ -859,7 +860,7 @@ export default function ClientMyPage() {
       let changed = false;
       groupedPlans.forEach((group) => {
         if (typeof prev[group.key] === "undefined") {
-          next[group.key] = true;
+          next[group.key] = false;
           changed = true;
         }
       });
@@ -1110,12 +1111,12 @@ export default function ClientMyPage() {
         const list = data
           .filter((a) => {
             if (!a.alertTime) return true;
-            const ts = Date.parse(a.alertTime);
+            const ts = getServerTimeMs(a.alertTime);
             if (Number.isNaN(ts)) return true;
             return ts > cutoff;
           })
           .map((a) => {
-            const time = a.alertTime ? a.alertTime.replace("T", " ").slice(0, 16) : "";
+            const time = a.alertTime ? formatKstDateTime(a.alertTime) : "";
             return `${time} / ${a.alertType ?? ""} / ${a.status ?? ""}`;
           });
         setEmergencyAlerts(list);
@@ -1179,21 +1180,8 @@ export default function ClientMyPage() {
     if (!value) {
       return "미확인";
     }
-    try {
-      const date = new Date(value);
-      if (Number.isNaN(date.getTime())) {
-        return "미확인";
-      }
-
-      return new Intl.DateTimeFormat("en-GB", {
-        timeZone: "Asia/Seoul",
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false,
-      }).format(date);
-    } catch (e) {
-      return "미확인";
-    }
+    const formatted = formatKstTime(value);
+    return formatted || "미확인";
   };
 
   const canConfirmNow = useCallback(

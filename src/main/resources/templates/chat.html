@@ -189,15 +189,36 @@
   const rtcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
 
   // ===== 유틸 =====
-  const fmt = (iso) => {
+  const normalizeIso = (iso) => {
     if (!iso) return '';
-    const d = new Date(iso);
-    const yy = d.getFullYear().toString().slice(-2);
-    const mm = String(d.getMonth()+1).padStart(2,'0');
-    const dd = String(d.getDate()).padStart(2,'0');
-    const hh = String(d.getHours()).padStart(2,'0');
-    const mi = String(d.getMinutes()).padStart(2,'0');
-    return `${yy}/${mm}/${dd} ${hh}:${mi}`;
+    const trimmed = String(iso).trim();
+    if (!trimmed) return '';
+    if (/([zZ]|[+-]\d{2}:?\d{2})$/.test(trimmed)) return trimmed;
+    if (/^\d{4}-\d{2}-\d{2} /.test(trimmed)) {
+      return `${trimmed.replace(' ', 'T')}Z`;
+    }
+    return `${trimmed}Z`;
+  };
+  const fmt = (iso) => {
+    const normalized = normalizeIso(iso);
+    if (!normalized) return '';
+    const d = new Date(normalized);
+    if (Number.isNaN(d.getTime())) return '';
+    return new Intl.DateTimeFormat('ko-KR', {
+      timeZone: 'Asia/Seoul',
+      year: '2-digit',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    }).format(d);
+  };
+  const timeMs = (iso) => {
+    const normalized = normalizeIso(iso);
+    if (!normalized) return 0;
+    const d = new Date(normalized);
+    return Number.isNaN(d.getTime()) ? 0 : d.getTime();
   };
   const escapeHtml = (s='') => s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const nearBottom = () => (els.msgs.scrollHeight - els.msgs.scrollTop - els.msgs.clientHeight) < 80;
@@ -223,7 +244,7 @@
     threadsCache = list.slice(); // ✅ 캐시 업데이트
     const cur = currentRoomId;
     els.threads.innerHTML = '';
-    list.sort((a,b)=> new Date(b.lastMessageAt||0) - new Date(a.lastMessageAt||0));
+    list.sort((a,b)=> timeMs(b.lastMessageAt||0) - timeMs(a.lastMessageAt||0));
     list.forEach(t=>{
       const n = document.createElement('div');
       n.className = 'th';

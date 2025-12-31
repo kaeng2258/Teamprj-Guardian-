@@ -610,6 +610,10 @@ export default function ClientProfileEditPage() {
       if (!res.ok) {
         throw new Error("푸시 구독 정보를 저장하지 못했습니다.");
       }
+      const saved = (await res.json()) as { id?: number };
+      if (saved?.id) {
+        window.localStorage.setItem(`guardian.pushSubscriptionId.${userId}`, String(saved.id));
+      }
       setPushEnabled(true);
       setPushStatus("idle");
       setPushMessage("모바일 푸시 알림이 활성화되었습니다.");
@@ -621,14 +625,74 @@ export default function ClientProfileEditPage() {
     }
   }, [API_BASE_URL, buildPushBlockReason, pushServiceEnabled, supportsPushApi, vapidPublicKey, user?.id]);
 
+  const handleDisablePush = useCallback(async () => {
+    if (!supportsPushApi) {
+      setPushMessage("브라우저가 푸시를 지원하지 않습니다.");
+      setPushStatus("error");
+      return;
+    }
+    if (!user) {
+      setPushMessage("로그인 정보가 없습니다. 다시 로그인 후 시도하세요.");
+      setPushStatus("error");
+      return;
+    }
+    setPushStatus("requesting");
+    setPushMessage("");
+    try {
+      const registration =
+        (await navigator.serviceWorker.getRegistration()) ?? (await navigator.serviceWorker.ready);
+      const subscription = await registration.pushManager.getSubscription();
+      const endpoint = subscription?.endpoint ?? "";
+      if (subscription) {
+        try {
+          await subscription.unsubscribe();
+        } catch {
+          // ignore client unsubscribe failures, still try to delete server record
+        }
+      }
+
+      if (endpoint) {
+        const listRes = await fetch(
+          `${API_BASE_URL}/api/users/${user.id}/push/subscriptions`,
+          {
+            credentials: "include",
+            headers: { ...authHeaders() },
+          },
+        );
+        if (listRes.ok) {
+          const list = (await listRes.json()) as Array<{ id?: number; endpoint?: string }>;
+          const match = list.find((item) => item.endpoint === endpoint);
+          if (match?.id) {
+            await fetch(
+              `${API_BASE_URL}/api/users/${user.id}/push/subscriptions/${match.id}`,
+              {
+                method: "DELETE",
+                credentials: "include",
+                headers: { ...authHeaders() },
+              },
+            );
+          }
+        }
+      }
+
+      setPushEnabled(false);
+      setPushStatus("idle");
+      setPushMessage("푸시 구독이 해제되었습니다.");
+    } catch (error: unknown) {
+      setPushStatus("error");
+      setPushMessage(
+        error instanceof Error ? error.message : "푸시 구독 해제에 실패했습니다.",
+      );
+    }
+  }, [API_BASE_URL, supportsPushApi, user]);
+
   const handleTogglePush = useCallback(async () => {
     if (pushEnabled) {
-      setPushEnabled(false);
-      setPushMessage("푸시 구독 해제를 지원하지 않습니다. 브라우저 설정에서 알림을 꺼주세요.");
+      await handleDisablePush();
       return;
     }
     await handleEnablePush();
-  }, [handleEnablePush, pushEnabled]);
+  }, [handleDisablePush, handleEnablePush, pushEnabled]);
 
   const toggleTheme = () => {
     applyTheme(theme === "dark" ? "light" : "dark");

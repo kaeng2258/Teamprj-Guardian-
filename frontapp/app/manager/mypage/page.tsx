@@ -4,6 +4,7 @@ import MyChatRooms from "@/components/MyChatRooms";
 import { InlineDrugSearch } from "@/components/InlineDrugSearch";
 import { DrugDetailModal } from "@/components/DrugDetailModal";
 import { resolveProfileImageUrl } from "@/lib/image";
+import { formatKstDateTime, getServerTimeMs } from "@/lib/date";
 import { useRouter } from "next/navigation";
 import { clearAuthCookie, fetchWithAuth, readAuth } from "../../../lib/auth";
 import { ChatClientPicker } from "@/components/ChatClientPicker";
@@ -734,8 +735,7 @@ export default function ManagerMyPage() {
         ...client,
         latestMedicationLogs: [...(client.latestMedicationLogs ?? [])].sort(
           (a, b) =>
-            new Date(b.logTimestamp).getTime() -
-            new Date(a.logTimestamp).getTime()
+            getServerTimeMs(b.logTimestamp) - getServerTimeMs(a.logTimestamp)
         ),
       }));
 
@@ -960,7 +960,7 @@ export default function ManagerMyPage() {
       (dashboard?.clients ?? [])
         .flatMap((c) =>
           (c.emergencyAlerts ?? []).map((a) => {
-            const time = a.alertTime ? a.alertTime.replace("T", " ").slice(0, 16) : "";
+            const time = a.alertTime ? formatKstDateTime(a.alertTime) : "";
             const name = c.clientName != null ? `${c.clientName}` : "이용자";
             return {
               alertId: a.alertId,
@@ -977,7 +977,7 @@ export default function ManagerMyPage() {
     let latest = 0;
     (dashboard?.clients ?? []).forEach((client) => {
       (client.emergencyAlerts ?? []).forEach((alert) => {
-        const time = alert.alertTime ? new Date(alert.alertTime).getTime() : 0;
+        const time = getServerTimeMs(alert.alertTime ?? undefined);
         if (!Number.isNaN(time)) {
           latest = Math.max(latest, time);
         }
@@ -1028,7 +1028,7 @@ export default function ManagerMyPage() {
   const latestChatAlertTime = useMemo(
     () =>
       chatAlerts.reduce((latest, alert) => {
-        const time = alert.lastMessageAt ? new Date(alert.lastMessageAt).getTime() : 0;
+        const time = getServerTimeMs(alert.lastMessageAt ?? undefined);
         if (Number.isNaN(time)) return latest;
         return Math.max(latest, time);
       }, 0),
@@ -1536,24 +1536,8 @@ export default function ManagerMyPage() {
     if (!value) {
       return "-";
     }
-    try {
-      const date = new Date(value);
-      if (Number.isNaN(date.getTime())) {
-        return "-";
-      }
-
-      return new Intl.DateTimeFormat("sv-SE", {
-        timeZone: "Asia/Seoul",
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false,
-      }).format(date);
-    } catch (e) {
-      return "-";
-    }
+    const formatted = formatKstDateTime(value);
+    return formatted || "-";
   };
 
   const formatWeekdayLabel = useCallback((value: string) => {
@@ -2588,8 +2572,7 @@ export default function ManagerMyPage() {
             ]
               .sort(
                 (a, b) =>
-                  new Date(b.logTimestamp).getTime() -
-                  new Date(a.logTimestamp).getTime()
+                  getServerTimeMs(b.logTimestamp) - getServerTimeMs(a.logTimestamp)
               )
               .slice(0, 5);
             return {
@@ -3414,7 +3397,7 @@ export default function ManagerMyPage() {
                 {[...client.latestMedicationLogs]
                   .sort(
                     (a, b) =>
-                      new Date(b.logTimestamp).getTime() - new Date(a.logTimestamp).getTime(),
+                      getServerTimeMs(b.logTimestamp) - getServerTimeMs(a.logTimestamp),
                   )
                   .slice(0, 8)
                   .map((log) => (

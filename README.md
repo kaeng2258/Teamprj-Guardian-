@@ -137,8 +137,8 @@ npm run build # 배포 빌드
 
 ## 🛠️ 주요 트러블슈팅
 <details>
-  <summary> 황정성 </summary> 
-  
+  <summary> 황정성 </summary>
+
   ### 1. 로컬/배포 환경의 쿠키 정책 불일치 (Cookie & Session)
 - **Problem**: 로컬 개발(HTTP)에서는 로그인이 잘 되는데, 배포 환경(HTTPS)에서는 세션이 풀리는 현상 발생.
 - **Cause**: 보안 강화(Chrome 80+)로 `SameSite=None` 설정 시 `Secure` 속성이 필수지만, 로컬 HTTP 환경에서는 `Secure` 쿠키가 저장되지 않음.
@@ -216,7 +216,7 @@ npm run build # 배포 빌드
 </details>
 
 <details>
-  <summary> 서수한 </summary> 
+  <summary> 서수한 </summary>
 </details>
 
 
@@ -278,7 +278,19 @@ npm run build # 배포 빌드
 
 ## 🎥 프로젝트 시연 영상
 
-- https://youtu.be/xxxxxx (아직없음)
+<p align="center">
+  <a href="https://youtu.be/BEq9bcXczAU" target="_blank">
+    <img
+      src="https://img.youtube.com/vi/BEq9bcXczAU/0.jpg"
+      alt="Guardian 프로젝트 시연 영상"
+      width="720"
+    />
+  </a>
+</p>
+
+<p align="center">
+  ▶ 클릭하면 전체 시연 영상을 볼 수 있습니다
+</p>
 
 ---
 

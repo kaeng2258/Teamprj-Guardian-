@@ -263,7 +263,7 @@ npm run build # 배포 빌드
         <img src="https://github.com/user-attachments/assets/83c2a379-5c7e-4bf5-9d8c-ac5c9d5a9e3e" style="display: block; margin: 0 auto;" width="150" height="190" /></td>
     </tr>
     <tr style="text-align: center;">
-      <td style="text-align: center;">깃 주소</td>
+      <td style="text-align: center;"><a href="https://github.com/kaeng2258" target="_blank">@kaeng2258</a></td>
       <td style="text-align: center;"><a href="https://github.com/HwangJeongSeong" target="_blank">@HwangJeongSeong</a></td>
     </tr>
   </tbody>
